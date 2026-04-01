@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.UserMapper">
+    <select id="findByUsername" parameterType="String" resultType="com.tc.traumchatroom.entity.User">
+        select  * from user where username = #{username}
+    </select>
+    
+    <select id="findAll" resultType="com.tc.traumchatroom.entity.User">
+        select * from user
+    </select>
+    <select id="findByName" parameterType="String" resultType="com.tc.traumchatroom.entity.User">
+        select * from user where name = #{name}
+    </select>
+    <insert id="addUser" parameterType="com.tc.traumchatroom.entity.User">
+        insert into user(username,name,password,role) values(#{username},#{name},#{password},#{role})
+    </insert>
+    <update id="updateUser" parameterType="com.tc.traumchatroom.entity.User">
+        update user set username = #{username},name = #{name},password = #{password},role = #{role} where id = #{id}
+    </update>
+    <delete id="deleteUser" parameterType="Integer">
+        delete from user where id = #{id}
+    </delete>
+</mapper>

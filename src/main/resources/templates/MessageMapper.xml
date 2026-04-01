@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.MessageMapper">
+
+    <resultMap id="MessageResultMap" type="com.tc.traumchatroom.entity.Message">
+        <id column="id" property="id"/>
+        <result column="sender_id" property="senderId"/>
+        <result column="sender" property="sender"/>
+        <result column="receiver" property="receiver"/>
+        <result column="message" property="message"/>
+        <result column="send_time" property="sendTime"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="MessageResultMap">
+        SELECT * FROM messages
+    </select>
+
+    <select id="findBySender" resultMap="MessageResultMap">
+        SELECT * FROM messages WHERE sender = #{sender}
+    </select>
+
+    <select id="findByReceiver" resultMap="MessageResultMap">
+        SELECT * FROM messages WHERE receiver = #{receiver}
+    </select>
+
+    <select id="findBySenderAndReceiver" resultMap="MessageResultMap">
+        SELECT * FROM messages
+        WHERE (sender = #{sender} AND receiver = #{receiver})
+           OR (sender = #{receiver} AND receiver = #{sender})
+    </select>
+
+    <select id="findByTime" resultMap="MessageResultMap">
+        SELECT * FROM messages WHERE send_time >= #{time}
+    </select>
+
+    <select id="findRecentThreeDays" resultMap="MessageResultMap">
+        SELECT * FROM messages
+        WHERE send_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+        ORDER BY send_time DESC
+    </select>
+
+    <insert id="addMessage" parameterType="com.tc.traumchatroom.entity.Message">
+        INSERT INTO messages (sender_id, sender, receiver, message, send_time)
+        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime})
+    </insert>
+
+    <delete id="deleteMessage" parameterType="java.lang.Integer">
+        DELETE FROM messages WHERE id = #{id}
+    </delete>
+</mapper>
