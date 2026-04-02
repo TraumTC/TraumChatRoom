@@ -4,7 +4,10 @@ import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
-import jdk.jfr.Registered;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -17,13 +20,13 @@ public class UserServiceImpl implements UserService {
     private PasswordEncoder passwordEncoder;
     @Override
     public void register(String username, String name, String password) throws Exception {
-        User user = new User();
-        user = this.userMapper.findByUsername(username);
+        User user = this.userMapper.findByUsername(username);
         if (user != null){
-            throw new Exception("用户"+ username +"已存在");
+            throw new Exception("用户:"+ username +" 已存在!");
         }else if (this.userMapper.findByName(name) != null){
-            throw new Exception("昵称"+ name +"已存在");
+            throw new Exception("昵称:"+ name +" 已存在!");
         }else {
+            user = new User();
             user.setUsername(username);
             user.setName(name);
             user.setPassword(this.passwordEncoder.encode(password));
@@ -32,5 +35,17 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
+    @Override
+    public User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UserDetails) {
+            String username = ((UserDetails) auth.getPrincipal()).getUsername();
+            User user = userMapper.findByUsername(username);
+            if (user != null) {
+                user.setPassword(null);
+                return user;
+            }
+        }
+        return null;
+    }
 }
