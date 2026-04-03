@@ -45,6 +45,7 @@ public class SecurityConfig {
         return request -> {
             CorsConfiguration configuration = new CorsConfiguration();
             configuration.setAllowedOrigins(Arrays.asList("*"));
+            configuration.setAllowCredentials(true);
             configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
             configuration.setAllowedHeaders(Arrays.asList("*"));
             return configuration;
@@ -58,7 +59,7 @@ public class SecurityConfig {
 
 
                 .authorizeHttpRequests( auth -> auth
-                        .requestMatchers("/register","/login","/error","/ChatRoom").permitAll()
+                        .requestMatchers("/register","/login","/error").permitAll()
                         .requestMatchers("/ChatRoom/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

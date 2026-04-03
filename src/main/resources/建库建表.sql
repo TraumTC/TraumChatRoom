@@ -1,6 +1,3 @@
-create database ChatDB;
-use ChatDB;
-
 create table user(
                      id int primary key auto_increment,
                      username varchar (10) not null unique,
