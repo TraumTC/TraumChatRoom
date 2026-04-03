@@ -3,6 +3,7 @@ package com.tc.traumchatroom.service.Impl;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.UserService;
+import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
 
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl implements UserService {
     @Resource
     private UserMapper userMapper;
+    @Resource
+    private UserUtil userUtil;
 
     @Resource
     private PasswordEncoder passwordEncoder;
@@ -37,15 +40,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof UserDetails) {
-            String username = ((UserDetails) auth.getPrincipal()).getUsername();
-            User user = userMapper.findByUsername(username);
-            if (user != null) {
-                user.setPassword(null);
-                return user;
-            }
+        User user = userUtil.getCurrentUser();
+        if (user == null){
+            return null;
         }
-        return null;
+        return user;
     }
+
 }

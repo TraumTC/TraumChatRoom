@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>TraumChatRoom</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        #msgArea{border:1px solid #ccc;height:400px;padding:10px;overflow-y: auto}
+    </style>
 </head>
 <body>
     <h1>这是聊天室页面</h1>
@@ -11,5 +16,64 @@
         <input type ="submit" value="退出登录">
     </form>
 </div>
+    <h3>简易聊天室（已登录：<span id="user"></span>）</h3>
+    <div id="msgArea"></div>
+    <br>
+    <input id="content" placeholder="请输入消息">
+    <button onclick="send()">发送</button>
 </body>
+
+<script>
+    function formatTime(timeStr) {
+        if (!timeStr) return '';
+
+        const date = new Date(timeStr);
+        if (isNaN(date.getTime())) return timeStr; // 如果解析失败，返回原值
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+    fetch('/api/current-user')
+        .then(res => res.json())
+        .then(user => {
+            document.getElementById('user').innerText =user.name;
+        })
+
+    const sock = new SockJS('/ws', null, {
+        withCredentials: true
+    });
+    const stomp = Stomp.over(sock);
+
+
+
+   stomp.connect({}, function () {
+       stomp.subscribe('/topic/messages', function (res) {
+           const msg=JSON.parse(res.body);
+           const html=`[${formatTime(msg.sendTime)}] <b>${msg.sender} </b>: ${msg.message}<br>`;
+           document.getElementById('msgArea').innerHTML += html;
+       });
+       fetch('/history').then(r => r.json()).then(
+           list => {
+               if (!list || list.length === 0) {
+                   document.getElementById('msgArea').innerHTML = "<div style='color:#999;text-align:center;'>暂无历史记录</div>";
+                   return;
+               }
+               list.forEach(item => {
+               const html=`[${formatTime(item.sendTime)}] <b>${item.sender}</b> : ${item.message}<br>`;
+               document.getElementById('msgArea').innerHTML += html;
+           })}
+       )
+   });
+    function send() {
+        const content = document.getElementById('content').value;
+        stomp.send('/app/ChatRoom', {}, content);
+        document.getElementById('content').value = '';
+    }
+</script>
 </html>

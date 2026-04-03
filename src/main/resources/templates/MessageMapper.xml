@@ -12,39 +12,39 @@
     </resultMap>
 
     <select id="findAll" resultMap="MessageResultMap">
-        SELECT * FROM messages
+        SELECT * FROM message
     </select>
 
     <select id="findBySender" resultMap="MessageResultMap">
-        SELECT * FROM messages WHERE sender = #{sender}
+        SELECT * FROM message WHERE sender = #{sender}
     </select>
 
     <select id="findByReceiver" resultMap="MessageResultMap">
-        SELECT * FROM messages WHERE receiver = #{receiver}
+        SELECT * FROM message WHERE receiver = #{receiver}
     </select>
 
     <select id="findBySenderAndReceiver" resultMap="MessageResultMap">
-        SELECT * FROM messages
+        SELECT * FROM message
         WHERE (sender = #{sender} AND receiver = #{receiver})
            OR (sender = #{receiver} AND receiver = #{sender})
     </select>
 
     <select id="findByTime" resultMap="MessageResultMap">
-        SELECT * FROM messages WHERE send_time >= #{time}
+        SELECT * FROM message WHERE send_time >= #{time}
     </select>
 
-    <select id="findRecentThreeDays" resultMap="MessageResultMap">
-        SELECT * FROM messages
+    <select id="findByThreeDays" resultMap="MessageResultMap">
+        SELECT * FROM message
         WHERE send_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
-        ORDER BY send_time DESC
+        ORDER BY send_time ASC
     </select>
 
     <insert id="addMessage" parameterType="com.tc.traumchatroom.entity.Message">
-        INSERT INTO messages (sender_id, sender, receiver, message, send_time)
+        INSERT INTO message (sender_id, sender, receiver, message, send_time)
         VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime})
     </insert>
 
     <delete id="deleteMessage" parameterType="java.lang.Integer">
-        DELETE FROM messages WHERE id = #{id}
+        DELETE FROM message WHERE id = #{id}
     </delete>
 </mapper>
