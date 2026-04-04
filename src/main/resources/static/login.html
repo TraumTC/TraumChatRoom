@@ -16,7 +16,11 @@
                 欢迎回来，请登录您的账户
             </p>
         </div>
-
+        <div id="errorMessage" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+        </div>
+        <div id="successMessage" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
+        </div>
+        
         <form class="mt-8 space-y-6" action="/login" method="post">
             <div class="rounded-md shadow-sm space-y-4">
                 <div>
@@ -64,5 +68,57 @@
             </a>
         </div>
     </div>
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorParam = urlParams.get('error');
+        const logoutParam = urlParams.get('logout');
+        const successParam = urlParams.get('success');
+
+        const errorDiv = document.getElementById('errorMessage');
+        const successDiv = document.getElementById('successMessage');
+        const usernameInput = document.getElementById('username');
+
+        // 显示错误信息
+        if (errorParam !== null) {
+            let errorMsg = '登录失败：用户名或密码错误';
+
+            if (errorParam === 'invalidCredentials') {
+                errorMsg = '用户名或密码错误，请重新输入';
+            } else if (errorParam === 'userNotFound') {
+                errorMsg = '用户不存在，请先注册';
+            } else if (errorParam === 'credentialsExpired') {
+                errorMsg = '密码已过期，请重新设置密码';
+            }
+            errorDiv.textContent = errorMsg;
+            errorDiv.classList.remove('hidden');
+
+            // 保留用户名（从 session 或 localStorage）
+            const savedUsername = localStorage.getItem('lastUsername');
+            if (savedUsername) {
+                usernameInput.value = savedUsername;
+            }
+        }
+
+        // 显示退出成功提示
+        if (logoutParam !== null) {
+            successDiv.textContent = '您已成功退出登录';
+            successDiv.classList.remove('hidden');
+        }
+
+        // 显示注册成功提示
+        if (successParam === 'registered') {
+            successDiv.textContent = '注册成功，请登录';
+            successDiv.classList.remove('hidden');
+        }
+
+        // 保存用户名到 localStorage
+        usernameInput.addEventListener('input', function() {
+            if (this.value.trim()) {
+                localStorage.setItem('lastUsername', this.value.trim());
+            }
+        });
+    });
+    </script>
 </body>
 </html>

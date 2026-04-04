@@ -1,8 +1,6 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.entity.User;
-import com.tc.traumchatroom.mapper.MessageMapper;
-import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.Impl.UserDetailsServiceImpl;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
@@ -30,7 +28,7 @@ public class AuthController {
         try {
             userService.register(username,name,password);
             redirectAttributes.addFlashAttribute("successMessage","注册成功");
-            return "redirect:/login";
+            return "redirect:/login?success=registered";
         }catch (Exception e){
             redirectAttributes.addFlashAttribute("errorMessage",e.getMessage());
             return "redirect:/register";
@@ -39,6 +37,9 @@ public class AuthController {
     }
     @GetMapping("/login")
     public String login() {
+        if (userService.getCurrentUser() != null) {
+            return "redirect:/ChatRoom";
+        }
         return "login";
     }
     @GetMapping("/ChatRoom/admin")

@@ -31,31 +31,49 @@
             </div>
         </div>
     </nav>
+<!--    在线情况-->
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <div class="p-4 border-b bg-gray-50">
-                <h2 class="text-lg font-semibold text-gray-900">聊天室</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- 在线用户面板 -->
+            <div class="lg:col-span-3">
+                <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                    <div class="p-3 border-b bg-gray-50">
+                        <h2 class="text-base font-semibold text-gray-900">在线用户 (<span id="onlineCount">0</span>)</h2>
+                    </div>
+                    <div id="onlineUsersList" class="overflow-y-auto p-2 bg-white" style="max-height: 280px;">
+                        <div class="text-center text-gray-400 py-6 text-sm">暂无在线用户</div>
+                    </div>
+                </div>
             </div>
 
-            <div id="msgArea" class="h-96 overflow-y-auto p-4 space-y-2 bg-white">
-            </div>
+            <!-- 聊天区域 -->
+            <div class="lg:col-span-9">
+                <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                    <div class="p-3 border-b bg-gray-50">
+                        <h2 class="text-base font-semibold text-gray-900">聊天室</h2>
+                    </div>
 
-            <div class="p-4 border-t bg-gray-50">
-                <div class="flex space-x-3">
-                    <input
-                        id="content"
-                        type="text"
-                        placeholder="输入消息..."
-                        class="flex-1 appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        onkeypress="if(event.keyCode===13) send()"
-                    >
-                    <button
-                        onclick="send()"
-                        class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                    >
-                        发送
-                    </button>
+                    <div id="msgArea" class="overflow-y-auto p-4 space-y-2 bg-white" style="height: calc(100vh - 280px); min-height: 400px; max-height: 600px;">
+                    </div>
+
+                    <div class="p-4 border-t bg-gray-50">
+                        <div class="flex space-x-3">
+                            <input
+                                    id="content"
+                                    type="text"
+                                    placeholder="输入消息..."
+                                    class="flex-1 appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    onkeypress="if(event.keyCode===13) send()"
+                            >
+                            <button
+                                    onclick="send()"
+                                    class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                                发送
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -94,6 +112,10 @@
                 const msg = JSON.parse(res.body);
                 appendMessage(msg.sendTime, msg.sender, msg.message);
             });
+            stomp.subscribe('/topic/onlineUsers', function (res) {
+                const onlineUsers = JSON.parse(res.body);
+                updateOnlineUsersList(onlineUsers);
+            });
 
             fetch('/history').then(r => r.json()).then(list => {
                 if (!list || list.length === 0) {
@@ -104,18 +126,54 @@
                     appendMessage(item.sendTime, item.sender, item.message);
                 });
             });
+
+            fetch('/api/online-users').then(r => r.json()).then(data => {
+                updateOnlineUsersList(data.onlineUsers);
+            });
         });
 
+        function updateOnlineUsersList(users) {
+            const onlineUsersList = document.getElementById('onlineUsersList');
+            const onlineCount = document.getElementById('onlineCount');
+            if (!users || users.length === 0) {
+                onlineUsersList.innerHTML = "<div class='text-center text-gray-400 py-6 text-sm'>暂无在线用户</div>";
+                onlineCount.innerText = '0';
+                return;
+            }
+            onlineCount.innerText = users.length;
+            let userListHtml = '';
+            users.forEach(username => {
+                userListHtml += `
+                    <div class="py-1.5 border-b border-gray-100 last:border-0 flex items-center text-sm">
+                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        <span class="text-gray-700">${username}</span>
+                    </div>
+                `;
+            });
+            onlineUsersList.innerHTML = userListHtml;
+        }
         function appendMessage(timeStr, sender, message) {
             const time = formatTime(timeStr);
-            const html = `
-                <div class="message-item py-2 border-b border-gray-100 last:border-0">
-                    <span class="text-xs text-gray-500">[${time}]</span>
-                    <span class="font-semibold text-blue-600 ml-2">${sender}</span>
-                    <span class="text-gray-700 ml-2">${message}</span>
-                </div>
-            `;
-            document.getElementById('msgArea').innerHTML += html;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message-item py-2 border-b border-gray-100 last:border-0';
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'text-xs text-gray-500';
+            timeSpan.textContent = `[${time}]`;
+
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'font-semibold text-blue-600 ml-2';
+            senderSpan.textContent = sender;
+
+            const messageSpan = document.createElement('span');
+            messageSpan.className = 'text-gray-700 ml-2';
+            messageSpan.innerHTML = message;
+
+            msgDiv.appendChild(timeSpan);
+            msgDiv.appendChild(senderSpan);
+            msgDiv.appendChild(messageSpan);
+
+            document.getElementById('msgArea').appendChild(msgDiv);
             document.getElementById('msgArea').scrollTop = document.getElementById('msgArea').scrollHeight;
         }
 

@@ -1,8 +1,10 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.entity.Message;
-import com.tc.traumchatroom.mapper.MessageMapper;
+import com.tc.traumchatroom.entity.OnlineUserInfo;
 import com.tc.traumchatroom.service.ChatService;
+import com.tc.traumchatroom.util.OnlineUserUtil;
+import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Controller
 
@@ -20,6 +23,10 @@ public class WebSocketChatController {
 
     @Resource
     private ChatService chatService;
+    @Resource
+    private OnlineUserUtil onlineUserUtil;
+    @Resource
+    private UserUtil userUtil;
 
     @MessageMapping("/ChatRoom")
     @SendTo("/topic/messages")
@@ -37,5 +44,10 @@ public class WebSocketChatController {
         }
         return messages;
     }
-
+    @GetMapping("/api/online-users")
+    @ResponseBody
+    public OnlineUserInfo getOnlineUsers() {
+        Set<String> users = onlineUserUtil.getOnlineUsers();
+        return new OnlineUserInfo(users.size(), users);
+    }
 }

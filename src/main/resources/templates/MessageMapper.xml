@@ -36,6 +36,7 @@
     <select id="findByThreeDays" resultMap="MessageResultMap">
         SELECT * FROM message
         WHERE send_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND receiver =""
         ORDER BY send_time ASC
     </select>
 

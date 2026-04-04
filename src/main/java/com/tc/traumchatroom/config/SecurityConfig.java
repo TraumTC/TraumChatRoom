@@ -71,8 +71,19 @@ public class SecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-                        .logoutSuccessUrl("/login")
+                        .logoutSuccessUrl("/login?logout")
+                        .invalidateHttpSession(true)
+                        .deleteCookies("JSESSIONID")
                         .permitAll()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            if (request.getRequestURI().equals("/login")) {
+                                response.sendRedirect("/ChatRoom");
+                            } else {
+                                response.sendRedirect("/login");
+                            }
+                        })
                 );
         return http.build();
     }

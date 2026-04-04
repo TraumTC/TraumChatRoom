@@ -4,12 +4,10 @@ import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.service.ChatService;
-import com.tc.traumchatroom.service.UserService;
+import com.tc.traumchatroom.util.HtmlEscapeUtil;
 import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,6 +19,8 @@ public class ChatServiceImpl implements ChatService {
     @Resource
     private UserUtil userUtil;
     @Resource
+    private HtmlEscapeUtil htmlEscapeUtil;
+    @Resource
     private MessageMapper messageMapper;
     @Override
     public Message sendChatMessage(String content,SimpMessageHeaderAccessor headerAccessor) {
@@ -29,6 +29,7 @@ public class ChatServiceImpl implements ChatService {
         if (currentUser == null) {
             throw new RuntimeException("未找到当前登录用户，请重新登录");
         }
+        String escapedContent = htmlEscapeUtil.escapeHtmlAndLinkify(content);
         Message message = new Message(null,
                                         currentUser.getId(),
                                         currentUser.getName(),

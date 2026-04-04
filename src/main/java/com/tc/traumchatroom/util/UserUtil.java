@@ -2,21 +2,13 @@ package com.tc.traumchatroom.util;
 
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.UserMapper;
-import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.util.Map;
 
 @Component
 public class UserUtil {
