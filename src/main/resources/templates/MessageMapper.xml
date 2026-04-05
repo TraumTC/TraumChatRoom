@@ -40,6 +40,17 @@
         ORDER BY send_time ASC
     </select>
 
+    <select id="findByPrivateThreeDays" resultMap="MessageResultMap">
+        SELECT * FROM message
+        WHERE send_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+          AND receiver != ''
+          AND (
+            (sender = #{name1} AND receiver = (SELECT username FROM user WHERE name = #{name2}))
+           OR (sender = #{name2} AND receiver = (SELECT username FROM user WHERE name = #{name1}))
+            )
+        ORDER BY send_time ASC
+    </select>
+
     <insert id="addMessage" parameterType="com.tc.traumchatroom.entity.Message">
         INSERT INTO message (sender_id, sender, receiver, message, send_time)
         VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime})

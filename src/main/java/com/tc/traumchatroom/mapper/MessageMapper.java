@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.mapper;
 
 import com.tc.traumchatroom.entity.Message;
+import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,4 +15,5 @@ public interface MessageMapper {
     public int addMessage(Message message);
     public int deleteMessage(Integer id);
     public List<Message> findByThreeDays();
+    public List<Message> findByPrivateThreeDays(@Param("name1") String name1, @Param("name2") String name2);
 }

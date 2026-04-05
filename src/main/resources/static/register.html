@@ -26,7 +26,7 @@
             </div>
         </div>
 
-        <form class="mt-8 space-y-6" th:action="@{/register}" method="post">
+        <form class="mt-8 space-y-6" th:action="@{/register}" method="post" onsubmit="return validateForm()">
             <div class="space-y-4">
                 <div>
                     <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
@@ -38,9 +38,15 @@
                         name="username"
                         required
                         autofocus
+                        maxlength="20"
+                        minlength="1"
                         class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="请设置用户名"
+                        placeholder="请设置用户名（最多18个字符）"
+                        oninput="updateUsernameCount()"
                     >
+                    <p class="mt-1 text-xs text-gray-500">
+                        用户名长度：<span id="usernameCount">0</span>/18 个字符
+                    </p>
                 </div>
 
                 <div>
@@ -52,9 +58,15 @@
                         id="name"
                         name="name"
                         required
+                        maxlength="20"
+                        minlength="1"
                         class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="请设置您的昵称"
+                        placeholder="请设置您的昵称（最多18个字符）"
+                        oninput="updateNameCount()"
                     >
+                    <p class="mt-1 text-xs text-gray-500">
+                        昵称长度：<span id="nameCount">0</span>/18 个字符
+                    </p>
                 </div>
 
                 <div>
@@ -88,5 +100,51 @@
             </a>
         </div>
     </div>
+    <script>
+        function updateUsernameCount() {
+            const username = document.getElementById('username');
+            const count = document.getElementById('usernameCount');
+            count.textContent = username.value.length;
+
+            if (username.value.length >= 20) {
+                count.classList.add('text-red-600', 'font-semibold');
+                count.classList.remove('text-gray-500');
+            } else {
+                count.classList.remove('text-red-600', 'font-semibold');
+                count.classList.add('text-gray-500');
+            }
+        }
+
+        function updateNameCount() {
+            const name = document.getElementById('name');
+            const count = document.getElementById('nameCount');
+            count.textContent = name.value.length;
+
+            if (name.value.length >= 20) {
+                count.classList.add('text-red-600', 'font-semibold');
+                count.classList.remove('text-gray-500');
+            } else {
+                count.classList.remove('text-red-600', 'font-semibold');
+                count.classList.add('text-gray-500');
+            }
+        }
+
+        function validateForm() {
+            const username = document.getElementById('username');
+            const name = document.getElementById('name');
+
+            if (username.value.length > 20) {
+                alert('用户名长度不能超过20个字符！');
+                return false;
+            }
+
+            if (name.value.length > 20) {
+                alert('昵称长度不能超过20个字符！');
+                return false;
+            }
+
+            return true;
+        }
+    </script>
 </body>
 </html>

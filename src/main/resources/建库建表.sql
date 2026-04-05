@@ -1,6 +1,6 @@
 create table user(
                      id int primary key auto_increment,
-                     username varchar (10) not null unique,
+                     username varchar (20) not null unique,
                      name varchar (20) not null unique,
                      password varchar (120) not null,
                      role varchar(20)not null default 'ROLE_USER');
