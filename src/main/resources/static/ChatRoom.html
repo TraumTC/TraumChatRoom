@@ -18,15 +18,21 @@
                 <div class="flex items-center space-x-4">
                     <span class="text-sm text-gray-600">
                         欢迎，<span id="user" class="font-medium text-gray-900"></span>
+                        <span id="guestBadge" class="hidden ml-2 px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">游客</span>
                     </span>
-                    <form action="/logout" method="post">
-                        <button
-                            type="submit"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-                        >
-                            退出登录
-                        </button>
-                    </form>
+                    <div id="authButtons" class="flex items-center space-x-2">
+                        <a href="/login" id="loginBtn" class="hidden inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                            登录
+                        </a>
+                        <form action="/logout" method="post" id="logoutForm" class="hidden">
+                            <button
+                                type="submit"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                            >
+                                退出登录
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -34,45 +40,47 @@
 <!--    在线情况-->
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- 在线用户面板 -->
-            <div class="lg:col-span-3">
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-3 border-b bg-gray-50">
-                        <h2 class="text-base font-semibold text-gray-900">在线用户 (<span id="onlineCount">0</span>)</h2>
-                    </div>
-                    <div id="onlineUsersList" class="overflow-y-auto p-2 bg-white" style="max-height: 280px;">
-                        <div class="text-center text-gray-400 py-6 text-sm">暂无在线用户</div>
-                    </div>
+        <div class="relative">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
+                    <h2 class="text-base font-semibold text-gray-900">
+                        聊天室
+                        <span class="relative inline-block">
+                            <span id="onlineCountBtn" onclick="toggleOnlineUsers()"
+                                  class="inline-block ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full cursor-pointer hover:bg-blue-200 transition-colors select-none">
+                                0人在线
+                            </span>
+                            <div id="onlineUsersPopup" class="hidden absolute top-8 left-0 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                <div class="p-3 border-b bg-gray-50 rounded-t-lg">
+                                    <h3 class="text-sm font-semibold text-gray-900">在线用户</h3>
+                                </div>
+                                <div id="onlineUsersList" class="overflow-y-auto p-2 bg-white rounded-b-lg" style="max-height: 300px;">
+                                    <div class="text-center text-gray-400 py-6 text-sm">暂无在线用户</div>
+                                </div>
+                            </div>
+                        </span>
+                    </h2>
                 </div>
-            </div>
 
-            <!-- 聊天区域 -->
-            <div class="lg:col-span-9">
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-3 border-b bg-gray-50">
-                        <h2 class="text-base font-semibold text-gray-900">聊天室</h2>
-                    </div>
+                <div id="msgArea" class="overflow-y-auto p-4 space-y-2 bg-white" style="height: calc(100vh - 280px); min-height: 400px; max-height: 600px;">
+                </div>
 
-                    <div id="msgArea" class="overflow-y-auto p-4 space-y-2 bg-white" style="height: calc(100vh - 280px); min-height: 400px; max-height: 600px;">
-                    </div>
-
-                    <div class="p-4 border-t bg-gray-50">
-                        <div class="flex space-x-3">
-                            <input
-                                    id="content"
-                                    type="text"
-                                    placeholder="输入消息..."
-                                    class="flex-1 appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                    onkeypress="if(event.keyCode===13) send()"
-                            >
-                            <button
-                                    onclick="send()"
-                                    class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                            >
-                                发送
-                            </button>
-                        </div>
+                <div class="p-4 border-t bg-gray-50">
+                    <div class="flex space-x-3">
+                        <textarea
+                                id="content"
+                                placeholder="输入消息..."
+                                rows="1"
+                                class="flex-1 appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm resize-none overflow-hidden"                                style="min-height: 40px; max-height: 120px;"
+                                oninput="autoResize(this)"
+                                onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        <button
+                                onclick="send()"
+                                class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors self-end"
+                        >
+                            发送
+                        </button>
                     </div>
                 </div>
             </div>
@@ -80,6 +88,9 @@
     </main>
 
     <script>
+        let isGuest = false;
+        let guestUsername = '';
+
         function formatTime(timeStr) {
             if (!timeStr) return '';
 
@@ -99,63 +110,125 @@
         fetch('/api/current-user')
             .then(res => res.json())
             .then(user => {
-                document.getElementById('user').innerText = user.name;
+                if (user) {
+                    document.getElementById('user').innerText = user.name;
+
+                    if (user.role === 'ROLE_GUEST' || user.name.startsWith('游客_')) {
+                        isGuest = true;
+                        guestUsername = user.username;
+                        document.getElementById('guestBadge').classList.remove('hidden');
+                        document.getElementById('loginBtn').classList.remove('hidden');
+                        document.getElementById('logoutForm').classList.add('hidden');
+                    } else {
+                        document.getElementById('guestBadge').classList.add('hidden');
+                        document.getElementById('loginBtn').classList.add('hidden');
+                        document.getElementById('logoutForm').classList.remove('hidden');
+                    }
+                }
             })
 
         const sock = new SockJS('/ws', null, {
             withCredentials: true
         });
         const stomp = Stomp.over(sock);
+        stomp.heartbeat.outgoing = 10000;
+        stomp.heartbeat.incoming = 10000;
 
-        stomp.connect({}, function () {
-            stomp.subscribe('/topic/messages', function (res) {
-                const msg = JSON.parse(res.body);
-                appendMessage(msg.sendTime, msg.sender, msg.message);
-            });
-            stomp.subscribe('/topic/onlineUsers', function (res) {
-                const onlineUsers = JSON.parse(res.body);
-                updateOnlineUsersList(onlineUsers);
-            });
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
 
-            fetch('/history').then(r => r.json()).then(list => {
-                if (!list || list.length === 0) {
-                    document.getElementById('msgArea').innerHTML = "<div class='text-center text-gray-400 py-8'>暂无历史记录</div>";
-                    return;
-                }
-                list.forEach(item => {
-                    appendMessage(item.sendTime, item.sender, item.message);
+        function connectWebSocket() {
+            stomp.connect({}, function () {
+                reconnectAttempts = 0;
+
+                stomp.subscribe('/topic/messages', function (res) {
+                    const msg = JSON.parse(res.body);
+                    appendMessage(msg.sendTime, msg.sender, msg.message);
                 });
-            });
+                stomp.subscribe('/topic/onlineUsers', function (res) {
+                    const onlineUsers = JSON.parse(res.body);
+                    updateOnlineUsersList(onlineUsers);
+                });
 
-            fetch('/api/online-users').then(r => r.json()).then(data => {
-                updateOnlineUsersList(data.onlineUsers);
+                fetch('/history').then(r => r.json()).then(list => {
+                    if (!list || list.length === 0) {
+                        const msgArea = document.getElementById('msgArea');
+                        msgArea.innerHTML = '';
+                        const emptyDiv = document.createElement('div');
+                        emptyDiv.className = 'text-center text-gray-400 py-8';
+                        emptyDiv.textContent = '暂无历史记录';
+                        msgArea.appendChild(emptyDiv);
+                        return;
+                    }
+                    list.forEach(item => {
+                        appendMessage(item.sendTime, item.sender, item.message);
+                    });
+                });
+
+                fetch('/api/online-users').then(r => r.json()).then(data => {
+                    updateOnlineUsersList(data.onlineUsers);
+                });
+            }, function(error) {
+                console.error('WebSocket连接失败:', error);
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    console.log(`尝试重新连接 (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                    setTimeout(connectWebSocket, 3000);
+                } else {
+                    alert('WebSocket连接失败，请刷新页面重试');
+                }
             });
+        }
+
+        connectWebSocket();
+        function toggleOnlineUsers() {
+            const popup = document.getElementById('onlineUsersPopup');
+            popup.classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function(event) {
+            const popup = document.getElementById('onlineUsersPopup');
+            const btn = document.getElementById('onlineCountBtn');
+
+            if (!popup.contains(event.target) && !btn.contains(event.target)) {
+                popup.classList.add('hidden');
+            }
         });
 
         function updateOnlineUsersList(users) {
             const onlineUsersList = document.getElementById('onlineUsersList');
-            const onlineCount = document.getElementById('onlineCount');
+            const onlineCountBtn = document.getElementById('onlineCountBtn');
+            const count = users && users.length ? users.length : 0;
+            onlineCountBtn.textContent = count + '人在线';
+            onlineUsersList.innerHTML = '';
             if (!users || users.length === 0) {
-                onlineUsersList.innerHTML = "<div class='text-center text-gray-400 py-6 text-sm'>暂无在线用户</div>";
-                onlineCount.innerText = '0';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'text-center text-gray-400 py-6 text-sm';
+                emptyDiv.textContent = '暂无在线用户';
+                onlineUsersList.appendChild(emptyDiv);
                 return;
             }
-            onlineCount.innerText = users.length;
-            let userListHtml = '';
             users.forEach(username => {
-                userListHtml += `
-                    <div class="py-1.5 border-b border-gray-100 last:border-0 flex items-center text-sm">
-                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        <span class="text-gray-700">${username}</span>
-                    </div>
-                `;
+                const userDiv = document.createElement('div');
+                userDiv.className = 'py-2 px-3 border-b border-gray-100 last:border-0 flex items-center hover:bg-gray-50 transition-colors';
+
+                const dotDiv = document.createElement('div');
+                dotDiv.className = 'w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0';
+                userDiv.appendChild(dotDiv);
+
+                const usernameSpan = document.createElement('span');
+                usernameSpan.className = 'text-gray-700 text-sm truncate';
+                usernameSpan.textContent = username;
+                userDiv.appendChild(usernameSpan);
+                onlineUsersList.appendChild(userDiv);
             });
-            onlineUsersList.innerHTML = userListHtml;
         }
+
+        // 对信息进行处理，防止xss攻击
         function appendMessage(timeStr, sender, message) {
             const time = formatTime(timeStr);
             const msgDiv = document.createElement('div');
-            msgDiv.className = 'message-item py-2 border-b border-gray-100 last:border-0';
+            msgDiv.className = 'message-item py-2 border-b border-gray-100 last:border-0 break-words';
 
             const timeSpan = document.createElement('span');
             timeSpan.className = 'text-xs text-gray-500';
@@ -166,8 +239,8 @@
             senderSpan.textContent = sender;
 
             const messageSpan = document.createElement('span');
-            messageSpan.className = 'text-gray-700 ml-2';
-            messageSpan.innerHTML = message;
+            messageSpan.className = 'text-gray-700 ml-2 break-words inline-block max-w-full';
+            messageSpan.textContent = message;
 
             msgDiv.appendChild(timeSpan);
             msgDiv.appendChild(senderSpan);
@@ -177,11 +250,30 @@
             document.getElementById('msgArea').scrollTop = document.getElementById('msgArea').scrollHeight;
         }
 
+        // 输入框自动调整高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+        // enter 键发送消息
+        function handleKeyDown(event) {
+            if (event.keyCode === 13) {
+                if (event.shiftKey) {
+                    return;
+                } else {
+                    event.preventDefault();
+                    send();
+                }
+            }
+        }
+        // 消息发送
         function send() {
             const content = document.getElementById('content').value;
             if (content.trim()) {
                 stomp.send('/app/ChatRoom', {}, content);
-                document.getElementById('content').value = '';
+                const textarea = document.getElementById('content');
+                textarea.value = '';
+                textarea.style.height = 'auto';
             }
         }
     </script>

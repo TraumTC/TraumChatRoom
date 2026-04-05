@@ -3,6 +3,7 @@ package com.tc.traumchatroom.config;
 import com.tc.traumchatroom.util.OnlineUserUtil;
 import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -20,6 +22,8 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.socket.WebSocketHandler;
@@ -41,12 +45,23 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
     private ApplicationContext applicationContext;
 
     private SimpMessagingTemplate messagingTemplate;
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("wss-heartbeat-thread-");
+        scheduler.initialize();
+        return scheduler;
+    }
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setHeartbeatValue(new long[]{10000, 10000})
+                .setTaskScheduler(taskScheduler());
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
@@ -59,6 +74,18 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                         if (authentication != null && authentication.isAuthenticated()
                                 && !"anonymousUser".equals(authentication.getPrincipal())) {
                             attributes.put("authenticatedUser", authentication.getName());
+                        } else {
+                            if (request instanceof ServletServerHttpRequest) {
+                                ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+                                HttpSession session = servletRequest.getServletRequest().getSession(false);
+                                if (session != null) {
+                                    com.tc.traumchatroom.entity.User guestUser =
+                                            (com.tc.traumchatroom.entity.User) session.getAttribute("GUEST_USER");
+                                    if (guestUser != null) {
+                                        attributes.put("authenticatedUser", guestUser.getUsername());
+                                    }
+                                }
+                            }
                         }
                         return true;
                     }
@@ -77,7 +104,6 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                 .corePoolSize(20)    // 核心线程 20（足够小型聊天）
                 .maxPoolSize(50)     // 最大线程 50
                 .queueCapacity(1000); // 队列缓冲
-
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -110,10 +136,7 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                 }
                 return null;
             }
-            private void broadcastOnlineUsers() {
-                Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
-                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
-            }
+
         });
     }
 }

@@ -59,7 +59,7 @@ public class SecurityConfig {
 
 
                 .authorizeHttpRequests( auth -> auth
-                        .requestMatchers("/register","/login","/error").permitAll()
+                        .requestMatchers("/register","/login","/error", "/ChatRoom", "/ws/**", "/api/current-user", "/history", "/api/online-users").permitAll()
                         .requestMatchers("/ChatRoom/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

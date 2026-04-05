@@ -28,11 +28,16 @@ public class UserUtil {
         }
         return null;
     }
-    public User getCurrentUser( SimpMessageHeaderAccessor headerAccessor){
-        User currentUser = null;
+    public User getCurrentUser(SimpMessageHeaderAccessor headerAccessor){
         String authenticatedUser = (String) headerAccessor.getSessionAttributes().get("authenticatedUser");
-        currentUser = userMapper.findByUsername(authenticatedUser);
-        currentUser.setPassword(null);
+
+        if (authenticatedUser == null || authenticatedUser.isEmpty()) {
+            return null;
+        }
+        User currentUser = userMapper.findByUsername(authenticatedUser);
+        if (currentUser != null) {
+            currentUser.setPassword(null);
+        }
         return currentUser;
     }
 

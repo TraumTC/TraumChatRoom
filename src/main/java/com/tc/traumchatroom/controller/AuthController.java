@@ -5,6 +5,7 @@ import com.tc.traumchatroom.service.Impl.UserDetailsServiceImpl;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -48,12 +49,32 @@ public class AuthController {
     }
 
     @GetMapping("/ChatRoom")
-    public String ChatRoom() {
-            return "ChatRoom";
+    public String ChatRoom(HttpServletRequest request, HttpSession session) {
+        User currentUser = userService.getCurrentUser();
+
+        if (currentUser == null) {
+            User guestUser = userService.getOrCreateGuestUser(request);
+            if (guestUser != null) {
+                session.setAttribute("GUEST_USER", guestUser);
+            }
         }
+        return "ChatRoom";
+    }
     @GetMapping("/api/current-user")
     @ResponseBody
-    public User getCurrentUser(HttpServletRequest request) {
-        return userService.getCurrentUser();
+    public User getCurrentUser(HttpServletRequest request, HttpSession session) {
+        User currentUser = userService.getCurrentUser();
+
+        if (currentUser == null) {
+            User guestUser = (User) session.getAttribute("GUEST_USER");
+            if (guestUser == null) {
+                guestUser = userService.getOrCreateGuestUser(request);
+                if (guestUser != null) {
+                    session.setAttribute("GUEST_USER", guestUser);
+                }
+            }
+            return guestUser;
+        }
+        return currentUser;
     }
 }
