@@ -75,6 +75,7 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                                    WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
                         String username = null;
+                        String name = null;
 
                         if (request instanceof ServletServerHttpRequest) {
                             ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
@@ -102,6 +103,7 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                                             (com.tc.traumchatroom.entity.User) session.getAttribute("GUEST_USER");
                                     if (guestUser != null) {
                                         username = guestUser.getUsername();
+                                        name = guestUser.getName();
                                     }
                                 }
                             }
@@ -109,6 +111,9 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
 
                         if (username != null) {
                             attributes.put("authenticatedUser", username);
+                            if (name != null) {
+                                attributes.put("authenticatedUserName", name);
+                            }
                         }
                         return true;
                     }
@@ -137,26 +142,20 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                 if (accessor != null) {
                     StompCommand command = accessor.getCommand();
                     String username = getUsernameFromSession(accessor);
+                    String name = getNameFromSession(accessor);
 
                     if (username != null) {
                         if (StompCommand.CONNECT.equals(command)) {
-                            String name = username;
-                            try {
-                                User user = userUtil.getCurrentUser(accessor);
-                                if (user != null && user.getName() != null) {
-                                    name = user.getName();
-                                }
-                            } catch (Exception e) {
-                            }
-                            onlineUserUtil.addUser(username, name);
+                            String displayName = name != null ? name : username;
+                            onlineUserUtil.addUser(username, displayName);
                             Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
                             messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
 
                             try {
                                 Map<String, Object> onlineNotification = new HashMap<>();
                                 onlineNotification.put("type", "user_online");
-                                onlineNotification.put("sender", name);
-                                onlineNotification.put("message", name + " 已上线");
+                                onlineNotification.put("sender", displayName);
+                                onlineNotification.put("message", displayName + " 已上线");
                                 onlineNotification.put("sendTime", java.time.LocalDateTime.now().toString());
 
                                 messagingTemplate.convertAndSend("/topic/private-notifications", (Object) onlineNotification);
@@ -193,6 +192,14 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
                 if (sessionAttributes != null) {
                     return (String) sessionAttributes.get("authenticatedUser");
+                }
+                return null;
+            }
+
+            private String getNameFromSession(StompHeaderAccessor accessor) {
+                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                if (sessionAttributes != null) {
+                    return (String) sessionAttributes.get("authenticatedUserName");
                 }
                 return null;
             }

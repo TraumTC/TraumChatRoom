@@ -7,7 +7,7 @@ create table user(
 
 create table message(
                         id int primary key auto_increment,
-                        sender_id int not null,
+                        sender_id int ,
                         sender varchar (20) not null,
                         receiver varchar (20) ,
                         message text not null,
@@ -20,7 +20,7 @@ create table message(
 ALTER TABLE message
     ADD CONSTRAINT message_ibfk_1
         FOREIGN KEY (sender_id) REFERENCES user(id)
-            ON DELETE CASCADE
+            ON DELETE SET NULL
             ON UPDATE CASCADE;
 
 DELIMITER $$

@@ -4,14 +4,12 @@ import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.service.ChatService;
-import com.tc.traumchatroom.util.HtmlEscapeUtil;
 import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -20,22 +18,21 @@ public class ChatServiceImpl implements ChatService {
     @Resource
     private UserUtil userUtil;
     @Resource
-    private HtmlEscapeUtil htmlEscapeUtil;
-    @Resource
     private MessageMapper messageMapper;
     @Override
-    public Message sendChatMessage(String content,SimpMessageHeaderAccessor headerAccessor) {
-        User currentUser = null;
-        currentUser = userUtil.getCurrentUser(headerAccessor);
+    public Message sendChatMessage(String content, SimpMessageHeaderAccessor headerAccessor) {
+        User currentUser = userUtil.getCurrentUser(headerAccessor);
         if (currentUser == null) {
             throw new RuntimeException("未找到当前登录用户，请重新登录");
         }
-        String escapedContent = htmlEscapeUtil.escapeHtmlAndLinkify(content);
+        Integer senderId = currentUser.getId();
+
         Message message = new Message(null,
-                                        currentUser.getId(),
-                                        currentUser.getName(),
-                                    "",
-                                    content, LocalDateTime.now());
+                senderId,
+                currentUser.getName(),
+                "",
+                content,
+                LocalDateTime.now());
         messageMapper.addMessage(message);
         return message;
     }
@@ -52,9 +49,11 @@ public class ChatServiceImpl implements ChatService {
         if (currentUser == null) {
             throw new RuntimeException("未找到当前登录用户，请重新登录");
         }
-        String escapedContent = htmlEscapeUtil.escapeHtmlAndLinkify(content);
+
+        Integer senderId = currentUser.getId();
+
         Message message = new Message(null,
-                currentUser.getId(),
+                senderId,
                 currentUser.getName(),
                 receiverName,
                 content,
@@ -67,7 +66,6 @@ public class ChatServiceImpl implements ChatService {
         List<Message> messages = messageMapper.findByPrivateThreeDays(name1, name2);
         return messages != null ? messages : new java.util.ArrayList<>();
     }
-
     @Override
     public void saveMessage(Message message){
         messageMapper.insertMessage(message);

@@ -97,22 +97,11 @@ public class UserServiceImpl implements UserService {
     public User getOrCreateGuestUser(HttpServletRequest request) {
         String guestName = guestNameUtil.generateGuestName(request);
 
-        User guestUser = userMapper.findByName(guestName);
-
-        if (guestUser == null) {
-            guestUser = new User();
-            guestUser.setUsername("guest_" + System.currentTimeMillis());
-            guestUser.setName(guestName);
-            guestUser.setPassword("");
-            guestUser.setRole("ROLE_GUEST");
-            userMapper.addUser(guestUser);
-
-            guestUser = userMapper.findByName(guestName);
-        }
-
-        if (guestUser != null) {
-            guestUser.setPassword(null);
-        }
+        User guestUser = new User();
+        guestUser.setUsername("guest_" + System.currentTimeMillis());
+        guestUser.setName(guestName);
+        guestUser.setPassword("");
+        guestUser.setRole("ROLE_GUEST");
 
         return guestUser;
     }

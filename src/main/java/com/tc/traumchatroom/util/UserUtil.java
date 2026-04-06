@@ -28,12 +28,23 @@ public class UserUtil {
         }
         return null;
     }
+
     public User getCurrentUser(SimpMessageHeaderAccessor headerAccessor){
         String authenticatedUser = (String) headerAccessor.getSessionAttributes().get("authenticatedUser");
+        String authenticatedName = (String) headerAccessor.getSessionAttributes().get("authenticatedUserName");
 
         if (authenticatedUser == null || authenticatedUser.isEmpty()) {
             return null;
         }
+
+        if (authenticatedUser.startsWith("guest_")) {
+            User guestUser = new User();
+            guestUser.setUsername(authenticatedUser);
+            guestUser.setName(authenticatedName);
+            guestUser.setRole("ROLE_GUEST");
+            return guestUser;
+        }
+
         User currentUser = userMapper.findByUsername(authenticatedUser);
         if (currentUser != null) {
             currentUser.setPassword(null);
