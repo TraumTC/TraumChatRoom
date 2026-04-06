@@ -8,6 +8,8 @@ import com.tc.traumchatroom.util.OnlineUserUtil;
 import com.tc.traumchatroom.util.UserUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -22,6 +24,8 @@ import java.util.*;
 @Controller
 
 public class WebSocketChatController {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketChatController.class);
 
     @Resource
     private ChatService chatService;
@@ -38,6 +42,36 @@ public class WebSocketChatController {
         Message message = chatService.sendChatMessage(content,headerAccessor);
         return message;
     }
+
+    @MessageMapping("/heartbeat")
+    public void handleHeartbeat(SimpMessageHeaderAccessor headerAccessor) {
+        String username = getUsernameFromSession(headerAccessor);
+        if (username != null) {
+            onlineUserUtil.updateHeartbeat(username);
+            log.debug("收到用户 {} 的心跳", username);
+        }
+    }
+
+    @MessageMapping("/sync-state")
+    public void handleSyncState(Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
+        String username = getUsernameFromSession(headerAccessor);
+        if (username != null) {
+            onlineUserUtil.updateHeartbeat(username);
+            log.info("用户 {} 同步连接状态", username);
+
+            Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
+            messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
+        }
+    }
+
+    private String getUsernameFromSession(SimpMessageHeaderAccessor accessor) {
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null) {
+            return (String) sessionAttributes.get("authenticatedUser");
+        }
+        return null;
+    }
+
     @MessageMapping("/private.message")
     public void sendPrivateMessage(Map<String, String> payload, SimpMessageHeaderAccessor headerAccessor) {
         String receiverName = payload.get("receiver");
@@ -58,7 +92,7 @@ public class WebSocketChatController {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("发送私聊消息失败", e);
         }
     }
 

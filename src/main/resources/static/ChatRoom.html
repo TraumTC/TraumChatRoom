@@ -9,20 +9,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .context-menu {
-            position: fixed;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.375rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            min-width: 160px;
-            display: none;
-        }
+        position: fixed;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        min-width: 160px;
+        display: none;
+    }
         .context-menu-item {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
         .context-menu-item:hover {
             background-color: #f3f4f6;
         }
@@ -36,6 +36,79 @@
         .private-chat-tab:hover {
             background-color: #f3f4f6;
         }
+        .message-container {
+            display: flex;
+            margin-bottom: 30px;
+            padding-top: 25px;
+            animation: fadeIn 0.3s ease-in;
+            position: relative;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-left {
+            justify-content: flex-start;
+        }
+        .message-right {
+            justify-content: flex-end;
+        }
+        .message-time-above {
+            color: #9ca3af;
+            font-size: 11px;
+            position: absolute;
+            top: 0;
+        }
+        .message-left .message-time-above {
+            left: 0;
+        }
+        .message-right .message-time-above {
+            right: 0;
+        }
+        .message-bubble {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            position: relative;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        .message-left .message-bubble {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-top-left-radius: 4px;
+        }
+        .message-right .message-bubble {
+            background-color: #95ec69;
+            border-top-right-radius: 4px;
+        }
+        .message-sender {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .message-left .message-sender {
+            text-align: left;
+        }
+        .message-right .message-sender {
+            text-align: right;
+        }
+        .message-content {
+            color: #1f2937;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .message-right .message-content {
+            color: #000000;
+        }
+        .system-message {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 12px;
+        margin: 8px 0;
+        font-style: italic;
+    }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -70,8 +143,8 @@
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="relative">
-            <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden flex flex-col" style="height: calc(100vh - 160px); min-height: 500px; max-height: 800px;">
+                <div class="p-3 border-b bg-gray-50 flex justify-between items-center flex-shrink-0">
                     <h2 class="text-base font-semibold text-gray-900">
                         聊天室
                         <span class="relative inline-block">
@@ -92,16 +165,16 @@
                     </h2>
                 </div>
 
-                <div id="chatTabs" class="hidden border-b bg-gray-50 flex overflow-x-auto">
+                <div id="chatTabs" class="hidden border-b bg-gray-50 flex overflow-x-auto flex-shrink-0">
                     <div id="publicChatTab" class="private-chat-tab active px-4 py-2 cursor-pointer border-r text-sm font-medium text-gray-700" onclick="switchToPublicChat()">
                         💬 公共聊天
                     </div>
                 </div>
 
-                <div id="msgArea" class="overflow-y-auto p-4 space-y-2 bg-white" style="height: calc(100vh - 280px); min-height: 400px; max-height: 600px;">
+                <div id="msgArea" class="overflow-y-auto p-4 space-y-2 bg-white flex-1">
                 </div>
 
-                <div class="p-4 border-t bg-gray-50">
+                <div class="p-4 border-t bg-gray-50 flex-shrink-0">
                     <div id="privateChatIndicator" class="hidden mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md">
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-blue-800">
@@ -149,9 +222,14 @@
         let currentPrivateChatName = '';
         let privateChats = {};
         let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
+        const maxReconnectAttempts = 10;
         const pageLoadTime = Date.now();
         const SILENT_PERIOD = 10000;
+        let isPageVisible = true;
+        let connectionState = 'disconnected';
+        let heartbeatInterval = null;
+        let manualDisconnect = false;
+        let stompClient = null;
 
         function formatTime(timeStr) {
             if (!timeStr) return '';
@@ -192,35 +270,152 @@
                 currentName = info.name || '';
                 isGuest = info.isGuest || false;
                 restorePrivateChats();
+                initWebSocket();
+                connectWebSocket();
             });
 
-        const sock = new SockJS('/ws', null, { withCredentials: true });
-        const stomp = Stomp.over(sock);
-        stomp.heartbeat.outgoing = 10000;
-        stomp.heartbeat.incoming = 10000;
+        function initWebSocket() {
+            const sock = new SockJS('/ws', null, { withCredentials: true });
+            stompClient = Stomp.over(sock);
+            stompClient.heartbeat.outgoing = 10000;
+            stompClient.heartbeat.incoming = 10000;
+        }
+
+        function startHeartbeat() {
+            stopHeartbeat();
+            heartbeatInterval = setInterval(() => {
+                if (connectionState === 'connected' && isPageVisible && stompClient && stompClient.connected) {
+                    try {
+                        stompClient.send('/app/heartbeat', {}, '');
+                    } catch (e) {
+                        handleConnectionLost();
+                    }
+                }
+            }, 8000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                isPageVisible = false;
+                stopHeartbeat();
+            } else {
+                isPageVisible = true;
+
+                setTimeout(() => {
+                    if (connectionState !== 'connected') {
+                        reconnectAttempts = 0;
+                        manualDisconnect = false;
+                        connectWebSocket();
+                    } else {
+                        startHeartbeat();
+                        syncConnectionState();
+                    }
+                }, 1000);
+            }
+        }
+
+        function syncConnectionState() {
+            if (connectionState === 'connected' && stompClient && stompClient.connected) {
+                try {
+                    stompClient.send('/app/sync-state', {}, JSON.stringify({
+                        username: currentUsername,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    handleConnectionLost();
+                }
+            }
+        }
+
+        function handleConnectionLost() {
+            connectionState = 'disconnected';
+            stopHeartbeat();
+
+            if (!manualDisconnect) {
+                setTimeout(() => {
+                    if (connectionState !== 'connected' && !manualDisconnect) {
+                        reconnectAttempts = 0;
+                        connectWebSocket();
+                    }
+                }, 2000);
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        window.addEventListener('beforeunload', function() {
+            manualDisconnect = true;
+            stopHeartbeat();
+            if (stompClient && stompClient.connected) {
+                try {
+                    stompClient.disconnect();
+                } catch (e) {
+                }
+            }
+        });
+
+        window.addEventListener('focus', function() {
+            if (connectionState !== 'connected' && !manualDisconnect) {
+                reconnectAttempts = 0;
+                manualDisconnect = false;
+                connectWebSocket();
+            }
+        });
+
+        window.addEventListener('online', function() {
+            if (connectionState !== 'connected' && !manualDisconnect) {
+                reconnectAttempts = 0;
+                connectWebSocket();
+            }
+        });
+
+        window.addEventListener('offline', function() {
+            handleConnectionLost();
+        });
 
         function connectWebSocket() {
-            stomp.connect({}, function () {
-                reconnectAttempts = 0;
+            if (!stompClient) {
+                initWebSocket();
+            }
 
-                stomp.subscribe('/topic/messages', function (res) {
+            if (connectionState === 'connecting') {
+                return;
+            }
+
+            connectionState = 'connecting';
+            manualDisconnect = false;
+
+            stompClient.connect({}, function () {
+                reconnectAttempts = 0;
+                connectionState = 'connected';
+
+                startHeartbeat();
+
+                stompClient.subscribe('/topic/messages', function (res) {
                     if (!currentPrivateChat) {
                         const msg = JSON.parse(res.body);
                         appendMessage(msg.sendTime, msg.sender, msg.message);
                     }
                 });
 
-                stomp.subscribe('/user/queue/private-messages', function (res) {
+                stompClient.subscribe('/user/queue/private-messages', function (res) {
                     const msg = JSON.parse(res.body);
                     handlePrivateMessage(msg);
                 });
 
-                stomp.subscribe('/topic/private-notifications', function (res) {
+                stompClient.subscribe('/topic/private-notifications', function (res) {
                     const notification = JSON.parse(res.body);
                     handlePrivateNotification(notification);
                 });
 
-                stomp.subscribe('/topic/onlineUsers', function (res) {
+                stompClient.subscribe('/topic/onlineUsers', function (res) {
                     const data = JSON.parse(res.body);
                     if (Array.isArray(data)) {
                         updateOnlineUsersList(data);
@@ -243,11 +438,14 @@
                     }
                 });
             }, function(error) {
-                console.error('WebSocket连接失败:', error);
-                if (reconnectAttempts < maxReconnectAttempts) {
+                connectionState = 'disconnected';
+                stopHeartbeat();
+
+                if (!manualDisconnect && reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
-                    setTimeout(connectWebSocket, 3000);
-                } else {
+                    const delay = Math.min(3000 * reconnectAttempts, 30000);
+                    setTimeout(connectWebSocket, delay);
+                } else if (!manualDisconnect) {
                     alert('WebSocket连接失败，请刷新页面重试');
                 }
             });
@@ -300,11 +498,8 @@
         function appendSystemMessage(message) {
             const time = formatTime(new Date().toISOString());
             const msgDiv = document.createElement('div');
-            msgDiv.className = 'message-item py-2 border-b border-gray-100 last:border-0 text-center';
-            const msgContent = document.createElement('span');
-            msgContent.className = 'text-xs text-gray-500 italic';
-            msgContent.textContent = `[${time}] ${message}`;
-            msgDiv.appendChild(msgContent);
+            msgDiv.className = 'system-message';
+            msgDiv.textContent = `[${time}] ${message}`;
             document.getElementById('msgArea').appendChild(msgDiv);
             document.getElementById('msgArea').scrollTop = document.getElementById('msgArea').scrollHeight;
         }
@@ -362,7 +557,6 @@
                     }
                 })
                 .catch(err => {
-                    console.error('加载私聊历史失败:', err);
                 });
         }
 
@@ -431,7 +625,6 @@
                         }
                     }
                 } catch (e) {
-                    console.error('恢复私聊记录失败:', e);
                 }
             }
         }
@@ -445,8 +638,6 @@
                 localStorage.removeItem('lastActivePrivateChat');
             }
         }
-
-        connectWebSocket();
 
         function toggleOnlineUsers() {
             const popup = document.getElementById('onlineUsersPopup');
@@ -642,26 +833,34 @@
 
         function appendMessage(timeStr, sender, message) {
             const time = formatTime(timeStr);
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'message-item py-2 border-b border-gray-100 last:border-0 break-words';
+            const isMyMessage = sender === currentName || sender === '我';
 
-            const timeSpan = document.createElement('span');
-            timeSpan.className = 'text-xs text-gray-500';
-            timeSpan.textContent = `[${time}]`;
+            const msgContainer = document.createElement('div');
+            msgContainer.className = `message-container ${isMyMessage ? 'message-right' : 'message-left'}`;
 
-            const senderSpan = document.createElement('span');
-            senderSpan.className = 'font-semibold text-blue-600 ml-2';
-            senderSpan.textContent = sender;
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
 
-            const messageSpan = document.createElement('span');
-            messageSpan.className = 'text-gray-700 ml-2 break-words inline-block max-w-full';
-            messageSpan.textContent = message;
+            if (!isMyMessage) {
+                const senderDiv = document.createElement('div');
+                senderDiv.className = 'message-sender';
+                senderDiv.textContent = sender;
+                bubbleDiv.appendChild(senderDiv);
+            }
 
-            msgDiv.appendChild(timeSpan);
-            msgDiv.appendChild(senderSpan);
-            msgDiv.appendChild(messageSpan);
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message;
+            bubbleDiv.appendChild(contentDiv);
 
-            document.getElementById('msgArea').appendChild(msgDiv);
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time-above';
+            timeDiv.textContent = time;
+
+            msgContainer.appendChild(bubbleDiv);
+            msgContainer.appendChild(timeDiv);
+
+            document.getElementById('msgArea').appendChild(msgContainer);
             document.getElementById('msgArea').scrollTop = document.getElementById('msgArea').scrollHeight;
         }
 
@@ -684,8 +883,13 @@
         function send() {
             const content = document.getElementById('content').value;
             if (content.trim()) {
+                if (connectionState !== 'connected' || !stompClient || !stompClient.connected) {
+                    alert('连接已断开，请刷新页面尝试重新连接....');
+                    return;
+                }
+
                 if (currentPrivateChat) {
-                    stomp.send('/app/private.message', {}, JSON.stringify({
+                    stompClient.send('/app/private.message', {}, JSON.stringify({
                         receiver: currentPrivateChat,
                         content: content
                     }));
@@ -704,7 +908,7 @@
                     appendMessage(tempMsg.sendTime, tempMsg.sender, tempMsg.message);
                     savePrivateChatsToStorage();
                 } else {
-                    stomp.send('/app/ChatRoom', {}, content);
+                    stompClient.send('/app/ChatRoom', {}, content);
                 }
 
                 const textarea = document.getElementById('content');
@@ -713,6 +917,7 @@
             }
         }
     </script>
+
 
 
 
