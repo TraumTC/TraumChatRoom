@@ -12,5 +12,9 @@ create table message(
                         receiver varchar (20) ,
                         message text not null,
                         send_time timestamp not null,
+                        file_name VARCHAR(255) DEFAULT NULL,
+                        file_path VARCHAR(500) DEFAULT NULL,
+                        file_size BIGINT DEFAULT NULL,
+                        message_type VARCHAR(20) DEFAULT NULL,
                         foreign key (sender_id) references user(id));
 

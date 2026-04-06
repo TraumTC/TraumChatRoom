@@ -68,12 +68,10 @@ public class ChatServiceImpl implements ChatService {
         return messages != null ? messages : new java.util.ArrayList<>();
     }
 
-    public Message createSystemMessage(String message) {
-        Message systemMsg = new Message();
-        systemMsg.setSender("系统");
-        systemMsg.setReceiver("");
-        systemMsg.setMessage(message);
-        systemMsg.setSendTime(LocalDateTime.now());
-        return systemMsg;
+    @Override
+    public void saveMessage(Message message){
+        messageMapper.insertMessage(message);
     }
+
+
 }

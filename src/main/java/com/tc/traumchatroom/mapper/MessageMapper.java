@@ -16,4 +16,5 @@ public interface MessageMapper {
     public int deleteMessage(Integer id);
     public List<Message> findByThreeDays();
     public List<Message> findByPrivateThreeDays(@Param("name1") String name1, @Param("name2") String name2);
+    public void insertMessage(Message message);
 }

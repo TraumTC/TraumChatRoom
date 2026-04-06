@@ -1,5 +1,11 @@
 server:
   port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: none
+        secure: false
+        http-only: false
 
 spring:
   datasource:
@@ -7,6 +13,10 @@ spring:
     url: jdbc:mysql://localhost:3306/ChatDB
     username: root
     password: 123456
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
 
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -18,6 +28,10 @@ spring:
     cache: false
     encoding: UTF-8
     mode: HTML
+
+file:
+  upload-dir: uploads
+  max-file-size: 104857600
 
 mybatis:
   mapper-locations: classpath:templates/*.xml

@@ -9,6 +9,10 @@
         <result column="receiver" property="receiver"/>
         <result column="message" property="message"/>
         <result column="send_time" property="sendTime"/>
+        <result column="file_name" property="fileName"/>
+        <result column="file_path" property="filePath"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="message_type" property="messageType"/>
     </resultMap>
 
     <select id="findAll" resultMap="MessageResultMap">
@@ -36,7 +40,7 @@
     <select id="findByThreeDays" resultMap="MessageResultMap">
         SELECT * FROM message
         WHERE send_time >= DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND receiver =""
+        AND (receiver ="" or receiver is null)
         ORDER BY send_time ASC
     </select>
 
@@ -54,6 +58,10 @@
     <insert id="addMessage" parameterType="com.tc.traumchatroom.entity.Message">
         INSERT INTO message (sender_id, sender, receiver, message, send_time)
         VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime})
+    </insert>
+    <insert id="insertMessage" parameterType="com.tc.traumchatroom.entity.Message" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message (sender_id, sender, receiver, message, send_time, file_name, file_path, file_size, message_type)
+        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime}, #{fileName}, #{filePath}, #{fileSize}, #{messageType})
     </insert>
 
     <delete id="deleteMessage" parameterType="java.lang.Integer">

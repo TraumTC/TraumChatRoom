@@ -74,11 +74,26 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                     @Override
                     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                                    WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
-                        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-                        if (authentication != null && authentication.isAuthenticated()
-                                && !"anonymousUser".equals(authentication.getPrincipal())) {
-                            attributes.put("authenticatedUser", authentication.getName());
-                        } else {
+                        String username = null;
+
+                        if (request instanceof ServletServerHttpRequest) {
+                            ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+
+                            String authParam = servletRequest.getServletRequest().getParameter("authenticated");
+                            if (authParam != null && !authParam.isEmpty()) {
+                                username = authParam;
+                            }
+                        }
+
+                        if (username == null) {
+                            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                            if (authentication != null && authentication.isAuthenticated()
+                                    && !"anonymousUser".equals(authentication.getPrincipal())) {
+                                username = authentication.getName();
+                            }
+                        }
+
+                        if (username == null) {
                             if (request instanceof ServletServerHttpRequest) {
                                 ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
                                 HttpSession session = servletRequest.getServletRequest().getSession(false);
@@ -86,10 +101,14 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                                     com.tc.traumchatroom.entity.User guestUser =
                                             (com.tc.traumchatroom.entity.User) session.getAttribute("GUEST_USER");
                                     if (guestUser != null) {
-                                        attributes.put("authenticatedUser", guestUser.getUsername());
+                                        username = guestUser.getUsername();
                                     }
                                 }
                             }
+                        }
+
+                        if (username != null) {
+                            attributes.put("authenticatedUser", username);
                         }
                         return true;
                     }

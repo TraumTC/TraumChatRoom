@@ -19,6 +19,19 @@ public class Message {
     private String receiver;
     private String message;
     private LocalDateTime sendTime;
+    private String fileName;
+    private String filePath;
+    private Long fileSize;
+    private String messageType;
+
+    public Message(Integer id, Integer senderId, String sender, String receiver, String message, LocalDateTime sendTime) {
+        this.id = id;
+        this.senderId = senderId;
+        this.sender = sender;
+        this.receiver = receiver;
+        this.message = message;
+        this.sendTime = sendTime;
+    }
 
 
 

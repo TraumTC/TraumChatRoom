@@ -1,0 +1,353 @@
+
+.context-menu {
+    position: fixed;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    min-width: 160px;
+    display: none;
+}
+
+.context-menu-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.context-menu-item:hover {
+    background-color: #f3f4f6;
+}
+
+.private-chat-tab {
+    transition: all 0.3s;
+}
+
+.private-chat-tab.active {
+    background-color: #dbeafe;
+    border-bottom: 2px solid #3b82f6;
+}
+
+.private-chat-tab:hover {
+    background-color: #f3f4f6;
+}
+
+.message-container {
+    display: flex;
+    margin-bottom: 30px;
+    padding-top: 25px;
+    animation: fadeIn 0.3s ease-in;
+    position: relative;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.message-left {
+    justify-content: flex-start;
+}
+
+.message-right {
+    justify-content: flex-end;
+}
+
+.message-time-above {
+    color: #9ca3af;
+    font-size: 11px;
+    position: absolute;
+    top: 0;
+}
+
+.message-left .message-time-above {
+    left: 0;
+}
+
+.message-right .message-time-above {
+    right: 0;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.message-left .message-bubble {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-top-left-radius: 4px;
+}
+
+.message-right .message-bubble {
+    background-color: #95ec69;
+    border-top-right-radius: 4px;
+}
+
+.message-sender {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.message-left .message-sender {
+    text-align: left;
+}
+
+.message-right .message-sender {
+    text-align: right;
+}
+
+.message-content {
+    color: #1f2937;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.message-right .message-content {
+    color: #000000;
+}
+
+.file-message {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    margin-top: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.file-message:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.file-icon {
+    font-size: 24px;
+    margin-right: 10px;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-size {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.file-download-icon {
+    font-size: 20px;
+    color: #3b82f6;
+}
+
+.image-message {
+    max-width: 200px;
+    border-radius: 8px;
+    margin-top: 6px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.image-message:hover {
+    transform: scale(1.02);
+}
+
+.image-preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    cursor: zoom-out;
+    animation: fadeIn 0.2s ease-in;
+}
+
+.image-preview-overlay.active {
+    display: flex;
+}
+
+.image-preview-container {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    animation: zoomIn 0.3s ease-out;
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.image-preview-container img {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.image-preview-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.image-preview-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.image-preview-info {
+    position: absolute;
+    bottom: -40px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+}
+
+.file-upload-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 8px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.file-upload-btn:hover {
+    background: #e5e7eb;
+}
+
+.file-upload-btn input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.upload-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #3b82f6;
+    transition: width 0.3s;
+}
+
+.system-message {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 12px;
+    margin: 8px 0;
+    font-style: italic;
+}
+@media (max-width: 640px) {
+    .message-bubble {
+        max-width: 85%;
+        padding: 8px 12px;
+    }
+
+    .image-message {
+        max-width: 150px;
+    }
+
+    .file-message {
+        min-width: 180px;
+    }
+
+    .file-icon {
+        font-size: 20px;
+        margin-right: 8px;
+    }
+
+    .file-name {
+        font-size: 12px;
+    }
+
+    .file-size {
+        font-size: 10px;
+    }
+
+    #chatTabs {
+        font-size: 13px;
+    }
+
+    .private-chat-tab {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .file-upload-btn {
+        padding: 6px;
+    }
+
+    main {
+        padding: 12px !important;
+    }
+
+    .image-preview-container {
+        max-width: 95vw;
+        max-height: 85vh;
+    }
+
+    .image-preview-container img {
+        max-width: 95vw;
+        max-height: 85vh;
+    }
+}
+
+@media (max-width: 375px) {
+    .message-bubble {
+        max-width: 90%;
+    }
+
+    .image-message {
+        max-width: 120px;
+    }
+
+    .file-message {
+        min-width: 160px;
+    }
+}
