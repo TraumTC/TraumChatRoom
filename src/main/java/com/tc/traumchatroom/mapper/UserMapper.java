@@ -13,4 +13,6 @@ public interface UserMapper {
     public int addUser(User account);
     public int updateUser(User account);
     public int deleteUser(Integer id);
+    public int updateNameAndPassword(User account);
+    public int updateRole(Integer id, String role);
 }

@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class UserServiceImpl implements UserService {
     @Resource
@@ -46,6 +48,49 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         return user;
+    }
+
+    @Override
+    public int updateProfile(Integer id, String name, String password) {
+        User user = new User();
+        user.setId(id);
+        if (name != null && !name.trim().isEmpty()) {
+            user.setName(name);
+        }
+        if (password != null && !password.trim().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(password));
+        }
+        return userMapper.updateNameAndPassword(user);
+    }
+
+    @Override
+    public List<User> getAllUsers() {
+        return userMapper.findAll();
+    }
+
+    @Override
+    public int updateUserRole(Integer id, String role) {
+        return userMapper.updateRole(id, role);
+    }
+
+    @Override
+    public int deleteUser(Integer id) {
+        return userMapper.deleteUser(id);
+    }
+
+    @Override
+    public User findByName(String name) {
+        return userMapper.findByName(name);
+    }
+
+    @Override
+    public User findByUserName(String username) {
+        return userMapper.findByUsername(username);
+    }
+
+    @Override
+    public int updateUser(User user) {
+        return userMapper.updateUser(user);
     }
 
     @Override

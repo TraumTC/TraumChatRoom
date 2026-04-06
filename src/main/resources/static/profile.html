@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - TraumChatRoom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-14 sm:h-16">
+                <div class="flex items-center">
+                    <a href="/ChatRoom" class="text-lg sm:text-xl font-bold text-gray-900">TraumChatRoom</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/ChatRoom" class="text-sm text-gray-600 hover:text-gray-900">返回聊天室</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div id="messageDiv" class="hidden mb-4 px-4 py-3 rounded-md text-sm"></div>
+
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="p-6 border-b bg-gray-50">
+                <h2 class="text-xl font-semibold text-gray-900">个人中心</h2>
+                <p class="mt-1 text-sm text-gray-500">查看和管理您的个人信息</p>
+            </div>
+
+            <div id="viewMode" class="p-6">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                            <span class="text-sm text-gray-500">用户名</span>
+                            <p id="viewUsername" class="text-lg font-medium text-gray-900 mt-1"></p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                            <span class="text-sm text-gray-500">昵称</span>
+                            <p id="viewName" class="text-lg font-medium text-gray-900 mt-1"></p>
+                        </div>
+                        <button onclick="showEditName()" class="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors">
+                            修改昵称
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                            <span class="text-sm text-gray-500">用户类型</span>
+                            <p id="viewRole" class="text-lg font-medium text-gray-900 mt-1"></p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between py-3">
+                        <div>
+                            <span class="text-sm text-gray-500">密码</span>
+                            <p class="text-lg font-medium text-gray-900 mt-1">••••••••</p>
+                        </div>
+                        <button onclick="showEditPassword()" class="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors">
+                            修改密码
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="editNameMode" class="hidden p-6">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">修改昵称</h3>
+                        <button onclick="backToView()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div>
+                        <label for="editName" class="block text-sm font-medium text-gray-700 mb-2">新昵称</label>
+                        <input
+                            type="text"
+                            id="editName"
+                            maxlength="18"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="请输入新昵称"
+                        >
+                        <p class="mt-1 text-xs text-gray-500">昵称长度：<span id="nameCount">0</span>/18 个字符</p>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4 border-t">
+                        <button onclick="backToView()" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            取消
+                        </button>
+                        <button onclick="updateName()" class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                            保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="editPasswordMode" class="hidden p-6">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">修改密码</h3>
+                        <button onclick="backToView()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div>
+                        <label for="oldPassword" class="block text-sm font-medium text-gray-700 mb-2">当前密码</label>
+                        <input
+                            type="password"
+                            id="oldPassword"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="请输入当前密码"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="newPassword" class="block text-sm font-medium text-gray-700 mb-2">新密码</label>
+                        <input
+                            type="password"
+                            id="newPassword"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="请输入新密码（至少4位）"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-2">确认新密码</label>
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="请再次输入新密码"
+                        >
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4 border-t">
+                        <button onclick="backToView()" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            取消
+                        </button>
+                        <button onclick="updatePassword()" class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                            保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentUser = null;
+
+        window.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/current-user')
+                .then(res => res.json())
+                .then(user => {
+                    if (!user || user.role === 'ROLE_GUEST' || user.name.startsWith('游客_')) {
+                        window.location.href = '/ChatRoom';
+                        return;
+                    }
+                    currentUser = user;
+                    document.getElementById('viewUsername').textContent = user.username || '';
+                    document.getElementById('viewName').textContent = user.name || '';
+
+                    const roleText = user.role === 'ROLE_ADMIN' ? '管理员' : '普通用户';
+                    const roleClass = user.role === 'ROLE_ADMIN' ? 'text-purple-600' : 'text-blue-600';
+                    const viewRole = document.getElementById('viewRole');
+                    viewRole.textContent = roleText;
+                    viewRole.className = `text-lg font-medium mt-1 ${roleClass}`;
+                })
+                .catch(() => {
+                    window.location.href = '/ChatRoom';
+                });
+
+            document.getElementById('editName').addEventListener('input', function() {
+                document.getElementById('nameCount').textContent = this.value.length;
+            });
+        });
+
+        function showMessage(type, msg) {
+            const div = document.getElementById('messageDiv');
+            div.className = `mb-4 px-4 py-3 rounded-md text-sm ${type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`;
+            div.textContent = msg;
+            div.classList.remove('hidden');
+            setTimeout(() => div.classList.add('hidden'), 3000);
+        }
+
+        function showEditName() {
+            document.getElementById('viewMode').classList.add('hidden');
+            document.getElementById('editNameMode').classList.remove('hidden');
+            document.getElementById('editPasswordMode').classList.add('hidden');
+            document.getElementById('editName').value = currentUser.name || '';
+            document.getElementById('nameCount').textContent = (currentUser.name || '').length;
+        }
+
+        function showEditPassword() {
+            document.getElementById('viewMode').classList.add('hidden');
+            document.getElementById('editNameMode').classList.add('hidden');
+            document.getElementById('editPasswordMode').classList.remove('hidden');
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+
+        function backToView() {
+            document.getElementById('viewMode').classList.remove('hidden');
+            document.getElementById('editNameMode').classList.add('hidden');
+            document.getElementById('editPasswordMode').classList.add('hidden');
+        }
+
+        function updateName() {
+            const newName = document.getElementById('editName').value.trim();
+
+            if (!newName) {
+                showMessage('error', '昵称不能为空');
+                return;
+            }
+
+            if (newName === currentUser.name) {
+                showMessage('error', '新昵称与当前昵称相同');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', newName);
+
+            fetch('/api/update-profile', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('success', '昵称修改成功');
+                    currentUser.name = newName;
+                    document.getElementById('viewName').textContent = newName;
+                    setTimeout(backToView, 1000);
+                } else {
+                    showMessage('error', data.message || '修改失败');
+                }
+            })
+            .catch(() => {
+                showMessage('error', '网络错误，请重试');
+            });
+        }
+
+        function updatePassword() {
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (!oldPassword) {
+                showMessage('error', '请输入当前密码');
+                return;
+            }
+
+            if (!newPassword) {
+                showMessage('error', '请输入新密码');
+                return;
+            }
+
+            if (newPassword.length < 4) {
+                showMessage('error', '密码长度不能少于4位');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showMessage('error', '两次输入的新密码不一致');
+                return;
+            }
+
+            if (oldPassword === newPassword) {
+                showMessage('error', '新密码不能与当前密码相同');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('oldPassword', oldPassword);
+            formData.append('password', newPassword);
+
+            fetch('/api/update-password', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('success', '密码修改成功，请重新登录');
+                    setTimeout(() => {
+                        window.location.href = '/logout';
+                    }, 2000);
+                } else {
+                    showMessage('error', data.message || '修改失败');
+                }
+            })
+            .catch(() => {
+                showMessage('error', '网络错误，请重试');
+            });
+        }
+    </script>
+</body>
+</html>

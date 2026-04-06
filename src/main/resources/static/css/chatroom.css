@@ -283,7 +283,81 @@
     margin: 8px 0;
     font-style: italic;
 }
+.at-mention {
+    color: #2563eb;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.at-mention:hover {
+    color: #1d4ed8;
+}
+
+.at-user-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.at-user-item:hover, .at-user-item.active {
+    background-color: #f3f4f6;
+}
+
+.at-user-item .user-name {
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+}
+
+.at-user-item .user-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+.at-user-item.selected {
+    background-color: #dbeafe;
+    border: 1px solid #3b82f6;
+}
+
+.at-user-item .select-check {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #d1d5db;
+    border-radius: 4px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+}
+
+.at-user-item.selected .select-check {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.at-user-item .select-check::after {
+    content: '✓';
+    display: none;
+}
+
+.at-user-item.selected .select-check::after {
+    display: block;
+}
+
 @media (max-width: 640px) {
+    #atUserPopup {
+        width: calc(100% - 20px) !important;
+        left: 10px !important;
+        max-height: 50vh !important;
+    }
+
     .message-bubble {
         max-width: 85%;
         padding: 8px 12px;

@@ -1,11 +1,11 @@
 server:
   port: 8080
-  servlet:
-    session:
-      cookie:
-        same-site: none
-        secure: false
-        http-only: false
+#  servlet:
+#    session:
+#      cookie:
+#        same-site: none
+#        secure: false
+#        http-only: false
 
 spring:
   datasource:

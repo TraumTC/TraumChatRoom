@@ -15,6 +15,21 @@ create table message(
                         file_name VARCHAR(255) DEFAULT NULL,
                         file_path VARCHAR(500) DEFAULT NULL,
                         file_size BIGINT DEFAULT NULL,
-                        message_type VARCHAR(20) DEFAULT NULL,
-                        foreign key (sender_id) references user(id));
+                        message_type VARCHAR(20) DEFAULT NULL);
 
+ALTER TABLE message
+    ADD CONSTRAINT message_ibfk_1
+        FOREIGN KEY (sender_id) REFERENCES user(id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE;
+
+DELIMITER $$
+CREATE TRIGGER trg_user_name_update
+    AFTER UPDATE ON user
+    FOR EACH ROW
+BEGIN
+    IF OLD.name != NEW.name THEN
+        UPDATE message SET sender = NEW.name WHERE sender = OLD.name;
+    END IF;
+END$$
+DELIMITER ;

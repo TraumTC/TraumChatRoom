@@ -17,9 +17,28 @@
         insert into user(username,name,password,role) values(#{username},#{name},#{password},#{role})
     </insert>
     <update id="updateUser" parameterType="com.tc.traumchatroom.entity.User">
-        update user set username = #{username},name = #{name},password = #{password},role = #{role} where id = #{id}
+        update user
+        <set>
+            <if test="username != null and username != ''">username = #{username},</if>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="password != null and password != ''">password = #{password},</if>
+            <if test="role != null and role != ''">role = #{role},</if>
+        </set>
+        where id = #{id}
     </update>
     <delete id="deleteUser" parameterType="Integer">
         delete from user where id = #{id}
     </delete>
+    <update id="updateNameAndPassword" parameterType="com.tc.traumchatroom.entity.User">
+        update user
+        <set>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="password != null and password != ''">password = #{password},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="updateRole">
+        update user set role = #{role} where id = #{id}
+    </update>
 </mapper>
