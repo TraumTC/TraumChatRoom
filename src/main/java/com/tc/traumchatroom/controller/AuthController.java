@@ -1,7 +1,6 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.entity.User;
-import com.tc.traumchatroom.service.Impl.UserDetailsServiceImpl;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,12 +18,21 @@ import java.util.Map;
 @Controller
 
 public class AuthController {
-    private Map<String, Object> result = new HashMap<>();
-
     @Resource
     private UserService userService;
     @Resource
     private PasswordEncoder passwordEncoder;
+
+    private Map<String, Object> createResult(boolean success, String message) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", success);
+        result.put("message", message);
+        return result;
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && "ROLE_ADMIN".equals(user.getRole());
+    }
     @GetMapping("/register")
     public String register() {
         return "register";
@@ -70,15 +78,12 @@ public class AuthController {
     @GetMapping("/api/current-user")
     @ResponseBody
     public User getCurrentUser(HttpServletRequest request, HttpSession session) {
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userService.getCurrentUserWithGuest(request);
 
         if (currentUser == null) {
-            User guestUser = (User) session.getAttribute("GUEST_USER");
-            if (guestUser == null) {
-                guestUser = userService.getOrCreateGuestUser(request);
-                if (guestUser != null) {
-                    session.setAttribute("GUEST_USER", guestUser);
-                }
+            User guestUser = userService.getOrCreateGuestUser(request);
+            if (guestUser != null) {
+                session.setAttribute("GUEST_USER", guestUser);
             }
             return guestUser;
         }
@@ -97,38 +102,26 @@ public class AuthController {
     @ResponseBody
     public Map<String, Object> updateProfile(@RequestParam(required = false) String name,
                                              @RequestParam(required = false) String password) {
-        Map<String, Object> result = new HashMap<>();
         User currentUser = userService.getCurrentUser();
-
         if (currentUser == null) {
-            result.put("success", false);
-            result.put("message", "用户未登录");
-            return result;
+            return createResult(false, "用户未登录");
         }
-
         try {
             if (name != null && !name.trim().isEmpty()) {
                 User existUser = userService.findByName(name);
                 if (existUser != null && !existUser.getId().equals(currentUser.getId())) {
-                    result.put("success", false);
-                    result.put("message", "昵称已存在");
-                    return result;
+                    return createResult(false, "昵称已存在");
                 }
             }
-
             int rows = userService.updateProfile(currentUser.getId(), name, password);
             if (rows > 0) {
-                result.put("success", true);
-                result.put("message", "修改成功");
+                return createResult(true, "修改成功");
             } else {
-                result.put("success", false);
-                result.put("message", "修改失败");
+                return createResult(false, "修改失败");
             }
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "修改失败：" + e.getMessage());
+            return createResult(false, "修改失败：" + e.getMessage());
         }
-        return result;
     }
 
     @PostMapping("/api/update-password")
@@ -139,38 +132,30 @@ public class AuthController {
         User currentUser = userService.getCurrentUser();
 
         if (currentUser == null) {
-            result.put("success", false);
-            result.put("message", "用户未登录");
-            return result;
+            return createResult(false, "用户未登录");
         }
 
         try {
             User dbUser = userService.findByUserName(currentUser.getUsername());
             if (dbUser == null || !passwordEncoder.matches(oldPassword, dbUser.getPassword())) {
-                result.put("success", false);
-                result.put("message", "当前密码错误");
-                return result;
+                return createResult(false, "当前密码错误");
             }
 
             int rows = userService.updateProfile(currentUser.getId(), null, password);
             if (rows > 0) {
-                result.put("success", true);
-                result.put("message", "密码修改成功");
+                return createResult(true, "密码修改成功");
             } else {
-                result.put("success", false);
-                result.put("message", "修改失败");
+                return createResult(false, "修改失败");
             }
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "修改失败：" + e.getMessage());
+            return createResult(false, "修改失败：" + e.getMessage());
         }
-        return result;
     }
 
     @GetMapping("/admin/users")
     public String adminUsers() {
         User currentUser = userService.getCurrentUser();
-        if (currentUser == null || !"ROLE_ADMIN".equals(currentUser.getRole())) {
+        if (!isAdmin(currentUser)) {
             return "redirect:/ChatRoom";
         }
         return "admin-users";
@@ -180,7 +165,7 @@ public class AuthController {
     @ResponseBody
     public List<User> getAllUsers() {
         User currentUser = userService.getCurrentUser();
-        if (currentUser == null || !"ROLE_ADMIN".equals(currentUser.getRole())) {
+        if (!isAdmin(currentUser)) {
             return new ArrayList<>();
         }
         List<User> users = userService.getAllUsers();
@@ -191,24 +176,18 @@ public class AuthController {
     @PostMapping("/api/admin/update-role")
     @ResponseBody
     public Map<String, Object> updateRole(@RequestParam Integer id, @RequestParam String role) {
-        Map<String, Object> result = new HashMap<>();
         User currentUser = userService.getCurrentUser();
 
-        if (currentUser == null || !"ROLE_ADMIN".equals(currentUser.getRole())) {
-            result.put("success", false);
-            result.put("message", "无权限");
-            return result;
+        if (!isAdmin(currentUser)) {
+            return createResult(false, "无权限");
         }
 
         try {
             int rows = userService.updateUserRole(id, role);
-            result.put("success", rows > 0);
-            result.put("message", rows > 0 ? "修改成功" : "修改失败");
+            return createResult(rows > 0, rows > 0 ? "修改成功" : "修改失败");
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "修改失败：" + e.getMessage());
+            return createResult(false, "修改失败：" + e.getMessage());
         }
-        return result;
     }
 
     @PostMapping("/api/admin/update-user")
@@ -216,21 +195,16 @@ public class AuthController {
     public Map<String, Object> updateUser(@RequestParam Integer id,
                                           @RequestParam String name,
                                           @RequestParam String role) {
-        Map<String, Object> result = new HashMap<>();
         User currentUser = userService.getCurrentUser();
 
-        if (currentUser == null || !"ROLE_ADMIN".equals(currentUser.getRole())) {
-            result.put("success", false);
-            result.put("message", "无权限");
-            return result;
+        if (!isAdmin(currentUser)) {
+            return createResult(false, "无权限");
         }
 
         try {
             User existUser = userService.findByName(name);
             if (existUser != null && !existUser.getId().equals(id)) {
-                result.put("success", false);
-                result.put("message", "昵称已存在");
-                return result;
+                return createResult(false, "昵称已存在");
             }
 
             User user = new User();
@@ -239,42 +213,31 @@ public class AuthController {
             user.setRole(role);
             int rows = userService.updateUser(user);
 
-            result.put("success", rows > 0);
-            result.put("message", rows > 0 ? "修改成功" : "修改失败");
+            return createResult(rows > 0, rows > 0 ? "修改成功" : "修改失败");
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "修改失败：" + e.getMessage());
+            return createResult(false, "修改失败：" + e.getMessage());
         }
-        return result;
     }
 
     @PostMapping("/api/admin/delete-user")
     @ResponseBody
     public Map<String, Object> deleteUser(@RequestParam Integer id) {
-        Map<String, Object> result = new HashMap<>();
         User currentUser = userService.getCurrentUser();
 
-        if (currentUser == null || !"ROLE_ADMIN".equals(currentUser.getRole())) {
-            result.put("success", false);
-            result.put("message", "无权限");
-            return result;
+        if (!isAdmin(currentUser)) {
+            return createResult(false, "无权限");
         }
 
         if (id.equals(currentUser.getId())) {
-            result.put("success", false);
-            result.put("message", "不能删除自己");
-            return result;
+            return createResult(false, "不能删除自己");
         }
 
         try {
             int rows = userService.deleteUser(id);
-            result.put("success", rows > 0);
-            result.put("message", rows > 0 ? "删除成功" : "删除失败");
+            return createResult(rows > 0, rows > 0 ? "删除成功" : "删除失败");
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "删除失败：" + e.getMessage());
+            return createResult(false, "删除失败：" + e.getMessage());
         }
-        return result;
     }
 }
 

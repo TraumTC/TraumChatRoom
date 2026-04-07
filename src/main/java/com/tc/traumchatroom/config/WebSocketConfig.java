@@ -1,12 +1,9 @@
 package com.tc.traumchatroom.config;
 
-import com.tc.traumchatroom.entity.User;
-import com.tc.traumchatroom.util.OnlineUserUtil;
-import com.tc.traumchatroom.util.UserUtil;
+import com.tc.traumchatroom.service.NotificationService;
+import com.tc.traumchatroom.service.OnlineUserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +30,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -42,9 +40,7 @@ import java.util.Set;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
     @Resource
-    private OnlineUserUtil onlineUserUtil;
-    @Resource
-    private UserUtil userUtil;
+    private OnlineUserService onlineUserService;
     @Autowired
     private ApplicationContext applicationContext;
 
@@ -146,47 +142,63 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
 
                     if (username != null) {
                         if (StompCommand.CONNECT.equals(command)) {
-                            String displayName = name != null ? name : username;
-                            onlineUserUtil.addUser(username, displayName);
-                            Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
-                            messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
-
-                            try {
-                                Map<String, Object> onlineNotification = new HashMap<>();
-                                onlineNotification.put("type", "user_online");
-                                onlineNotification.put("sender", displayName);
-                                onlineNotification.put("message", displayName + " 已上线");
-                                onlineNotification.put("sendTime", java.time.LocalDateTime.now().toString());
-
-                                messagingTemplate.convertAndSend("/topic/private-notifications", (Object) onlineNotification);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
+                            handleUserConnect(username, name);
                         } else if (StompCommand.DISCONNECT.equals(command)) {
-                            String offlineName = onlineUserUtil.getNameByUsername(username);
-                            onlineUserUtil.removeUser(username);
-                            Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
-                            messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
-
-                            if (offlineName != null) {
-                                try {
-                                    Map<String, Object> offlineNotification = new HashMap<>();
-                                    offlineNotification.put("type", "user_offline");
-                                    offlineNotification.put("sender", offlineName);
-                                    offlineNotification.put("message", offlineName + " 已下线");
-                                    offlineNotification.put("sendTime", java.time.LocalDateTime.now().toString());
-
-                                    messagingTemplate.convertAndSend("/topic/private-notifications", (Object) offlineNotification);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
+                            handleUserDisconnect(username);
                         } else if (StompCommand.SEND.equals(command)) {
-                            onlineUserUtil.updateHeartbeat(username);
+                            onlineUserService.updateHeartbeat(username);
                         }
                     }
                 }
                 return message;
+            }
+
+            private void handleUserConnect(String username, String name) {
+                String displayName = name != null ? name : username;
+                onlineUserService.addUser(username, displayName);
+                Set<String> onlineUsers = onlineUserService.getOnlineUsers();
+                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
+
+                sendUserOnlineNotification(displayName);
+            }
+
+            private void handleUserDisconnect(String username) {
+                String offlineName = onlineUserService.getNameByUsername(username);
+                onlineUserService.removeUser(username);
+                Set<String> onlineUsers = onlineUserService.getOnlineUsers();
+                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
+
+                if (offlineName != null) {
+                    sendUserOfflineNotification(offlineName);
+                }
+            }
+
+            private void sendUserOnlineNotification(String name) {
+                try {
+                    Map<String, Object> notification = new HashMap<>();
+                    notification.put("type", "user_online");
+                    notification.put("sender", name);
+                    notification.put("message", name + " 已上线");
+                    notification.put("sendTime", LocalDateTime.now().toString());
+
+                    messagingTemplate.convertAndSend("/topic/private-notifications", (Object) notification);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            private void sendUserOfflineNotification(String name) {
+                try {
+                    Map<String, Object> notification = new HashMap<>();
+                    notification.put("type", "user_offline");
+                    notification.put("sender", name);
+                    notification.put("message", name + " 已下线");
+                    notification.put("sendTime", LocalDateTime.now().toString());
+
+                    messagingTemplate.convertAndSend("/topic/private-notifications", (Object) notification);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             private String getUsernameFromSession(StompHeaderAccessor accessor) {
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();

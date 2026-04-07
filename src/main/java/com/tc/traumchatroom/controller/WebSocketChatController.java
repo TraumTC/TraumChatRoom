@@ -4,8 +4,8 @@ import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.OnlineUserInfo;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.service.ChatService;
-import com.tc.traumchatroom.util.OnlineUserUtil;
-import com.tc.traumchatroom.util.UserUtil;
+import com.tc.traumchatroom.service.OnlineUserService;
+import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -30,9 +30,9 @@ public class WebSocketChatController {
     @Resource
     private ChatService chatService;
     @Resource
-    private OnlineUserUtil onlineUserUtil;
+    private OnlineUserService onlineUserService;
     @Resource
-    private UserUtil userUtil;
+    private UserService userService;
     @Resource
     private SimpMessagingTemplate messagingTemplate;
 
@@ -47,7 +47,7 @@ public class WebSocketChatController {
     public void handleHeartbeat(SimpMessageHeaderAccessor headerAccessor) {
         String username = getUsernameFromSession(headerAccessor);
         if (username != null) {
-            onlineUserUtil.updateHeartbeat(username);
+            onlineUserService.updateHeartbeat(username);
             log.debug("收到用户 {} 的心跳", username);
         }
     }
@@ -56,10 +56,10 @@ public class WebSocketChatController {
     public void handleSyncState(Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         String username = getUsernameFromSession(headerAccessor);
         if (username != null) {
-            onlineUserUtil.updateHeartbeat(username);
+            onlineUserService.updateHeartbeat(username);
             log.info("用户 {} 同步连接状态", username);
 
-            Set<String> onlineUsers = onlineUserUtil.getOnlineUsers();
+            Set<String> onlineUsers = onlineUserService.getOnlineUsers();
             messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
         }
     }
@@ -80,13 +80,13 @@ public class WebSocketChatController {
         try {
             Message message = chatService.sendPrivateMessage(receiverName, content, headerAccessor);
 
-            User currentUser = userUtil.getCurrentUser(headerAccessor);
+            User currentUser = userService.getCurrentUser(headerAccessor);
             if (currentUser != null) {
                 String senderUsername = currentUser.getUsername();
 
                 messagingTemplate.convertAndSendToUser(senderUsername, "/queue/private-messages", message);
 
-                String receiverUsername = onlineUserUtil.getUsernameByName(receiverName);
+                String receiverUsername = onlineUserService.getUsernameByName(receiverName);
                 if (receiverUsername != null && !senderUsername.equals(receiverUsername)) {
                     messagingTemplate.convertAndSendToUser(receiverUsername, "/queue/private-messages", message);
                 }
@@ -110,13 +110,7 @@ public class WebSocketChatController {
     @ResponseBody
     public List<Message> getPrivateHistory(@PathVariable String targetName, HttpServletRequest request) {
         try {
-            User currentUser = userUtil.getCurrentUser();
-            if (currentUser == null) {
-                Object guestUser = request.getSession().getAttribute("GUEST_USER");
-                if (guestUser instanceof User) {
-                    currentUser = (User) guestUser;
-                }
-            }
+            User currentUser = userService.getCurrentUserWithGuest(request);
 
             if (currentUser == null) {
                 return new ArrayList<>();
@@ -134,14 +128,7 @@ public class WebSocketChatController {
     @ResponseBody
     public Map<String, Object> getCurrentUserInfo(HttpServletRequest request) {
         Map<String, Object> result = new HashMap<>();
-        User currentUser = userUtil.getCurrentUser();
-
-        if (currentUser == null) {
-            Object guestUser = request.getSession().getAttribute("GUEST_USER");
-            if (guestUser instanceof User) {
-                currentUser = (User) guestUser;
-            }
-        }
+        User currentUser = userService.getCurrentUserWithGuest(request);
 
         if (currentUser != null) {
             result.put("username", currentUser.getUsername());
@@ -157,7 +144,7 @@ public class WebSocketChatController {
     @GetMapping("/api/online-users")
     @ResponseBody
     public OnlineUserInfo getOnlineUsers() {
-        Set<String> users = onlineUserUtil.getOnlineUsers();
+        Set<String> users = onlineUserService.getOnlineUsers();
         return new OnlineUserInfo(users.size(), users);
     }
 }

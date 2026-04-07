@@ -4,8 +4,8 @@ import com.tc.traumchatroom.config.FileStorageConfig;
 import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.service.ChatService;
-import com.tc.traumchatroom.util.OnlineUserUtil;
-import com.tc.traumchatroom.util.UserUtil;
+import com.tc.traumchatroom.service.OnlineUserService;
+import com.tc.traumchatroom.service.UserService;
 //import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -45,10 +45,10 @@ public class FileController {
     private ChatService chatService;
 
     @Autowired
-    private UserUtil userUtil;
+    private UserService userService;
 
     @Autowired
-    private OnlineUserUtil onlineUserUtil;
+    private OnlineUserService onlineUserService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -72,20 +72,13 @@ public class FileController {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            User currentUser = userUtil.getCurrentUser();
-            if (currentUser == null) {
-                Object guestUser = request.getSession().getAttribute("GUEST_USER");
-                if (guestUser instanceof User) {
-                    currentUser = (User) guestUser;
-                }
-            }
+            User currentUser = userService.getCurrentUserWithGuest(request);
 
             if (currentUser == null) {
                 result.put("success", false);
                 result.put("message", "用户未登录");
                 return result;
             }
-
             if (file.isEmpty()) {
                 result.put("success", false);
                 result.put("message", "文件不能为空");
@@ -125,7 +118,7 @@ public class FileController {
             chatService.saveMessage(message);
 
             if (receiver != null && !receiver.isEmpty()) {
-                String receiverUsername = onlineUserUtil.getUsernameByName(receiver);
+                String receiverUsername = onlineUserService.getUsernameByName(receiver);
                 if (receiverUsername != null) {
                     messagingTemplate.convertAndSendToUser(receiverUsername, "/queue/private-messages", message);
                 }

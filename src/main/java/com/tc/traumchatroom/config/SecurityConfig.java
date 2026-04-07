@@ -1,6 +1,6 @@
 package com.tc.traumchatroom.config;
 
-import com.tc.traumchatroom.service.Impl.UserDetailsServiceImpl;
+import com.tc.traumchatroom.service.UserDetailsService;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +22,7 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
     @Resource
-    private UserDetailsServiceImpl userDetailsService;
+    private UserDetailsService userDetailsService;
 //    密码加密
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -45,7 +45,7 @@ public class SecurityConfig {
         return request -> {
             CorsConfiguration configuration = new CorsConfiguration();
             configuration.setAllowedOrigins(Arrays.asList("*"));
-            configuration.setAllowCredentials(true);
+            configuration.setAllowCredentials(false);
             configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
             configuration.setAllowedHeaders(Arrays.asList("*"));
             return configuration;

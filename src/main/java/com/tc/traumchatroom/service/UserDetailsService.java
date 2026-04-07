@@ -1,4 +1,4 @@
-package com.tc.traumchatroom.service.Impl;
+package com.tc.traumchatroom.service;
 
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.UserMapper;
@@ -6,14 +6,13 @@ import jakarta.annotation.Resource;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collection;
 @Service
-public class UserDetailsServiceImpl implements UserDetailsService {
+public class UserDetailsService implements org.springframework.security.core.userdetails.UserDetailsService {
     @Resource
     private UserMapper userMapper;
     @Override

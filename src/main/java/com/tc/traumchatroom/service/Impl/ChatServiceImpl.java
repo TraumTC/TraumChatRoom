@@ -4,7 +4,7 @@ import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.service.ChatService;
-import com.tc.traumchatroom.util.UserUtil;
+import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Service;
@@ -16,12 +16,12 @@ import java.util.List;
 public class ChatServiceImpl implements ChatService {
 
     @Resource
-    private UserUtil userUtil;
+    private UserService userService;
     @Resource
     private MessageMapper messageMapper;
     @Override
     public Message sendChatMessage(String content, SimpMessageHeaderAccessor headerAccessor) {
-        User currentUser = userUtil.getCurrentUser(headerAccessor);
+        User currentUser = userService.getCurrentUser(headerAccessor);
         if (currentUser == null) {
             throw new RuntimeException("未找到当前登录用户，请重新登录");
         }
@@ -45,7 +45,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Message sendPrivateMessage(String receiverName, String content, SimpMessageHeaderAccessor headerAccessor) {
-        User currentUser = userUtil.getCurrentUser(headerAccessor);
+        User currentUser = userService.getCurrentUser(headerAccessor);
         if (currentUser == null) {
             throw new RuntimeException("未找到当前登录用户，请重新登录");
         }
