@@ -112,12 +112,6 @@
             </div>
         </div>
     </main>
-
-    <div id="contextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="startPrivateChat()">
-            <span class="text-sm text-gray-700">💬 私聊</span>
-        </div>
-    </div>
     <div id="imagePreviewOverlay" class="image-preview-overlay" onclick="closeImagePreview(event)">
         <div class="image-preview-container">
             <button class="image-preview-close" onclick="closeImagePreview(event)">×</button>
@@ -145,6 +139,13 @@
 
 
 </body>
-
+<script src="/js/module/utils.js"></script>
+<script src="/js/module/websocket.js"></script>
+<script src="/js/module/online-users.js"></script>
+<script src="/js/module/private-chat.js"></script>
+<script src="/js/module/message.js"></script>
+<script src="/js/module/file.js"></script>
+<script src="/js/module/mention.js"></script>
+<script src="/js/module/context-menu.js"></script>
 <script src="/js/chatroom.js"></script>
 </html>

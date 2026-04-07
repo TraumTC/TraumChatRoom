@@ -27,12 +27,15 @@ public class ChatServiceImpl implements ChatService {
         }
         Integer senderId = currentUser.getId();
 
+        String senderIp = getClientIp(headerAccessor);
+
         Message message = new Message(null,
                 senderId,
                 currentUser.getName(),
                 "",
                 content,
-                LocalDateTime.now());
+                LocalDateTime.now(),
+                senderIp);
         messageMapper.addMessage(message);
         return message;
     }
@@ -52,12 +55,15 @@ public class ChatServiceImpl implements ChatService {
 
         Integer senderId = currentUser.getId();
 
+        String senderIp = getClientIp(headerAccessor);
+
         Message message = new Message(null,
                 senderId,
                 currentUser.getName(),
                 receiverName,
                 content,
-                LocalDateTime.now());
+                LocalDateTime.now(),
+                senderIp);
         messageMapper.addMessage(message);
         return message;
     }
@@ -71,5 +77,16 @@ public class ChatServiceImpl implements ChatService {
         messageMapper.insertMessage(message);
     }
 
+    private String getClientIp(SimpMessageHeaderAccessor headerAccessor) {
+        if (headerAccessor.getSessionAttributes() != null) {
+            Object ipObj = headerAccessor.getSessionAttributes().get("ipAddress");
+            if (ipObj != null) {
+                return ipObj.toString();
+            }
+        }
+        return "unknown";
+    }
+
 
 }
+

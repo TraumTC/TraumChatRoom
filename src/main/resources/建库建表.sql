@@ -11,6 +11,7 @@ create table message(
                         sender varchar (20) not null,
                         receiver varchar (20) ,
                         message text not null,
+                        sender_ip VARCHAR(45) DEFAULT NULL,
                         send_time timestamp not null,
                         file_name VARCHAR(255) DEFAULT NULL,
                         file_path VARCHAR(500) DEFAULT NULL,
@@ -33,3 +34,4 @@ BEGIN
     END IF;
 END$$
 DELIMITER ;
+

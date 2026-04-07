@@ -13,6 +13,7 @@
         <result column="file_path" property="filePath"/>
         <result column="file_size" property="fileSize"/>
         <result column="message_type" property="messageType"/>
+        <result column="sender_ip" property="senderIp"/>
     </resultMap>
 
     <select id="findAll" resultMap="MessageResultMap">
@@ -56,15 +57,16 @@
     </select>
 
     <insert id="addMessage" parameterType="com.tc.traumchatroom.entity.Message">
-        INSERT INTO message (sender_id, sender, receiver, message, send_time)
-        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime})
+        INSERT INTO message (sender_id, sender, receiver, message, send_time, sender_ip)
+        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime}, #{senderIp})
     </insert>
     <insert id="insertMessage" parameterType="com.tc.traumchatroom.entity.Message" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO message (sender_id, sender, receiver, message, send_time, file_name, file_path, file_size, message_type)
-        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime}, #{fileName}, #{filePath}, #{fileSize}, #{messageType})
+        INSERT INTO message (sender_id, sender, receiver, message, send_time, file_name, file_path, file_size, message_type, sender_ip)
+        VALUES (#{senderId}, #{sender}, #{receiver}, #{message}, #{sendTime}, #{fileName}, #{filePath}, #{fileSize}, #{messageType}, #{senderIp})
     </insert>
 
     <delete id="deleteMessage" parameterType="java.lang.Integer">
         DELETE FROM message WHERE id = #{id}
     </delete>
 </mapper>
+

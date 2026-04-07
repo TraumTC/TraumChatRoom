@@ -23,14 +23,16 @@ public class Message {
     private String filePath;
     private Long fileSize;
     private String messageType;
+    private String senderIp;
 
-    public Message(Integer id, Integer senderId, String sender, String receiver, String message, LocalDateTime sendTime) {
+    public Message(Integer id, Integer senderId, String sender, String receiver, String message, LocalDateTime sendTime,String senderIp) {
         this.id = id;
         this.senderId = senderId;
         this.sender = sender;
         this.receiver = receiver;
         this.message = message;
         this.sendTime = sendTime;
+        this.senderIp = senderIp;
     }
 
 

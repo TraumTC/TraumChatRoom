@@ -1,7 +1,7 @@
 package com.tc.traumchatroom.config;
 
-import com.tc.traumchatroom.service.NotificationService;
 import com.tc.traumchatroom.service.OnlineUserService;
+import com.tc.traumchatroom.service.WebSocketSessionService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,15 +36,20 @@ import java.util.Map;
 import java.util.Set;
 
 @Configuration
-//开启信息代理
 @EnableWebSocketMessageBroker
-public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Resource
+    private WebSocketSessionService webSocketSessionService;
+
     @Resource
     private OnlineUserService onlineUserService;
+
     @Autowired
     private ApplicationContext applicationContext;
 
     private SimpMessagingTemplate messagingTemplate;
+
     @Bean
     public TaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
@@ -53,6 +58,7 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
         scheduler.initialize();
         return scheduler;
     }
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/topic", "/queue")
@@ -75,6 +81,9 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
 
                         if (request instanceof ServletServerHttpRequest) {
                             ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+
+                            String clientIp = getClientIpAddress(servletRequest);
+                            attributes.put("ipAddress", clientIp);
 
                             String authParam = servletRequest.getServletRequest().getParameter("authenticated");
                             if (authParam != null && !authParam.isEmpty()) {
@@ -113,72 +122,87 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                         }
                         return true;
                     }
+
                     @Override
                     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                                WebSocketHandler wsHandler, Exception exception) {
                     }
+
+                    private String getClientIpAddress(ServletServerHttpRequest request) {
+                        String ip = request.getServletRequest().getHeader("X-Forwarded-For");
+                        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                            ip = request.getServletRequest().getHeader("X-Real-IP");
+                        }
+                        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                            ip = request.getServletRequest().getHeader("Proxy-Client-IP");
+                        }
+                        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                            ip = request.getServletRequest().getHeader("WL-Proxy-Client-IP");
+                        }
+                        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                            ip = request.getServletRequest().getRemoteAddr();
+                        }
+
+                        if (ip != null && ip.contains(",")) {
+                            ip = ip.split(",")[0].trim();
+                        }
+
+                        return ip != null ? ip : "unknown";
+                    }
                 })
-                .withSockJS()
-        ;
+                .withSockJS();
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.taskExecutor()
-                .corePoolSize(20)    // 核心线程 20（足够小型聊天）
-                .maxPoolSize(50)     // 最大线程 50
-                .queueCapacity(1000); // 队列缓冲
+                .corePoolSize(20)
+                .maxPoolSize(50)
+                .queueCapacity(1000);
+
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 if (messagingTemplate == null) {
                     messagingTemplate = applicationContext.getBean(SimpMessagingTemplate.class);
                 }
+
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
                 if (accessor != null) {
                     StompCommand command = accessor.getCommand();
-                    String username = getUsernameFromSession(accessor);
-                    String name = getNameFromSession(accessor);
+                    String username = (String) accessor.getSessionAttributes().get("authenticatedUser");
+                    String name = (String) accessor.getSessionAttributes().get("authenticatedUserName");
 
                     if (username != null) {
                         if (StompCommand.CONNECT.equals(command)) {
-                            handleUserConnect(username, name);
+                            webSocketSessionService.handleUserConnected(username, name);
+                            handleUserOnlineNotification(username, name);
                         } else if (StompCommand.DISCONNECT.equals(command)) {
-                            handleUserDisconnect(username);
+                            String displayName = onlineUserService.getNameByUsername(username);
+                            webSocketSessionService.handleUserDisconnected(username);
+                            if (displayName != null) {
+                                handleUserOfflineNotification(displayName);
+                            }
                         } else if (StompCommand.SEND.equals(command)) {
-                            onlineUserService.updateHeartbeat(username);
+                            String destination = accessor.getDestination();
+                            if (destination != null && destination.contains("/heartbeat")) {
+                                webSocketSessionService.handleHeartbeat(username);
+                            }
                         }
                     }
                 }
                 return message;
             }
 
-            private void handleUserConnect(String username, String name) {
-                String displayName = name != null ? name : username;
-                onlineUserService.addUser(username, displayName);
-                Set<String> onlineUsers = onlineUserService.getOnlineUsers();
-                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
-
-                sendUserOnlineNotification(displayName);
-            }
-
-            private void handleUserDisconnect(String username) {
-                String offlineName = onlineUserService.getNameByUsername(username);
-                onlineUserService.removeUser(username);
-                Set<String> onlineUsers = onlineUserService.getOnlineUsers();
-                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
-
-                if (offlineName != null) {
-                    sendUserOfflineNotification(offlineName);
-                }
-            }
-
-            private void sendUserOnlineNotification(String name) {
+            private void handleUserOnlineNotification(String username, String name) {
                 try {
+                    String displayName = name != null ? name : username;
+                    broadcastOnlineUsers();
+
                     Map<String, Object> notification = new HashMap<>();
                     notification.put("type", "user_online");
-                    notification.put("sender", name);
-                    notification.put("message", name + " 已上线");
+                    notification.put("sender", displayName);
+                    notification.put("message", displayName + " 已上线");
                     notification.put("sendTime", LocalDateTime.now().toString());
 
                     messagingTemplate.convertAndSend("/topic/private-notifications", (Object) notification);
@@ -187,8 +211,10 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                 }
             }
 
-            private void sendUserOfflineNotification(String name) {
+            private void handleUserOfflineNotification(String name) {
                 try {
+                    broadcastOnlineUsers();
+
                     Map<String, Object> notification = new HashMap<>();
                     notification.put("type", "user_offline");
                     notification.put("sender", name);
@@ -200,22 +226,12 @@ public class WebSocketConfig  implements WebSocketMessageBrokerConfigurer {
                     e.printStackTrace();
                 }
             }
-            private String getUsernameFromSession(StompHeaderAccessor accessor) {
-                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-                if (sessionAttributes != null) {
-                    return (String) sessionAttributes.get("authenticatedUser");
-                }
-                return null;
-            }
 
-            private String getNameFromSession(StompHeaderAccessor accessor) {
-                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-                if (sessionAttributes != null) {
-                    return (String) sessionAttributes.get("authenticatedUserName");
-                }
-                return null;
+            private void broadcastOnlineUsers() {
+                Set<String> onlineUsers = onlineUserService.getOnlineUsers();
+                messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
             }
-
         });
     }
 }
+

@@ -62,7 +62,7 @@ public class SecurityConfig {
                         .requestMatchers("/register","/login","/error", "/ChatRoom",
                                 "/ws/**", "/api/current-user", "/api/current-user-info",
                                 "/history", "/api/online-users", "/api/private-history/**",
-                                "/api/file/**","/css/**", "/js/**").permitAll()
+                                "/api/file/**","/css/**", "/js/**", "/favicon.ico").permitAll()
                         .requestMatchers("/ChatRoom/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
