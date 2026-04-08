@@ -41,16 +41,27 @@ public class AuthController {
     @PostMapping("/register")
     public String registerSubmit(@RequestParam String username,
                                  @RequestParam String name,
-                                 @RequestParam String password,RedirectAttributes redirectAttributes)  {
+                                 @RequestParam String password, RedirectAttributes redirectAttributes) {
         try {
-            userService.register(username,name,password);
-            redirectAttributes.addFlashAttribute("successMessage","注册成功");
+            if (username == null || username.trim().length() < 2 || username.trim().length() > 20) {
+                redirectAttributes.addFlashAttribute("errorMessage", "用户名长度必须在 2-18 个字符之间");
+                return "redirect:/register";
+            }
+            if (name == null || name.trim().length() < 1 || name.trim().length() > 20) {
+                redirectAttributes.addFlashAttribute("errorMessage", "昵称长度必须在 1-18 个字符之间");
+                return "redirect:/register";
+            }
+            if (password == null || password.length() < 6) {
+                redirectAttributes.addFlashAttribute("errorMessage", "密码长度不能少于 6 位");
+                return "redirect:/register";
+            }
+            userService.register(username.trim(), name.trim(), password);
+            redirectAttributes.addFlashAttribute("successMessage", "注册成功");
             return "redirect:/login?success=registered";
-        }catch (Exception e){
-            redirectAttributes.addFlashAttribute("errorMessage",e.getMessage());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
             return "redirect:/register";
         }
-
     }
     @GetMapping("/login")
     public String login() {
@@ -73,6 +84,8 @@ public class AuthController {
             if (guestUser != null) {
                 session.setAttribute("GUEST_USER", guestUser);
             }
+        } else {
+            session.setAttribute("CURRENT_USER", currentUser);
         }
         return "ChatRoom";
     }

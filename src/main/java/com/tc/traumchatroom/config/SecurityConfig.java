@@ -23,47 +23,54 @@ import java.util.Arrays;
 public class SecurityConfig {
     @Resource
     private UserDetailsService userDetailsService;
-//    密码加密
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-//    绑定加密器
+
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }
-//
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         return request -> {
             CorsConfiguration configuration = new CorsConfiguration();
-            configuration.setAllowedOrigins(Arrays.asList("*"));
-            configuration.setAllowCredentials(false);
+            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+            configuration.setAllowCredentials(true);
             configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
             configuration.setAllowedHeaders(Arrays.asList("*"));
             return configuration;
         };
     }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/ws/**", "/api/**", "/login","/logout","/register")
+                )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .contentTypeOptions(content -> content.disable())
+                )
                 .authorizeHttpRequests( auth -> auth
-                        .requestMatchers("/register","/login","/error", "/ChatRoom",
+                        .requestMatchers("/register", "/login", "/error", "/ChatRoom",
                                 "/ws/**", "/api/current-user", "/api/current-user-info",
                                 "/history", "/api/online-users", "/api/private-history/**",
-                                "/api/file/**","/css/**", "/js/**", "/favicon.ico").permitAll()
-                        .requestMatchers("/ChatRoom/admin").hasRole("ADMIN")
+                                "/api/file/**", "/css/**", "/js/**", "/favicon.ico",
+                                "/admin-users.html", "/profile.html").permitAll()
+                        .requestMatchers("/admin/users", "/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form

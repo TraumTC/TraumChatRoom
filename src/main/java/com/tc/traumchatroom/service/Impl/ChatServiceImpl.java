@@ -4,6 +4,7 @@ import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.service.ChatService;
+import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -17,6 +18,8 @@ public class ChatServiceImpl implements ChatService {
 
     @Resource
     private UserService userService;
+    @Resource
+    private OnlineUserService onlineUserService;
     @Resource
     private MessageMapper messageMapper;
     @Override
@@ -57,10 +60,20 @@ public class ChatServiceImpl implements ChatService {
 
         String senderIp = getClientIp(headerAccessor);
 
+        String receiverUsername = onlineUserService.getUsernameByName(receiverName);
+        if (receiverUsername == null) {
+            User receiverUser = userService.findByName(receiverName);
+            if (receiverUser != null) {
+                receiverUsername = receiverUser.getUsername();
+            } else {
+                throw new RuntimeException("接收者用户不存在：" + receiverName);
+            }
+        }
+
         Message message = new Message(null,
                 senderId,
                 currentUser.getName(),
-                receiverName,
+                receiverUsername,
                 content,
                 LocalDateTime.now(),
                 senderIp);

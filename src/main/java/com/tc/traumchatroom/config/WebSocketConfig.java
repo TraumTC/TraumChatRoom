@@ -4,6 +4,8 @@ import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.WebSocketSessionService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -22,9 +24,9 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.socket.WebSocketHandler;
+
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -44,6 +46,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Resource
     private OnlineUserService onlineUserService;
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -92,13 +96,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         }
 
                         if (username == null) {
-                            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-                            if (authentication != null && authentication.isAuthenticated()
-                                    && !"anonymousUser".equals(authentication.getPrincipal())) {
-                                username = authentication.getName();
+                            if (request instanceof ServletServerHttpRequest) {
+                                ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+                                HttpSession session = servletRequest.getServletRequest().getSession(false);
+                                if (session != null) {
+                                    com.tc.traumchatroom.entity.User currentUser =
+                                            (com.tc.traumchatroom.entity.User) session.getAttribute("CURRENT_USER");
+                                    if (currentUser != null) {
+                                        username = currentUser.getUsername();
+                                        name = currentUser.getName();  // ← 获取昵称
+                                    }
+                                }
                             }
                         }
 
+                        // ← 其次获取游客用户信息
                         if (username == null) {
                             if (request instanceof ServletServerHttpRequest) {
                                 ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
@@ -113,7 +125,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                                 }
                             }
                         }
-
                         if (username != null) {
                             attributes.put("authenticatedUser", username);
                             if (name != null) {
@@ -176,6 +187,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     if (username != null) {
                         if (StompCommand.CONNECT.equals(command)) {
                             webSocketSessionService.handleUserConnected(username, name);
+                            UsernamePasswordAuthenticationToken principal = new UsernamePasswordAuthenticationToken(username, null, java.util.Collections.emptyList());
+                            accessor.setUser(principal);
                             handleUserOnlineNotification(username, name);
                         } else if (StompCommand.DISCONNECT.equals(command)) {
                             String displayName = onlineUserService.getNameByUsername(username);
@@ -207,7 +220,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                     messagingTemplate.convertAndSend("/topic/private-notifications", (Object) notification);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.error("用户下线通知失败", e);
                 }
             }
 
@@ -223,7 +236,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                     messagingTemplate.convertAndSend("/topic/private-notifications", (Object) notification);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.error("用户上线通知失败", e);
                 }
             }
 

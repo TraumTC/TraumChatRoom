@@ -36,6 +36,7 @@ function onConnected(frame) {
     stompClient.subscribe('/user/queue/private-messages', onPrivateMessage);
     stompClient.subscribe('/topic/private-notifications', onNotification);
     stompClient.subscribe('/topic/onlineUsers', onOnlineUsersUpdate);
+    stompClient.subscribe('/user/queue/send-error', onSendError);
 
     loadPublicHistory();
     loadInitialOnlineUsers();
@@ -76,6 +77,12 @@ function onOnlineUsersUpdate(res) {
     const data = JSON.parse(res.body);
     const users = Array.isArray(data) ? data : (data?.onlineUsers || []);
     updateOnlineUsersList(users);
+}
+function onSendError(res) {
+    const data = JSON.parse(res.body);
+    if (data.type === 'send_error') {
+        showSendError(data.message);
+    }
 }
 
 function loadInitialOnlineUsers() {

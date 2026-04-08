@@ -8,6 +8,11 @@ let atOriginalAtPos = 0;
 let mentionableUsersCache = [];
 let atManuallyClosed = false;
 let mentionableUsersLoaded = false;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let popupStartX = 0;
+let popupStartY = 0;
 
 function loadMentionableUsers() {
     return fetch('/api/mentionable-users')
@@ -122,6 +127,26 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
         popup.style.top = (textareaRect.top - topOffset - popupHeight) + 'px';
     }
 
+    // 添加拖拽事件监听器
+    const popupHeader = popup.querySelector('.border-b');
+    if (popupHeader) {
+        popupHeader.style.cursor = 'move';
+        popupHeader.addEventListener('mousedown', startDrag);
+        popupHeader.addEventListener('touchstart', startDrag, { passive: false });
+    }
+
+    // 移除旧的拖拽事件监听器，避免重复添加
+    document.removeEventListener('mousemove', drag);
+    document.removeEventListener('touchmove', drag, { passive: false });
+    document.removeEventListener('mouseup', stopDrag);
+    document.removeEventListener('touchend', stopDrag);
+
+    // 添加新的拖拽事件监听器
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('mouseup', stopDrag);
+    document.addEventListener('touchend', stopDrag);
+
     if (!atMultiSelectMode) {
         atSelectedUsers = [];
     }
@@ -186,14 +211,17 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
 
 function hideAtUserPopup(manualClose = false) {
     const popup = document.getElementById('atUserPopup');
-    popup.classList.add('hidden');
-    atPopupVisible = false;
-    atPopupTarget = null;
-    if (manualClose) {
-        atManuallyClosed = true;
-    }
-    if (!atMultiSelectMode) {
-        atSelectedUsers = [];
+    // 只有在非多选模式下或手动关闭时才隐藏列表
+    if (!atMultiSelectMode || manualClose) {
+        popup.classList.add('hidden');
+        atPopupVisible = false;
+        atPopupTarget = null;
+        if (manualClose) {
+            atManuallyClosed = true;
+        }
+        if (!atMultiSelectMode) {
+            atSelectedUsers = [];
+        }
     }
 }
 
@@ -201,7 +229,23 @@ function hideAtUserPopup(manualClose = false) {
 function initMentionEventListeners() {
     const textarea = document.getElementById('content');
     if (textarea) {
-        textarea.addEventListener('blur', function() {
+        textarea.addEventListener('blur', function(e) {
+            // 检查事件目标是否在@列表或多选按钮内
+            const atPopup = document.getElementById('atUserPopup');
+            const multiSelectBtn = document.getElementById('atMultiSelectBtn');
+            const atUserList = document.getElementById('atUserList');
+            
+            // 如果在多选模式下，即使点击外部也不隐藏@列表
+            if (atMultiSelectMode) {
+                return;
+            }
+            
+            // 如果点击的是@列表内部、多选按钮或用户项，不隐藏@列表
+            if (atPopup && (atPopup.contains(e.relatedTarget) || e.relatedTarget === multiSelectBtn || 
+                (atUserList && atUserList.contains(e.relatedTarget)))) {
+                return;
+            }
+            
             // 延迟隐藏，以便用户可以点击@列表中的选项
             setTimeout(() => {
                 if (atPopupVisible) {
@@ -239,6 +283,12 @@ function toggleAtMultiSelect() {
     } else {
         filterAtUsers(document.getElementById('atSearchInput').value);
     }
+    
+    // 保持输入框焦点，防止移动端键盘隐藏
+    const textarea = document.getElementById('content');
+    setTimeout(() => {
+        textarea.focus();
+    }, 100);
 }
 
 function toggleAtUserSelection(name) {
@@ -346,10 +396,119 @@ function insertAtMention(userName) {
     hideAtUserPopup();
 }
 
+// 拖拽开始函数
+function startDrag(e) {
+    // 检查事件目标是否是多选按钮或其内部元素，如果是则不执行拖拽逻辑
+    const multiSelectBtn = document.getElementById('atMultiSelectBtn');
+    if (multiSelectBtn && (e.target === multiSelectBtn || multiSelectBtn.contains(e.target))) {
+        return;
+    }
+    
+    e.preventDefault();
+    isDragging = true;
+    
+    const popup = document.getElementById('atUserPopup');
+    const rect = popup.getBoundingClientRect();
+    
+    if (e.type === 'touchstart') {
+        dragStartX = e.touches[0].clientX;
+        dragStartY = e.touches[0].clientY;
+    } else {
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+    }
+    
+    popupStartX = rect.left;
+    popupStartY = rect.top;
+    
+    // 添加拖拽样式
+    popup.style.opacity = '0.8';
+    popup.style.zIndex = '1000';
+}
+
+// 拖拽中函数
+function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const popup = document.getElementById('atUserPopup');
+    let clientX, clientY;
+    
+    if (e.type === 'touchmove') {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+    
+    const deltaX = clientX - dragStartX;
+    const deltaY = clientY - dragStartY;
+    
+    let newLeft = popupStartX + deltaX;
+    let newTop = popupStartY + deltaY;
+    
+    // 限制拖拽范围，确保弹窗不会超出屏幕
+    const popupWidth = popup.offsetWidth;
+    const popupHeight = popup.offsetHeight;
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    
+    newLeft = Math.max(10, Math.min(newLeft, windowWidth - popupWidth - 10));
+    newTop = Math.max(10, Math.min(newTop, windowHeight - popupHeight - 10));
+    
+    popup.style.left = newLeft + 'px';
+    popup.style.top = newTop + 'px';
+}
+
+// 拖拽结束函数
+function stopDrag() {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    const popup = document.getElementById('atUserPopup');
+    // 移除拖拽样式
+    popup.style.opacity = '1';
+    popup.style.zIndex = '50';
+}
+
 // 页面加载时初始化事件监听器
 document.addEventListener('DOMContentLoaded', function() {
     loadMentionableUsers();
     initMentionEventListeners();
+    
+    // 监听输入框位置变化，用于移动端键盘弹出/收起时调整@列表位置
+    const textarea = document.getElementById('content');
+    if (textarea) {
+        // 监听输入框的focus和blur事件，用于检测键盘弹出/收起
+        textarea.addEventListener('focus', function() {
+            setTimeout(() => {
+                if (atPopupVisible) {
+                    const cursorPos = textarea.selectionStart;
+                    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+                    const lastAtPos = textBeforeCursor.lastIndexOf('@');
+                    if (lastAtPos !== -1) {
+                        const searchText = textBeforeCursor.substring(lastAtPos + 1);
+                        showAtUserPopup(searchText, cursorPos, lastAtPos);
+                    }
+                }
+            }, 300); // 延迟执行，确保键盘已经弹出
+        });
+        
+        textarea.addEventListener('blur', function() {
+            setTimeout(() => {
+                if (atPopupVisible) {
+                    const cursorPos = textarea.selectionStart;
+                    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+                    const lastAtPos = textBeforeCursor.lastIndexOf('@');
+                    if (lastAtPos !== -1) {
+                        const searchText = textBeforeCursor.substring(lastAtPos + 1);
+                        showAtUserPopup(searchText, cursorPos, lastAtPos);
+                    }
+                }
+            }, 300); // 延迟执行，确保键盘已经收起
+        });
+    }
 });
 
 function handleKeyDown(event) {

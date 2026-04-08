@@ -6,7 +6,6 @@ import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.service.ChatService;
 import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.UserService;
-//import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +27,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -85,20 +86,30 @@ public class FileController {
                 return result;
             }
 
+            String originalFileName = file.getOriginalFilename();
+            if (originalFileName == null || !originalFileName.contains(".")) {
+                result.put("success", false);
+                result.put("message", "文件名不合法");
+                return result;
+            }
+
+            String extension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
+            List<String> allowedExtensions = Arrays.asList("jpg", "jpeg", "png", "gif", "bmp", "webp", "pdf", "doc", "docx", "zip", "rar");
+
+            if (!allowedExtensions.contains(extension)) {
+                result.put("success", false);
+                result.put("message", "不支持的文件类型，仅允许上传图片或文档");
+                return result;
+            }
+
             if (file.getSize() > fileStorageConfig.getMaxFileSize()) {
                 result.put("success", false);
                 result.put("message", "文件大小不能超过100MB");
                 return result;
             }
 
-            String originalFileName = file.getOriginalFilename();
-            String extension = "";
-            if (originalFileName != null && originalFileName.contains(".")) {
-                extension = originalFileName.substring(originalFileName.lastIndexOf("."));
-            }
-
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            String uniqueFileName = timestamp + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+            String uniqueFileName = timestamp + "_" + UUID.randomUUID().toString().substring(0, 8) + "." + extension;
 
             Path targetLocation = this.fileStorageLocation.resolve(uniqueFileName);
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
@@ -119,7 +130,7 @@ public class FileController {
 
             if (receiver != null && !receiver.isEmpty()) {
                 String receiverUsername = onlineUserService.getUsernameByName(receiver);
-                if (receiverUsername != null) {
+                if (receiverUsername != null && onlineUserService.isOnline(receiverUsername)) {
                     messagingTemplate.convertAndSendToUser(receiverUsername, "/queue/private-messages", message);
                 }
                 messagingTemplate.convertAndSendToUser(currentUser.getUsername(), "/queue/private-messages", message);
@@ -145,8 +156,12 @@ public class FileController {
     public ResponseEntity<Resource> downloadFile(@PathVariable String fileName) {
         try {
             Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
-            Resource resource = new UrlResource(filePath.toUri());
 
+            if (!filePath.startsWith(this.fileStorageLocation)) {
+                log.warn("非法的文件访问请求: {}", fileName);
+                return ResponseEntity.badRequest().build();
+            }
+            Resource resource = new UrlResource(filePath.toUri());
             if (resource.exists() && resource.isReadable()) {
                 String contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
                 try {
@@ -168,3 +183,4 @@ public class FileController {
         }
     }
 }
+

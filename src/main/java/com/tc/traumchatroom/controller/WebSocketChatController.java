@@ -57,7 +57,6 @@ public class WebSocketChatController {
         String username = getUsernameFromSession(headerAccessor);
         if (username != null) {
             onlineUserService.updateHeartbeat(username);
-            log.info("用户 {} 同步连接状态", username);
 
             Set<String> onlineUsers = onlineUserService.getOnlineUsers();
             messagingTemplate.convertAndSend("/topic/onlineUsers", onlineUsers);
@@ -87,12 +86,35 @@ public class WebSocketChatController {
                 messagingTemplate.convertAndSendToUser(senderUsername, "/queue/private-messages", message);
 
                 String receiverUsername = onlineUserService.getUsernameByName(receiverName);
-                if (receiverUsername != null && !senderUsername.equals(receiverUsername)) {
+                if (receiverUsername != null && onlineUserService.isOnline(receiverUsername) && !senderUsername.equals(receiverUsername)) {
                     messagingTemplate.convertAndSendToUser(receiverUsername, "/queue/private-messages", message);
+                }  else {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("type", "message_sent");
+                    result.put("message", message);
+                    result.put("receiverOffline", receiverName != null && !receiverName.isEmpty());
+                    result.put("sender", currentUser.getName());
+                    result.put("receiver", receiverName);
+                    messagingTemplate.convertAndSendToUser(senderUsername, "/queue/private-messages", result);
                 }
             }
         } catch (Exception e) {
             log.error("发送私聊消息失败", e);
+            sendErrorMessage(headerAccessor, "发送失败：" + e.getMessage());
+        }
+    }
+
+    private void sendErrorMessage(SimpMessageHeaderAccessor headerAccessor, String errorMessage) {
+        try {
+            User currentUser = userService.getCurrentUser(headerAccessor);
+            if (currentUser != null) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("type", "send_error");
+                error.put("message", errorMessage);
+                messagingTemplate.convertAndSendToUser(currentUser.getUsername(), "/queue/send-error", error);
+            }
+        } catch (Exception e) {
+            log.error("发送错误消息失败", e);
         }
     }
 
@@ -120,7 +142,7 @@ public class WebSocketChatController {
             List<Message> messages = chatService.getPrivateMessageHistory(currentName, targetName);
             return messages != null ? messages : new ArrayList<>();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("获取私聊历史失败", e);
             return new ArrayList<>();
         }
     }
@@ -142,3 +164,4 @@ public class WebSocketChatController {
         return result;
     }
 }
+
