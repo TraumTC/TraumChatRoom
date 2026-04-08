@@ -46,12 +46,18 @@ function appendMentionedMessage(container, message) {
             container.appendChild(document.createTextNode(beforeText));
         }
 
-        const mentionSpan = document.createElement('span');
-        mentionSpan.className = 'at-mention';
-        mentionSpan.textContent = `@${mentionedName}`;
-        mentionSpan.style.cursor = 'pointer';
-        mentionSpan.addEventListener('click', () => quickPrivateChat(mentionedName));
-        container.appendChild(mentionSpan);
+        const isValidMention = mentionableUsersLoaded && (mentionedName.startsWith('游客_') || mentionableUsersCache.includes(mentionedName));
+
+        if (isValidMention) {
+            const mentionSpan = document.createElement('span');
+            mentionSpan.className = 'at-mention';
+            mentionSpan.textContent = `@${mentionedName}`;
+            mentionSpan.style.cursor = 'pointer';
+            mentionSpan.addEventListener('click', () => quickPrivateChat(mentionedName));
+            container.appendChild(mentionSpan);
+        } else {
+            container.appendChild(document.createTextNode(`@${mentionedName}`));
+        }
 
         lastIndex = mentionRegex.lastIndex;
     }

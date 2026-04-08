@@ -51,8 +51,10 @@ fetch('/api/current-user-info')
         document.getElementById('fileInput').accept = 'image/*';
 
         restorePrivateChats();
-        initWebSocket();
-        connectWebSocket();
+        loadMentionableUsers().then(() => {
+            initWebSocket();
+            connectWebSocket();
+        });
     });
 
 function send() {
@@ -107,8 +109,8 @@ document.addEventListener('click', function(event) {
     if (!contextMenu.contains(event.target)) {
         contextMenu.style.display = 'none';
     }
-    if (atPopupVisible && !atPopup.contains(event.target) && event.target !== textarea) {
-        hideAtUserPopup();
+    if (atPopupVisible && !atPopup.contains(event.target)) {
+        hideAtUserPopup(true);
     }
 });
 

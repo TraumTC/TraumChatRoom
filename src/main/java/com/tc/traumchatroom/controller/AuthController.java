@@ -1,6 +1,8 @@
 package com.tc.traumchatroom.controller;
 
+import com.tc.traumchatroom.entity.OnlineUserInfo;
 import com.tc.traumchatroom.entity.User;
+import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,16 +12,15 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Controller
 
 public class AuthController {
     @Resource
     private UserService userService;
+    @Resource
+    private OnlineUserService onlineUserService;
     @Resource
     private PasswordEncoder passwordEncoder;
 
@@ -239,5 +240,38 @@ public class AuthController {
             return createResult(false, "删除失败：" + e.getMessage());
         }
     }
+    @GetMapping("/api/online-users")
+    @ResponseBody
+    public OnlineUserInfo getOnlineUsers() {
+        Set<String> users = onlineUserService.getOnlineUsers();
+        return new OnlineUserInfo(users.size(), users);
+    }
+
+    @GetMapping("/api/mentionable-users")
+    @ResponseBody
+    public List<String> getMentionableUsers(HttpServletRequest request) {
+        List<String> mentionableUsers = new ArrayList<>();
+
+        User currentUser = userService.getCurrentUserWithGuest(request);
+
+        List<User> allUsers = userService.getAllUsers();
+        for (User user : allUsers) {
+            if (currentUser == null || !user.getName().equals(currentUser.getName())) {
+                mentionableUsers.add(user.getName());
+            }
+        }
+
+        Set<String> onlineUserNames = onlineUserService.getOnlineUsers();
+        for (String name : onlineUserNames) {
+            if (!mentionableUsers.contains(name) &&
+                    (currentUser == null || !name.equals(currentUser.getName()))) {
+                mentionableUsers.add(name);
+            }
+        }
+
+        Collections.sort(mentionableUsers);
+        return mentionableUsers;
+    }
 }
+
 

@@ -141,10 +141,4 @@ public class WebSocketChatController {
 
         return result;
     }
-    @GetMapping("/api/online-users")
-    @ResponseBody
-    public OnlineUserInfo getOnlineUsers() {
-        Set<String> users = onlineUserService.getOnlineUsers();
-        return new OnlineUserInfo(users.size(), users);
-    }
 }

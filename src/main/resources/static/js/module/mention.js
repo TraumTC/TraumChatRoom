@@ -5,6 +5,24 @@ let atMultiSelectMode = false;
 let atSelectedUsers = [];
 let atOriginalCursorPos = 0;
 let atOriginalAtPos = 0;
+let mentionableUsersCache = [];
+let atManuallyClosed = false;
+let mentionableUsersLoaded = false;
+
+function loadMentionableUsers() {
+    return fetch('/api/mentionable-users')
+        .then(res => res.json())
+        .then(users => {
+            mentionableUsersCache = users || [];
+            mentionableUsersLoaded = true;
+            console.log('可@用户列表加载完成:', mentionableUsersCache);
+        })
+        .catch(err => {
+            console.error('加载可@用户列表失败:', err);
+            mentionableUsersCache = [];
+            mentionableUsersLoaded = true;
+        });
+}
 
 function autoResize(textarea) {
     textarea.style.height = 'auto';
@@ -14,6 +32,11 @@ function autoResize(textarea) {
 }
 
 function checkAtTrigger(textarea) {
+    if (currentPrivateChat) {
+        hideAtUserPopup();
+        return;
+    }
+
     const value = textarea.value;
     const cursorPos = textarea.selectionStart;
 
@@ -28,9 +51,19 @@ function checkAtTrigger(textarea) {
             return;
         }
 
+        // 如果是新的@位置，重置手动关闭标志
+        if (atManuallyClosed && lastAtPos !== atOriginalAtPos) {
+            atManuallyClosed = false;
+        }
+
+        if (atManuallyClosed) {
+            return;
+        }
+
         showAtUserPopup(textAfterAt, cursorPos, lastAtPos);
     } else {
         hideAtUserPopup();
+        atManuallyClosed = false;
     }
 }
 
@@ -62,13 +95,11 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
     let topPos, leftPos;
 
     if (isMobile) {
-        if (availableSpaceAbove < popupHeight + popupPadding) {
-            if (availableSpaceBelow >= popupHeight + popupPadding) {
-                showAbove = false;
-            } else {
-                showAbove = availableSpaceAbove >= availableSpaceBelow;
-            }
-        }
+        // 计算实际可用空间，考虑虚拟键盘的影响
+        const totalAvailableSpace = Math.max(availableSpaceAbove, availableSpaceBelow);
+        
+        // 优先显示在空间较大的一侧
+        showAbove = availableSpaceAbove > availableSpaceBelow;
 
         if (showAbove) {
             topPos = Math.max(popupPadding, textareaRect.top - popupHeight - popupPadding);
@@ -81,7 +112,10 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
 
         popup.style.left = leftPos + 'px';
         popup.style.top = topPos + 'px';
-        popup.style.maxHeight = (showAbove ? availableSpaceAbove - popupPadding : availableSpaceBelow - popupPadding) + 'px';
+        
+        // 动态设置最大高度，确保列表完整显示
+        const maxHeight = Math.min(popupHeight, totalAvailableSpace - popupPadding * 2);
+        popup.style.maxHeight = maxHeight + 'px';
         popup.style.width = 'calc(100% - 20px)';
     } else {
         popup.style.left = textareaRect.left + 'px';
@@ -106,7 +140,7 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
         searchInput.parentElement.classList.add('hidden');
     }
 
-    const filteredUsers = onlineUsersCache.filter(name =>
+    const filteredUsers = mentionableUsersCache.filter(name =>
         name !== currentName && (searchText === '' || name.toLowerCase().includes(searchText.toLowerCase()))
     ).slice(0, 10);
 
@@ -150,13 +184,48 @@ function showAtUserPopup(searchText, cursorPos, atPos) {
     updateAtSelectedCount();
 }
 
-function hideAtUserPopup() {
+function hideAtUserPopup(manualClose = false) {
     const popup = document.getElementById('atUserPopup');
     popup.classList.add('hidden');
     atPopupVisible = false;
     atPopupTarget = null;
+    if (manualClose) {
+        atManuallyClosed = true;
+    }
     if (!atMultiSelectMode) {
         atSelectedUsers = [];
+    }
+}
+
+// 监听输入框焦点事件，确保@列表在输入框隐藏时也能正确隐藏
+function initMentionEventListeners() {
+    const textarea = document.getElementById('content');
+    if (textarea) {
+        textarea.addEventListener('blur', function() {
+            // 延迟隐藏，以便用户可以点击@列表中的选项
+            setTimeout(() => {
+                if (atPopupVisible) {
+                    hideAtUserPopup(true);
+                }
+            }, 200);
+        });
+        
+        // 监听键盘事件
+        textarea.addEventListener('keydown', handleKeyDown);
+        
+        // 监听窗口大小变化，重新计算@列表位置
+        window.addEventListener('resize', function() {
+            if (atPopupVisible) {
+                const textarea = document.getElementById('content');
+                const cursorPos = textarea.selectionStart;
+                const textBeforeCursor = textarea.value.substring(0, cursorPos);
+                const lastAtPos = textBeforeCursor.lastIndexOf('@');
+                if (lastAtPos !== -1) {
+                    const searchText = textBeforeCursor.substring(lastAtPos + 1);
+                    showAtUserPopup(searchText, cursorPos, lastAtPos);
+                }
+            }
+        });
     }
 }
 
@@ -277,6 +346,12 @@ function insertAtMention(userName) {
     hideAtUserPopup();
 }
 
+// 页面加载时初始化事件监听器
+document.addEventListener('DOMContentLoaded', function() {
+    loadMentionableUsers();
+    initMentionEventListeners();
+});
+
 function handleKeyDown(event) {
     if (atPopupVisible) {
         if (event.key === 'ArrowDown') {
@@ -295,11 +370,10 @@ function handleKeyDown(event) {
             return;
         } else if (event.key === 'Escape') {
             event.preventDefault();
-            hideAtUserPopup();
+            hideAtUserPopup(true);
             return;
         }
     }
-
     if (event.keyCode === 13) {
         if (event.shiftKey) {
             return;
