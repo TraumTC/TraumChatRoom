@@ -36,7 +36,7 @@ public class WebSocketChatController {
     @Resource
     private SimpMessagingTemplate messagingTemplate;
 
-    @MessageMapping("/ChatRoom")
+    @MessageMapping("/space")
     @SendTo("/topic/messages")
     public Message sendAllMessage(String content,SimpMessageHeaderAccessor headerAccessor ) {
         Message message = chatService.sendChatMessage(content,headerAccessor);

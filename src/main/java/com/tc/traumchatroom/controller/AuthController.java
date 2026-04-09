@@ -66,16 +66,16 @@ public class AuthController {
     @GetMapping("/login")
     public String login() {
         if (userService.getCurrentUser() != null) {
-            return "redirect:/ChatRoom";
+            return "redirect:/space";
         }
         return "login";
     }
-    @GetMapping("/ChatRoom/admin")
+    @GetMapping("/space/admin")
     public String admin() {
         return "admin";
     }
 
-    @GetMapping("/ChatRoom")
+    @GetMapping("/space")
     public String ChatRoom(HttpServletRequest request, HttpSession session) {
         User currentUser = userService.getCurrentUser();
 
@@ -87,7 +87,7 @@ public class AuthController {
         } else {
             session.setAttribute("CURRENT_USER", currentUser);
         }
-        return "ChatRoom";
+        return "space";
     }
     @GetMapping("/api/current-user")
     @ResponseBody
@@ -170,7 +170,7 @@ public class AuthController {
     public String adminUsers() {
         User currentUser = userService.getCurrentUser();
         if (!isAdmin(currentUser)) {
-            return "redirect:/ChatRoom";
+            return "redirect:/space";
         }
         return "admin-users";
     }

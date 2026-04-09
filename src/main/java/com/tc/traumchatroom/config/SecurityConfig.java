@@ -65,7 +65,7 @@ public class SecurityConfig {
                         .contentTypeOptions(content -> content.disable())
                 )
                 .authorizeHttpRequests( auth -> auth
-                        .requestMatchers("/register", "/login", "/error", "/ChatRoom",
+                        .requestMatchers("/register", "/login", "/error", "/space",
                                 "/ws/**", "/api/current-user", "/api/current-user-info",
                                 "/history", "/api/online-users", "/api/private-history/**",
                                 "/api/file/**", "/css/**", "/js/**", "/favicon.ico",
@@ -75,7 +75,7 @@ public class SecurityConfig {
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
-                        .defaultSuccessUrl("/ChatRoom", true)
+                        .defaultSuccessUrl("/space", true)
                         .failureUrl("/login?error")
                         .permitAll()
                 )
@@ -89,7 +89,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
                             if (request.getRequestURI().equals("/login")) {
-                                response.sendRedirect("/ChatRoom");
+                                response.sendRedirect("/space");
                             } else {
                                 response.sendRedirect("/login");
                             }

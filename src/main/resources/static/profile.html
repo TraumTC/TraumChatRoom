@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>个人中心 - TraumChatRoom</title>
+    <title>个人中心 - TraumSpace</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -12,10 +12,10 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-14 sm:h-16">
                 <div class="flex items-center">
-                    <a href="/ChatRoom" class="text-lg sm:text-xl font-bold text-gray-900">TraumChatRoom</a>
+                    <a href="/space" class="text-lg sm:text-xl font-bold text-gray-900">TraumSpace</a>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <a href="/ChatRoom" class="text-sm text-gray-600 hover:text-gray-900">返回聊天室</a>
+                    <a href="/space" class="text-sm text-gray-600 hover:text-gray-900">返回主页</a>
                 </div>
             </div>
         </div>
@@ -164,7 +164,7 @@
                 .then(res => res.json())
                 .then(user => {
                     if (!user || user.role === 'ROLE_GUEST' || user.name.startsWith('游客_')) {
-                        window.location.href = '/ChatRoom';
+                        window.location.href = '/space';
                         return;
                     }
                     currentUser = user;
@@ -178,7 +178,7 @@
                     viewRole.className = `text-lg font-medium mt-1 ${roleClass}`;
                 })
                 .catch(() => {
-                    window.location.href = '/ChatRoom';
+                    window.location.href = '/space';
                 });
 
             document.getElementById('editName').addEventListener('input', function() {

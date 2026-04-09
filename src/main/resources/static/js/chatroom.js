@@ -89,7 +89,7 @@ function send() {
             appendMessage(tempMsg.sendTime, tempMsg.sender, tempMsg.message);
             savePrivateChatsToStorage();
         } else {
-            stompClient.send('/app/ChatRoom', {}, sendContent);
+            stompClient.send('/app/space', {}, sendContent);
         }
 
         textarea.value = '';
@@ -132,7 +132,7 @@ function startTitleFlash() {
     let showMsg = true;
 
     titleFlashTimer = setInterval(() => {
-        document.title = showMsg ? '【新消息】TraumChatRoom' : originalTitle;
+        document.title = showMsg ? '【新消息】TraumSpace' : originalTitle;
         showMsg = !showMsg;
     }, 1000); // 每 1 秒切换一次
 }
