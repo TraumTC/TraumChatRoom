@@ -17,6 +17,10 @@ import java.util.*;
 @Controller
 
 public class AuthController {
+    @GetMapping("/")
+    public String index() {
+        return "one";
+    }
     @Resource
     private UserService userService;
     @Resource
