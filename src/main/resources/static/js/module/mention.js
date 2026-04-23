@@ -15,15 +15,16 @@ let popupStartX = 0;
 let popupStartY = 0;
 
 function loadMentionableUsers() {
+    if (mentionableUsersLoaded) {
+        return Promise.resolve(mentionableUsersCache);
+    }
     return fetch('/api/mentionable-users')
         .then(res => res.json())
         .then(users => {
             mentionableUsersCache = users || [];
             mentionableUsersLoaded = true;
-            console.log('可@用户列表加载完成:', mentionableUsersCache);
         })
         .catch(err => {
-            console.error('加载可@用户列表失败:', err);
             mentionableUsersCache = [];
             mentionableUsersLoaded = true;
         });

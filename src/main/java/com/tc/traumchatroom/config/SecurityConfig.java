@@ -69,7 +69,7 @@ public class SecurityConfig {
                         .requestMatchers("/", "/register", "/login", "/error", "/space",
                                 "/ws/**", "/api/current-user", "/api/current-user-info",
                                 "/history", "/api/online-users", "/api/private-history/**",
-                                "/api/file/**", "/css/**", "/js/**", "/photo/**", "/favicon.ico",
+                                "/api/mentionable-users", "/api/file/**", "/css/**", "/js/**", "/photo/**", "/favicon.ico",
                                 "/admin-users.html", "/profile.html", "/one.html").permitAll()
                         .requestMatchers("/admin/users", "/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()

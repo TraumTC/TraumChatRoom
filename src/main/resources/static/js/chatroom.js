@@ -115,7 +115,7 @@ document.addEventListener('click', function(event) {
     if (!popup.contains(event.target) && !btn.contains(event.target)) {
         popup.classList.add('hidden');
     }
-    if (!contextMenu.contains(event.target)) {
+    if (contextMenu && !contextMenu.contains(event.target)) {
         contextMenu.style.display = 'none';
     }
     // 在多选模式下，点击外部不隐藏@列表
