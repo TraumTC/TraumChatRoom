@@ -31,14 +31,12 @@
                     <a href="/login" id="loginBtn" class="hidden inline-flex items-center px-2 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
                         登录
                     </a>
-                    <form action="/logout" method="post" id="logoutForm" class="hidden">
-                        <button
-                                type="submit"
-                                class="inline-flex items-center px-2 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors whitespace-nowrap"
-                        >
-                            退出
-                        </button>
-                    </form>
+                    <button
+                            id="logoutBtn"
+                            class="hidden inline-flex items-center px-2 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors whitespace-nowrap"
+                    >
+                        退出
+                    </button>
                 </div>
             </div>
         </div>
@@ -140,6 +138,7 @@
 
 
 </body>
+<script src="/js/auth.js"></script>
 <script src="/js/module/utils.js"></script>
 <script src="/js/module/websocket.js"></script>
 <script src="/js/module/online-users.js"></script>

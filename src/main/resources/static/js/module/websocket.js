@@ -5,7 +5,9 @@ const maxReconnectAttempts = 10;
 let manualDisconnect = false;
 
 function initWebSocket() {
-    const sock = new SockJS('/ws', null, {
+    const token = localStorage.getItem('traum_auth_token');
+    const wsUrl = token ? '/ws?token=' + encodeURIComponent(token) : '/ws';
+    const sock = new SockJS(wsUrl, null, {
         withCredentials: true,
         transports: ['websocket']
     });

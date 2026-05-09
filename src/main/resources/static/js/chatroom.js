@@ -16,7 +16,7 @@ fetch('/api/current-user')
                 guestUsername = user.username;
                 document.getElementById('guestBadge').classList.remove('hidden');
                 document.getElementById('loginBtn').classList.remove('hidden');
-                document.getElementById('logoutForm').classList.add('hidden');
+                document.getElementById('logoutBtn').classList.add('hidden');
                 document.getElementById('adminBtn').classList.add('hidden');
 
                 document.getElementById('userLink').removeAttribute('href');
@@ -28,7 +28,7 @@ fetch('/api/current-user')
             } else {
                 document.getElementById('guestBadge').classList.add('hidden');
                 document.getElementById('loginBtn').classList.add('hidden');
-                document.getElementById('logoutForm').classList.remove('hidden');
+                document.getElementById('logoutBtn').classList.remove('hidden');
 
                 if (user.role === 'ROLE_ADMIN') {
                     document.getElementById('adminBtn').classList.remove('hidden');

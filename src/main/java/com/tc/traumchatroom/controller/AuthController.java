@@ -1,12 +1,18 @@
 package com.tc.traumchatroom.controller;
 
+import com.tc.traumchatroom.entity.MyUserDetails;
 import com.tc.traumchatroom.entity.OnlineUserInfo;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.UserService;
+import com.tc.traumchatroom.util.JwtUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +33,10 @@ public class AuthController {
     private OnlineUserService onlineUserService;
     @Resource
     private PasswordEncoder passwordEncoder;
+    @Resource
+    private AuthenticationManager authenticationManager;
+    @Resource
+    private JwtUtil jwtUtil;
 
     private Map<String, Object> createResult(boolean success, String message) {
         Map<String, Object> result = new HashMap<>();
@@ -73,6 +83,43 @@ public class AuthController {
             return "redirect:/space";
         }
         return "login";
+    }
+
+    @PostMapping("/api/login")
+    @ResponseBody
+    public Map<String, Object> apiLogin(@RequestParam String username, @RequestParam String password) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(username, password)
+            );
+            MyUserDetails userDetails = (MyUserDetails) authentication.getPrincipal();
+            String token = jwtUtil.generateToken(
+                    userDetails.getUsername(),
+                    userDetails.getName(),
+                    userDetails.getRole(),
+                    userDetails.getId()
+            );
+            result.put("success", true);
+            result.put("message", "登录成功");
+            result.put("token", token);
+            result.put("username", userDetails.getUsername());
+            result.put("name", userDetails.getName());
+            result.put("role", userDetails.getRole());
+        } catch (BadCredentialsException e) {
+            result.put("success", false);
+            result.put("message", "用户名或密码错误");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "登录失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/logout")
+    @ResponseBody
+    public Map<String, Object> apiLogout() {
+        return createResult(true, "退出成功");
     }
     @GetMapping("/space/admin")
     public String admin() {

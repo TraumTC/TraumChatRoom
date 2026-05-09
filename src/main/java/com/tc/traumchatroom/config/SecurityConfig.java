@@ -1,7 +1,9 @@
 package com.tc.traumchatroom.config;
 
+import com.tc.traumchatroom.filter.JwtAuthenticationFilter;
 import com.tc.traumchatroom.service.UserDetailsService;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -9,9 +11,13 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.filter.ForwardedHeaderFilter;
@@ -32,6 +38,9 @@ public class SecurityConfig {
      */
     @Resource
     private UserDetailsService userDetailsService;
+
+    @Resource
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
      * 配置密码加密器，使用 BCrypt 强哈希算法对用户密码进行加密和验证
@@ -92,19 +101,23 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .ignoringRequestMatchers("/ws/**", "/api/**", "/login","/logout","/register")
                 )
+                // 关闭 Session，使用 JWT 无状态认证
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 // 启用并配置 CORS 跨域支持
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // 配置 HTTP 响应头
                 .headers(headers -> headers
                         // 禁用 X-Frame-Options，允许页面在 iframe 中嵌入（开发环境需要）
-                        .frameOptions(frame -> frame.disable())
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
                         // 禁用 Content-Type-Options，允许第三方内容类型解析
-                        .contentTypeOptions(content -> content.disable())
+                        .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
                 )
                 // 配置请求授权规则
                 .authorizeHttpRequests( auth -> auth
                         // 以下路径允许匿名访问，无需登录
-                        .requestMatchers("/", "/register", "/login", "/error", "/space",
+                        .requestMatchers("/", "/register", "/login", "/api/login", "/api/logout", "/error", "/space",
                                 "/ws/**", "/api/current-user", "/api/current-user-info",
                                 "/history", "/api/online-users", "/api/private-history/**",
                                 "/api/mentionable-users", "/api/file/**", "/css/**", "/js/**", "/photo/**", "/favicon.ico",
@@ -114,34 +127,21 @@ public class SecurityConfig {
                         // 其余所有请求需要登录后才能访问
                         .anyRequest().authenticated()
                 )
-                // 配置表单登录
-                .formLogin(form -> form
-                        // 自定义登录页面路径
-                        .loginPage("/login")
-                        // 登录成功后默认跳转路径，true 表示强制跳转
-                        .defaultSuccessUrl("/space", true)
-                        // 登录失败后重定向路径
-                        .failureUrl("/login?error")
-                        // 允许所有用户访问登录页面
-                        .permitAll()
-                )
-                // 配置登出功能
-                .logout(logout -> logout
-                        // 登出请求路径
-                        .logoutUrl("/logout")
-                        // 登出成功后跳转路径
-                        .logoutSuccessUrl("/login?logout")
-                        // 登出时使当前 HTTP Session 失效
-                        .invalidateHttpSession(true)
-                        // 登出时清除 JSESSIONID Cookie
-                        .deleteCookies("JSESSIONID")
-                        .permitAll()
-                )
+                // 禁用表单登录，使用 JWT
+                .formLogin(AbstractHttpConfigurer::disable)
+                // 添加 JWT 过滤器
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 // 配置异常处理，主要用于未认证用户的访问拦截
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
-                            // 如果访问的是登录页，重定向到主页（已登录用户再次访问登录页的场景）
-                            if (request.getRequestURI().equals("/login")) {
+                            String requestUri = request.getRequestURI();
+                            // API 请求返回 401 JSON
+                            if (requestUri.startsWith("/api/")) {
+                                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.getWriter().write("{\"success\":false,\"message\":\"未登录或登录已过期\"}");
+                            } else if (requestUri.equals("/login")) {
+                                // 如果访问的是登录页，重定向到主页（已登录用户再次访问登录页的场景）
                                 response.sendRedirect("/space");
                             } else {
                                 // 未认证用户访问受保护资源，重定向到登录页

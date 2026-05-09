@@ -41,3 +41,7 @@ mybatis:
   type-aliases-package: com.tc.traumchatroom.entity
   configuration:
     map-underscore-to-camel-case: true
+
+jwt:
+  secret: traumchatroom_default_secret_key_change_in_production
+  expiration: 604800000 # 单位毫秒,604800000毫秒为7天

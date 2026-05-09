@@ -16,6 +16,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="/space" class="text-sm text-gray-600 hover:text-gray-900">返回主页</a>
+                    <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800">退出</button>
                 </div>
             </div>
         </div>
@@ -156,6 +157,7 @@
         </div>
     </main>
 
+    <script src="/js/auth.js"></script>
     <script>
         let currentUser = null;
 
@@ -296,7 +298,7 @@
                 if (data.success) {
                     showMessage('success', '密码修改成功，请重新登录');
                     setTimeout(() => {
-                        window.location.href = '/logout';
+                        logout();
                     }, 2000);
                 } else {
                     showMessage('error', data.message || '修改失败');
