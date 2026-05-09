@@ -16,9 +16,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="/space" class="text-sm text-gray-600 hover:text-gray-900">返回主页</a>
-                    <form action="/logout" method="post">
-                        <button type="submit" class="text-sm text-red-600 hover:text-red-800">退出</button>
-                    </form>
+                    <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800">退出</button>
                 </div>
             </div>
         </div>
@@ -102,6 +100,7 @@
         </div>
     </div>
 
+    <script src="/js/auth.js"></script>
     <script>        let users = [];
 
     window.addEventListener('DOMContentLoaded', loadUsers);

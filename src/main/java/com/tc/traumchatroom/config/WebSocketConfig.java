@@ -52,6 +52,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Autowired
     private ApplicationContext applicationContext;
 
+    @Resource
+    private WebSocketAuthInterceptor webSocketAuthInterceptor;
+
     private SimpMessagingTemplate messagingTemplate;
 
     @Bean
@@ -76,60 +79,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(new HandshakeInterceptor() {
+                .addInterceptors(webSocketAuthInterceptor, new HandshakeInterceptor() {
                     @Override
                     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                                    WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
-                        String username = null;
-                        String name = null;
-
-                        if (request instanceof ServletServerHttpRequest) {
-                            ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
-
+                        if (request instanceof ServletServerHttpRequest servletRequest) {
                             String clientIp = getClientIpAddress(servletRequest);
                             attributes.put("ipAddress", clientIp);
-
-                            String authParam = servletRequest.getServletRequest().getParameter("authenticated");
-                            if (authParam != null && !authParam.isEmpty()) {
-                                username = authParam;
-                            }
-                        }
-
-                        if (username == null) {
-                            if (request instanceof ServletServerHttpRequest) {
-                                ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
-                                HttpSession session = servletRequest.getServletRequest().getSession(false);
-                                if (session != null) {
-                                    com.tc.traumchatroom.entity.User currentUser =
-                                            (com.tc.traumchatroom.entity.User) session.getAttribute("CURRENT_USER");
-                                    if (currentUser != null) {
-                                        username = currentUser.getUsername();
-                                        name = currentUser.getName();  // ← 获取昵称
-                                    }
-                                }
-                            }
-                        }
-
-                        // ← 其次获取游客用户信息
-                        if (username == null) {
-                            if (request instanceof ServletServerHttpRequest) {
-                                ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
-                                HttpSession session = servletRequest.getServletRequest().getSession(false);
-                                if (session != null) {
-                                    com.tc.traumchatroom.entity.User guestUser =
-                                            (com.tc.traumchatroom.entity.User) session.getAttribute("GUEST_USER");
-                                    if (guestUser != null) {
-                                        username = guestUser.getUsername();
-                                        name = guestUser.getName();
-                                    }
-                                }
-                            }
-                        }
-                        if (username != null) {
-                            attributes.put("authenticatedUser", username);
-                            if (name != null) {
-                                attributes.put("authenticatedUserName", name);
-                            }
                         }
                         return true;
                     }

@@ -22,8 +22,7 @@
         <div id="successMessage" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
         </div>
         
-        <form class="mt-8 space-y-6" id="loginForm" action="/login" method="post">
-            <input type="hidden" name="_csrf" value="${_csrf.token}">
+        <form class="mt-8 space-y-6" id="loginForm" action="/api/login" method="post">
             <div class="rounded-md shadow-sm space-y-4">
                 <div>
                     <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
@@ -148,11 +147,11 @@
 
         // 处理登录表单提交
             loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
                 const username = document.getElementById('username').value.trim();
                 const password = document.getElementById('password').value;
 
                 if (!username || !password) {
-                    e.preventDefault();
                     errorDiv.textContent = '请输入用户名和密码';
                     errorDiv.classList.remove('hidden');
                     return;
@@ -160,6 +159,29 @@
 
                 errorDiv.classList.add('hidden');
                 successDiv.classList.add('hidden');
+
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+
+                fetch('/api/login', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.token) {
+                        localStorage.setItem('traum_auth_token', data.token);
+                        window.location.href = '/space';
+                    } else {
+                        errorDiv.textContent = data.message || '登录失败';
+                        errorDiv.classList.remove('hidden');
+                    }
+                })
+                .catch(() => {
+                    errorDiv.textContent = '网络错误，请重试';
+                    errorDiv.classList.remove('hidden');
+                });
             });
     });
     </script>
