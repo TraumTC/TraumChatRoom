@@ -4,7 +4,7 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.tc.traumchatroom.mapper.UserMapper">
     <select id="findByUsername" parameterType="String" resultType="com.tc.traumchatroom.entity.User">
-        select  * from user where username = #{username}
+        select * from user where username = #{username}
     </select>
     
     <select id="findAll" resultType="com.tc.traumchatroom.entity.User">
