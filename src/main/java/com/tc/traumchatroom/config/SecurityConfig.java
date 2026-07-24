@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.config;
 
 import com.tc.traumchatroom.filter.JwtAuthenticationFilter;
+import com.tc.traumchatroom.filter.WebLogFilter;
 import com.tc.traumchatroom.service.UserDetailsService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
@@ -95,7 +96,7 @@ public class SecurityConfig {
      * 包括 CSRF 防护、CORS、权限控制、登录登出、异常处理等
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, WebLogFilter webLogFilter) throws Exception {
         http
                 // 配置 CSRF 防护，对 WebSocket、API 接口及登录注册相关路径禁用 CSRF
                 .csrf(csrf -> csrf
@@ -131,6 +132,8 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 // 添加 JWT 过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // 添加请求日志过滤器
+                .addFilterBefore(webLogFilter, JwtAuthenticationFilter.class)
                 // 配置异常处理，主要用于未认证用户的访问拦截
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
