@@ -1,47 +1,64 @@
 server:
   port: 8080
-  servlet:
-    session:
-      cookie:
-        same-site: lax
-        secure: false
-        http-only: true
-        path: /
 
 spring:
   application:
     name: TraumChatRoom
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/ChatDB
+    url: jdbc:mysql://localhost:3306/NewChatDB
     username: root
     password: 123456
+  data:
+    redis:
+      host: 121.40.16.113
+      port: 6379
+      database: 0
+      password: 123456
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          max-wait: 2000
   servlet:
     multipart:
       max-file-size: 100MB
       max-request-size: 100MB
 
-  jackson:
-    date-format: yyyy-MM-dd HH:mm:ss
-    time-zone: GMT+8
+ #  MyBatis
+  mybatis:
+    mapper-locations: classpath:mapper/*.xml
+    configguration:
+      map-underscore-to-camel-case: true
 
-  thymeleaf:
-    prefix: classpath:/static/
-    suffix: .html
-    cache: false
-    encoding: UTF-8
-    mode: HTML
+ #  文件存储
+  file:
+    upload-dir: uploads/
+    allowed-types: jpg,jpeg,png,gif,bmp,webp,pdf,doc,docx,zip,rar,md
+    max-file-size: 104857600
+    # 头像文件 大小max
+    avatar-max-size: 5MB
 
-file:
-  upload-dir: uploads
-  max-file-size: 104857600
+# AI 配置 (DeepSeek-V3)
+ai:
+  api:
+    url: https://api.deepseek.com/v1/chat/completions
+    key: ${AI_API_KEY:sk-ea4434f132fc4c12bcb53bd568c657b7}
+    model: deepseek-chat
+    max-tokens: 1024
+    temperature: 0.7
+    timeout: 30000
+    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在200字以内。"
+  rate-limit:
+    max-per-minute: 3
 
-mybatis:
-  mapper-locations: classpath:templates/*.xml
-  type-aliases-package: com.tc.traumchatroom.entity
-  configuration:
-    map-underscore-to-camel-case: true
-
+# JWT 配置
 jwt:
-  secret: traumchatroom_default_secret_key_change_in_production
-  expiration: 604800000 # 单位毫秒,604800000毫秒为7天
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production}
+  access-expiration: 86400000
+  refresh-expiration: 604800000
+
+# CORS 配置
+cors:
+  allowed-origins: http://localhost:5173,http://localhost:3000
+
