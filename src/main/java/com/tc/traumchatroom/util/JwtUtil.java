@@ -23,7 +23,7 @@ public class JwtUtil {
     private final JwtProperties jwtProperties;
 
     private String secret;
-    private Long expiration;
+    private long expiration;
 
     @PostConstruct
     public  void init() {
