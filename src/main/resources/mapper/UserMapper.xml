@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.UserMapper">
+
+    <resultMap id="UserResultMap" type="com.tc.traumchatroom.entity.User">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="name" column="name"/>
+        <result property="password" column="password"/>
+        <result property="role" column="role"/>
+        <result property="avatar" column="avatar"/>
+        <result property="status" column="status"/>
+        <result property="lastActiveTime" column="last_active_time"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deletedAt" column="deleted_at"/>
+    </resultMap>
+
+    <!-- 根据ID查询用户 -->
+    <select id="findById" resultMap="UserResultMap">
+        SELECT * FROM user WHERE id = #{id} AND deleted_at IS NULL
+    </select>
+
+    <!-- 根据用户名查询用户 -->
+    <select id="findByUsername" resultMap="UserResultMap">
+        SELECT * FROM user WHERE username = #{username} AND deleted_at IS NULL
+    </select>
+
+    <!-- 根据昵称查询用户 -->
+    <select id="findByName" resultMap="UserResultMap">
+        SELECT * FROM user WHERE name = #{name} AND deleted_at IS NULL
+    </select>
+
+    <!-- 插入新用户 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user (username, name, password, role, avatar, status)
+        VALUES (#{username}, #{name}, #{password}, #{role}, #{avatar}, #{status})
+    </insert>
+
+    <!-- 修改用户资料 -->
+    <update id="updateProfile">
+        UPDATE user
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted_at IS NULL
+    </update>
+
+    <!-- 修改密码 -->
+    <update id="updatePassword">
+        UPDATE user SET password = #{password}, updated_at = NOW()
+        WHERE id = #{id} AND deleted_at IS NULL
+    </update>
+
+    <!-- 修改用户角色 -->
+    <update id="updateRole">
+        UPDATE user SET role = #{role}, updated_at = NOW()
+        WHERE id = #{id} AND deleted_at IS NULL
+    </update>
+
+    <!-- 修改用户状态 -->
+    <update id="updateStatus">
+        UPDATE user SET status = #{status}, updated_at = NOW()
+        WHERE id = #{id} AND deleted_at IS NULL
+    </update>
+
+    <!-- 修改头像 -->
+    <update id="updateAvatar">
+        UPDATE user SET avatar = #{avatar}, updated_at = NOW()
+        WHERE id = #{id} AND deleted_at IS NULL
+    </update>
+
+    <!-- 更新最后活跃时间 -->
+    <update id="updateLastActiveTime">
+        UPDATE user SET last_active_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 软删除用户 -->
+    <update id="softDelete">
+        UPDATE user SET deleted_at = NOW() WHERE id = #{id}
+    </update>
+
+    <!-- 查询所有用户（管理员分页） -->
+    <select id="findAll" resultMap="UserResultMap">
+        SELECT * FROM user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
+                     OR name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="!includeDeleted">
+                AND deleted_at IS NULL
+            </if>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 查询用户总数 -->
+    <select id="countAll" resultType="int">
+        SELECT COUNT(*) FROM user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
+                     OR name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="!includeDeleted">
+                AND deleted_at IS NULL
+            </if>
+        </where>
+    </select>
+
+    <!-- 搜索用户（好友搜索） -->
+    <select id="searchUsers" resultMap="UserResultMap">
+        SELECT * FROM user
+        WHERE id != #{excludeId} AND deleted_at IS NULL
+        AND (username LIKE CONCAT('%', #{keyword}, '%')
+             OR name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY name ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

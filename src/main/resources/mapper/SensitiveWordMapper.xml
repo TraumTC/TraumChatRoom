@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.SensitiveWordMapper">
+
+    <resultMap id="SensitiveWordResultMap" type="com.tc.traumchatroom.entity.SensitiveWord">
+        <id property="id" column="id"/>
+        <result property="word" column="word"/>
+        <result property="level" column="level"/>
+        <result property="category" column="category"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 查询所有敏感词 -->
+    <select id="findAll" resultMap="SensitiveWordResultMap">
+        SELECT * FROM sensitive_word ORDER BY id ASC
+    </select>
+
+    <!-- 根据级别查询 -->
+    <select id="findByLevel" resultMap="SensitiveWordResultMap">
+        SELECT * FROM sensitive_word WHERE level = #{level} ORDER BY id ASC
+    </select>
+
+    <!-- 根据分类查询 -->
+    <select id="findByCategory" resultMap="SensitiveWordResultMap">
+        SELECT * FROM sensitive_word WHERE category = #{category} ORDER BY id ASC
+    </select>
+
+    <!-- 敏感词列表（管理员分页） -->
+    <select id="findByConditions" resultMap="SensitiveWordResultMap">
+        SELECT * FROM sensitive_word
+        <where>
+            <if test="level != null">AND level = #{level}</if>
+            <if test="category != null and category != ''">AND category = #{category}</if>
+        </where>
+        ORDER BY id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 敏感词总数 -->
+    <select id="countByConditions" resultType="int">
+        SELECT COUNT(*) FROM sensitive_word
+        <where>
+            <if test="level != null">AND level = #{level}</if>
+            <if test="category != null and category != ''">AND category = #{category}</if>
+        </where>
+    </select>
+
+    <!-- 根据ID查询 -->
+    <select id="findById" resultMap="SensitiveWordResultMap">
+        SELECT * FROM sensitive_word WHERE id = #{id}
+    </select>
+
+    <!-- 插入敏感词 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sensitive_word (word, level, category)
+        VALUES (#{word}, #{level}, #{category})
+    </insert>
+
+    <!-- 删除敏感词 -->
+    <delete id="deleteById">
+        DELETE FROM sensitive_word WHERE id = #{id}
+    </delete>
+
+</mapper>

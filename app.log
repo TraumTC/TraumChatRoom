@@ -1,0 +1,75 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.tc:TraumChatRoom >------------------------
+[INFO] Building TraumChatRoom 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:4.0.5:run (default-cli) > test-compile @ TraumChatRoom >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ TraumChatRoom ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 9 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ TraumChatRoom ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 86 source files with javac [debug parameters release 21] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ TraumChatRoom ---
+[INFO] skip non existing resourceDirectory D:\Javawork\TraumChatRoom\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ TraumChatRoom ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 8 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] 
+[INFO] <<< spring-boot:4.0.5:run (default-cli) < test-compile @ TraumChatRoom <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:4.0.5:run (default-cli) @ TraumChatRoom ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-08-06T15:13:05.690+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.TraumChatRoomApplication           : Starting TraumChatRoomApplication using Java 21.0.5 with PID 28560 (D:\Javawork\TraumChatRoom\target\classes started by Lenovo in D:\Javawork\TraumChatRoom)
+2026-08-06T15:13:05.693+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.TraumChatRoomApplication           : No active profile set, falling back to 1 default profile: "default"
+2026-08-06T15:13:06.281+08:00  INFO 28560 --- [TraumChatRoom] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-08-06T15:13:06.284+08:00  INFO 28560 --- [TraumChatRoom] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-08-06T15:13:06.325+08:00  INFO 28560 --- [TraumChatRoom] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 18 ms. Found 0 Redis repository interfaces.
+2026-08-06T15:13:06.985+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-08-06T15:13:06.998+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-06T15:13:06.999+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-08-06T15:13:07.083+08:00  INFO 28560 --- [TraumChatRoom] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1351 ms
+2026-08-06T15:13:07.719+08:00  INFO 28560 --- [TraumChatRoom] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-06T15:13:08.019+08:00  INFO 28560 --- [TraumChatRoom] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@3e61cffd
+2026-08-06T15:13:08.021+08:00  INFO 28560 --- [TraumChatRoom] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-06T15:13:08.050+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.service.SensitiveWordFilter        : 敏感词库已刷新，共加载 1 个敏感词
+2026-08-06T15:13:08.295+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.handler.MessageHandlerFactory      : 注册消息处理器: file
+2026-08-06T15:13:08.296+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.handler.MessageHandlerFactory      : 注册消息处理器: image
+2026-08-06T15:13:08.296+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.handler.MessageHandlerFactory      : 注册消息处理器: text
+2026-08-06T15:13:08.407+08:00  INFO 28560 --- [TraumChatRoom] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsServiceImpl
+2026-08-06T15:13:08.888+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-08-06T15:13:08.889+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@4c9bed65]]
+2026-08-06T15:13:08.890+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-08-06T15:13:08.899+08:00  INFO 28560 --- [TraumChatRoom] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-08-06T15:13:08.904+08:00  INFO 28560 --- [TraumChatRoom] [           main] c.t.t.TraumChatRoomApplication           : Started TraumChatRoomApplication in 3.548 seconds (process running for 4.023)
+2026-08-06T15:14:08.889+08:00  INFO 28560 --- [TraumChatRoom] [MessageBroker-1] o.s.w.s.c.WebSocketMessageBrokerStats    : WebSocketSession[0 current WS(0)-HttpStream(0)-HttpPoll(0), 0 total, 0 closed abnormally (0 connect failure, 0 send limit, 0 transport error)], stompSubProtocol[processed CONNECT(0)-CONNECTED(0)-DISCONNECT(0)], stompBrokerRelay[null], inboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], outboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], sockJsScheduler[pool size = 1, active threads = 1, queued tasks = 0, completed tasks = 0]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  02:32 min
+[INFO] Finished at: 2026-08-06T15:15:27+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:4.0.5:run (default-cli) on project TraumChatRoom: Process terminated with exit code: -1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException

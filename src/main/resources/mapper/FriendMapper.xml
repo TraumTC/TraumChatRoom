@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.FriendMapper">
+
+    <resultMap id="FriendResultMap" type="com.tc.traumchatroom.entity.Friend">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="friendId" column="friend_id"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 插入好友关系 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO friend (user_id, friend_id, remark)
+        VALUES (#{userId}, #{friendId}, #{remark})
+    </insert>
+
+    <!-- 删除好友关系 -->
+    <delete id="delete">
+        DELETE FROM friend
+        WHERE (user_id = #{userId} AND friend_id = #{friendId})
+           OR (user_id = #{friendId} AND friend_id = #{userId})
+    </delete>
+
+    <!-- 查询是否存在好友关系 -->
+    <select id="exists" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM friend
+        WHERE user_id = #{userId} AND friend_id = #{friendId}
+    </select>
+
+    <!-- 查询用户的好友列表（分页） -->
+    <select id="findByUserId" resultMap="FriendResultMap">
+        SELECT * FROM friend
+        WHERE user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND remark LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 查询用户的好友总数 -->
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM friend
+        WHERE user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND remark LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </select>
+
+    <!-- 修改好友备注 -->
+    <update id="updateRemark">
+        UPDATE friend SET remark = #{remark}
+        WHERE user_id = #{userId} AND friend_id = #{friendId}
+    </update>
+
+    <!-- 查询好友备注 -->
+    <select id="findRemark" resultType="string">
+        SELECT remark FROM friend
+        WHERE user_id = #{userId} AND friend_id = #{friendId}
+    </select>
+
+</mapper>

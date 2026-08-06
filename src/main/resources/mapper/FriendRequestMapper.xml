@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.FriendRequestMapper">
+
+    <resultMap id="FriendRequestResultMap" type="com.tc.traumchatroom.entity.FriendRequest">
+        <id property="id" column="id"/>
+        <result property="senderId" column="sender_id"/>
+        <result property="receiverId" column="receiver_id"/>
+        <result property="message" column="message"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- 插入好友申请 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO friend_request (sender_id, receiver_id, message, status)
+        VALUES (#{senderId}, #{receiverId}, #{message}, #{status})
+    </insert>
+
+    <!-- 更新申请状态 -->
+    <update id="updateStatus">
+        UPDATE friend_request SET status = #{status}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据ID查询申请 -->
+    <select id="findById" resultMap="FriendRequestResultMap">
+        SELECT * FROM friend_request WHERE id = #{id}
+    </select>
+
+    <!-- 查询收到的申请列表（分页） -->
+    <select id="findByReceiverId" resultMap="FriendRequestResultMap">
+        SELECT * FROM friend_request
+        WHERE receiver_id = #{receiverId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 查询发出的申请列表（分页） -->
+    <select id="findBySenderId" resultMap="FriendRequestResultMap">
+        SELECT * FROM friend_request
+        WHERE sender_id = #{senderId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 查询收到的申请总数 -->
+    <select id="countByReceiverId" resultType="int">
+        SELECT COUNT(*) FROM friend_request
+        WHERE receiver_id = #{receiverId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </select>
+
+    <!-- 查询发出的申请总数 -->
+    <select id="countBySenderId" resultType="int">
+        SELECT COUNT(*) FROM friend_request
+        WHERE sender_id = #{senderId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </select>
+
+    <!-- 查询是否存在待处理的申请 -->
+    <select id="findPendingBySenderAndReceiver" resultMap="FriendRequestResultMap">
+        SELECT * FROM friend_request
+        WHERE sender_id = #{senderId} AND receiver_id = #{receiverId} AND status = 0
+    </select>
+
+</mapper>

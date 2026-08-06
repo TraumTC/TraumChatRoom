@@ -25,14 +25,14 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
- #  MyBatis
-  mybatis:
-    mapper-locations: classpath:mapper/*.xml
-    configguration:
-      map-underscore-to-camel-case: true
+# MyBatis
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
 
- #  文件存储
-  file:
+# 文件存储
+file:
     upload-dir: uploads/
     allowed-types: jpg,jpeg,png,gif,bmp,webp,pdf,doc,docx,zip,rar,md
     max-file-size: 104857600
@@ -48,13 +48,13 @@ ai:
     max-tokens: 1024
     temperature: 0.7
     timeout: 30000
-    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在200字以内。"
+    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在30字以内。"
   rate-limit:
     max-per-minute: 3
 
 # JWT 配置
 jwt:
-  secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production}
+  secret: ${JWT_SECRET:+j7WlQ2Eu4YZT0oc/a1epPTUftSRdCpwJxTHNQFnfuA=}
   access-expiration: 86400000
   refresh-expiration: 604800000
 

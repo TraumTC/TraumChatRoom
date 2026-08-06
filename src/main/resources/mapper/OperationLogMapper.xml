@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tc.traumchatroom.mapper.OperationLogMapper">
+
+    <resultMap id="OperationLogResultMap" type="com.tc.traumchatroom.entity.OperationLog">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="username" column="username"/>
+        <result property="action" column="action"/>
+        <result property="targetType" column="target_type"/>
+        <result property="targetId" column="target_id"/>
+        <result property="detail" column="detail"/>
+        <result property="ip" column="ip"/>
+        <result property="userAgent" column="user_agent"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 插入操作日志 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO operation_log (user_id, username, action, target_type, target_id, detail, ip, user_agent)
+        VALUES (#{userId}, #{username}, #{action}, #{targetType}, #{targetId}, #{detail}, #{ip}, #{userAgent})
+    </insert>
+
+    <!-- 查询操作日志（分页） -->
+    <select id="findByConditions" resultMap="OperationLogResultMap">
+        SELECT * FROM operation_log
+        <where>
+            <if test="action != null and action != ''">AND action = #{action}</if>
+            <if test="startDate != null and startDate != ''">AND created_at &gt;= #{startDate}</if>
+            <if test="endDate != null and endDate != ''">AND created_at &lt;= #{endDate}</if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 查询操作日志总数 -->
+    <select id="countByConditions" resultType="int">
+        SELECT COUNT(*) FROM operation_log
+        <where>
+            <if test="action != null and action != ''">AND action = #{action}</if>
+            <if test="startDate != null and startDate != ''">AND created_at &gt;= #{startDate}</if>
+            <if test="endDate != null and endDate != ''">AND created_at &lt;= #{endDate}</if>
+        </where>
+    </select>
+
+    <!-- 根据ID查询 -->
+    <select id="findById" resultMap="OperationLogResultMap">
+        SELECT * FROM operation_log WHERE id = #{id}
+    </select>
+
+    <!-- 根据用户ID查询 -->
+    <select id="findByUserId" resultMap="OperationLogResultMap">
+        SELECT * FROM operation_log
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+</mapper>
