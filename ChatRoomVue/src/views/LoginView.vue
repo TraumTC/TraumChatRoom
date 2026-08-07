@@ -1,17 +1,14 @@
-<!-- src/views/LoginView.vue — 登录页（亮色） -->
+<!-- src/views/LoginView.vue — 登录页（参考站样式：白卡片 + 输入框） -->
 <template>
   <div class="min-h-screen flex items-center justify-center px-4 py-12" style="background: var(--color-bg)">
     <div class="w-full max-w-md space-y-8 rounded-xl p-8 shadow-md"
          style="background: var(--color-card); border: 1px solid var(--color-border)">
       <!-- 标题 -->
-      <div class="text-center">
-        <div class="flex items-center justify-center gap-2 mb-2">
-          <span class="signal-dot signal-dot--blue"></span>
-          <h2 class="text-2xl font-bold" style="color: var(--color-ink)">
-            Traum<span style="color: var(--color-signal)">Chat</span>
-          </h2>
-        </div>
-        <p class="text-sm" style="color: var(--color-ink-soft)">欢迎回来，请登录您的账户</p>
+      <div>
+        <h2 class="text-center text-3xl font-bold" style="color: var(--color-ink)">
+          Traum<span style="color: var(--color-signal)">Chat</span>
+        </h2>
+        <p class="mt-2 text-center text-sm" style="color: var(--color-ink-soft)">欢迎回来，请登录您的账户</p>
       </div>
 
       <n-alert v-if="error" type="error" :show-icon="false" closable @close="error = ''">
@@ -26,14 +23,16 @@
       <!-- 登录表单 -->
       <n-form @submit.prevent="handleLogin">
         <div class="space-y-4">
-          <n-input v-model:value="username" type="text" placeholder="用户名" size="large"
-                   autocomplete="username" @keyup.enter="handleLogin">
-            <template #prefix><AppIcon name="user" :size="16" /></template>
-          </n-input>
-          <n-input v-model:value="password" type="password" placeholder="密码" size="large"
-                   autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin">
-            <template #prefix><AppIcon name="lock" :size="16" /></template>
-          </n-input>
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-ink)">用户名</label>
+            <n-input v-model:value="username" type="text" placeholder="请输入用户名" size="large"
+                     autocomplete="username" @keyup.enter="handleLogin" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-ink)">密码</label>
+            <n-input v-model:value="password" type="password" placeholder="请输入密码" size="large"
+                     autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin" />
+          </div>
         </div>
 
         <n-button type="primary" size="large" block class="mt-5" :loading="authStore.loading" attr-type="submit">
@@ -42,10 +41,13 @@
       </n-form>
 
       <!-- 分割线 -->
-      <div class="relative flex items-center gap-3">
-        <div class="flex-1" style="border-top: 1px solid var(--color-border)"></div>
-        <span class="text-xs" style="color: var(--color-ink-faint)">或者</span>
-        <div class="flex-1" style="border-top: 1px solid var(--color-border)"></div>
+      <div class="relative">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full" style="border-top: 1px solid var(--color-border)"></div>
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="px-2" style="background: var(--color-card); color: var(--color-ink-faint)">或者</span>
+        </div>
       </div>
 
       <!-- 游客入口 + 注册链接 -->
@@ -55,8 +57,8 @@
           以游客身份进入
         </n-button>
 
-        <div class="text-center space-y-1">
-          <RouterLink to="/register" class="inline-block text-sm font-medium transition-opacity hover:opacity-80"
+        <div class="text-center space-y-2">
+          <RouterLink to="/register" class="block text-sm font-medium transition-opacity hover:opacity-80"
                       style="color: var(--color-signal)">
             没有账号？去注册 →
           </RouterLink>
