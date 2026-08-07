@@ -59,3 +59,5 @@ export function createAppTheme() {
     'data-theme': 'light-blue'
   }
 }
+
+export { lightTheme }

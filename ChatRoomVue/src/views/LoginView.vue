@@ -1,13 +1,11 @@
-<!-- src/views/LoginView.vue — 登录页（参考站样式：白卡片 + 输入框） -->
+<!-- src/views/LoginView.vue — 登录页（对齐参考站 traums.cn/login） -->
 <template>
   <div class="min-h-screen flex items-center justify-center px-4 py-12" style="background: var(--color-bg)">
-    <div class="w-full max-w-md space-y-8 rounded-xl p-8 shadow-md"
-         style="background: var(--color-card); border: 1px solid var(--color-border)">
+    <div class="w-full max-w-md space-y-8 rounded-lg p-8 shadow-md"
+         style="background: var(--color-card)">
       <!-- 标题 -->
       <div>
-        <h2 class="text-center text-3xl font-bold" style="color: var(--color-ink)">
-          Traum<span style="color: var(--color-signal)">Chat</span>
-        </h2>
+        <h2 class="text-center text-3xl font-extrabold" style="color: var(--color-ink)">TraumSpace</h2>
         <p class="mt-2 text-center text-sm" style="color: var(--color-ink-soft)">欢迎回来，请登录您的账户</p>
       </div>
 
@@ -24,18 +22,18 @@
       <n-form @submit.prevent="handleLogin">
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium mb-1" style="color: var(--color-ink)">用户名</label>
-            <n-input v-model:value="username" type="text" placeholder="请输入用户名" size="large"
+            <label for="username" class="block text-sm font-medium mb-1" style="color: var(--color-ink)">用户名</label>
+            <n-input id="username" v-model:value="username" type="text" placeholder="请输入用户名"
                      autocomplete="username" @keyup.enter="handleLogin" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1" style="color: var(--color-ink)">密码</label>
-            <n-input v-model:value="password" type="password" placeholder="请输入密码" size="large"
+            <label for="password" class="block text-sm font-medium mb-1" style="color: var(--color-ink)">密码</label>
+            <n-input id="password" v-model:value="password" type="password" placeholder="请输入密码"
                      autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin" />
           </div>
         </div>
 
-        <n-button type="primary" size="large" block class="mt-5" :loading="authStore.loading" attr-type="submit">
+        <n-button type="primary" size="large" block class="mt-6" :loading="authStore.loading" attr-type="submit">
           登录
         </n-button>
       </n-form>
@@ -138,10 +136,11 @@ onUnmounted(() => {
 
 <style scoped>
 .guest-btn {
-  color: var(--color-signal) !important;
-  border-color: var(--color-signal) !important;
+  color: #b45309 !important;
+  border: 2px dashed #f59e0b !important;
+  background: #fffbeb !important;
 }
 .guest-btn:hover {
-  background: var(--color-signal-ghost) !important;
+  background: #fef3c7 !important;
 }
 </style>

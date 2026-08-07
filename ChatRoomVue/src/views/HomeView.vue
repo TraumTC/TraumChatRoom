@@ -4,12 +4,14 @@
     <!-- 顶部品牌条 -->
     <header class="flex items-center justify-between px-6 h-14 shrink-0"
             style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
-      <div class="flex items-center gap-2 text-base font-semibold" style="color: var(--color-ink)">
-        <span class="signal-dot signal-dot--blue"></span>
-        <span>Traum<span style="color: var(--color-signal)">Chat</span></span>
+      <div class="text-base font-semibold" style="color: var(--color-ink)">
+        Traum<span style="color: var(--color-signal)">Chat</span>
       </div>
       <div class="flex items-center gap-2">
-        <n-button type="primary" size="small" @click="router.push('/login')">进入登录</n-button>
+        <n-button type="primary" size="small" @click="router.push('/login')">
+          <template #icon><AppIcon name="log-in" :size="15" /></template>
+          登录
+        </n-button>
       </div>
     </header>
 
@@ -18,13 +20,10 @@
       <div class="max-w-3xl w-full">
         <!-- 品牌区 -->
         <div class="text-center mb-10">
-          <div class="flex items-center justify-center gap-3 mb-4">
-            <span class="signal-dot signal-dot--blue"></span>
-            <h1 class="text-3xl font-bold" style="color: var(--color-ink)">
-              Traum<span style="color: var(--color-signal)">Chat</span>
-            </h1>
-          </div>
-          <p class="text-base" style="color: var(--color-ink-soft)">一个在线聊天室：群聊 · 私聊 · AI 助手 · 好友</p>
+          <h1 class="text-3xl font-bold" style="color: var(--color-ink)">
+            Traum<span style="color: var(--color-signal)">Chat</span>
+          </h1>
+          <p class="text-base mt-3" style="color: var(--color-ink-soft)">一个在线聊天室：群聊 · 私聊 · AI 助手 · 好友</p>
         </div>
 
         <!-- 功能亮点 -->
@@ -40,7 +39,8 @@
         <!-- 单个入口 -->
         <div class="max-w-sm mx-auto">
           <n-button type="primary" size="large" block @click="router.push('/login')">
-            进入登录
+            <template #icon><AppIcon name="log-in" :size="16" /></template>
+            登录
           </n-button>
         </div>
       </div>
