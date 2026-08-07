@@ -1,13 +1,13 @@
-<!-- src/components/layout/AppHeader.vue — 顶部导航栏（深夜电台） -->
+<!-- src/components/layout/AppHeader.vue — 顶部导航栏（亮色） -->
 <template>
   <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-10"
-          style="background: var(--color-night-raise); border-bottom: 1px solid var(--color-night-line)">
+          style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
     <!-- 左侧：品牌（电台呼号） -->
     <RouterLink :to="authStore.isGuest ? '/' : '/chat'"
                 class="flex items-center gap-2 text-base font-semibold tracking-wide transition-opacity hover:opacity-80"
-                style="color: var(--color-paper)">
-      <span class="signal-dot signal-dot--amber"></span>
-      <span>Traum<span style="color: var(--color-amber)">Chat</span></span>
+                style="color: var(--color-ink)">
+      <span class="signal-dot signal-dot--blue"></span>
+      <span>Traum<span style="color: var(--color-signal)">Chat</span></span>
     </RouterLink>
 
     <!-- 右侧 -->
@@ -16,7 +16,7 @@
         <!-- 管理员入口 -->
         <RouterLink v-if="authStore.isAdmin" to="/admin/users"
                     class="text-xs flex items-center gap-1 px-2 py-1 rounded-md transition-colors"
-                    style="color: var(--color-paper-soft)" :active-class="'active'">
+                    style="color: var(--color-ink-soft)" :active-class="'active'">
           <AppIcon name="shield" :size="14" />
           <span class="hidden sm:inline">管理</span>
         </RouterLink>
@@ -40,10 +40,10 @@
 
         <!-- 用户名 -->
         <RouterLink v-if="!authStore.isGuest" to="/profile"
-                    class="text-sm transition-colors hover:opacity-80" style="color: var(--color-paper-soft)">
+                    class="text-sm transition-colors hover:opacity-80" style="color: var(--color-ink-soft)">
           {{ authStore.displayName }}
         </RouterLink>
-        <span v-if="authStore.isGuest" class="text-sm" style="color: var(--color-paper-faint)">
+        <span v-if="authStore.isGuest" class="text-sm" style="color: var(--color-ink-faint)">
           {{ authStore.displayName }}
         </span>
 

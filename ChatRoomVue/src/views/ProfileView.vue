@@ -1,24 +1,24 @@
-<!-- src/views/ProfileView.vue — 个人中心（深夜电台） -->
+<!-- src/views/ProfileView.vue — 个人中心（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-night)">
+  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
 
     <div class="max-w-lg w-full mx-auto p-8">
       <RouterLink to="/chat" class="inline-flex items-center gap-1 text-sm mb-6 transition-colors hover:opacity-80"
-                  style="color: var(--color-paper-soft)">
+                  style="color: var(--color-ink-soft)">
         <AppIcon name="chevron-left" :size="16" />返回聊天
       </RouterLink>
 
-      <div class="rounded-xl overflow-hidden" style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+      <div class="rounded-xl overflow-hidden" style="background: var(--color-card); border: 1px solid var(--color-border)">
         <!-- 头像区 -->
-        <div class="flex flex-col items-center py-8" style="border-bottom: 1px solid var(--color-night-line)">
+        <div class="flex flex-col items-center py-8" style="border-bottom: 1px solid var(--color-border)">
           <div class="relative cursor-pointer group mb-3" title="点击查看头像" @click="showAvatarPreview = true">
             <UserAvatar :user="authStore.user" size="lg" />
             <div class="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               <AppIcon name="eye" :size="20" class="text-white" />
             </div>
           </div>
-          <p class="text-xs" style="color: var(--color-paper-faint)">点击头像预览或更换</p>
+          <p class="text-xs" style="color: var(--color-ink-faint)">点击头像预览或更换</p>
           <AvatarPreview :visible="showAvatarPreview" :user="authStore.user"
                          @close="showAvatarPreview = false"
                          @change="handleAvatarChange" @delete="handleAvatarDelete" />
@@ -26,20 +26,20 @@
 
         <!-- 基本信息 -->
         <div class="p-6 space-y-4">
-          <h2 class="text-sm font-medium" style="color: var(--color-paper)">基本信息</h2>
+          <h2 class="text-sm font-medium" style="color: var(--color-ink)">基本信息</h2>
 
           <div>
-            <label class="block text-xs mb-1" style="color: var(--color-paper-soft)">用户名</label>
+            <label class="block text-xs mb-1" style="color: var(--color-ink-soft)">用户名</label>
             <n-input :value="authStore.user?.username" disabled />
           </div>
 
           <div>
-            <label class="block text-xs mb-1" style="color: var(--color-paper-soft)">昵称</label>
+            <label class="block text-xs mb-1" style="color: var(--color-ink-soft)">昵称</label>
             <n-input v-model:value="name" placeholder="输入新昵称" maxlength="20" @keyup.enter="handleSaveProfile" />
           </div>
 
           <div>
-            <label class="block text-xs mb-1" style="color: var(--color-paper-soft)">角色</label>
+            <label class="block text-xs mb-1" style="color: var(--color-ink-soft)">角色</label>
             <n-input :value="roleName" disabled />
           </div>
 
@@ -47,8 +47,8 @@
         </div>
 
         <!-- 修改密码 -->
-        <div class="p-6 space-y-4" style="border-top: 1px solid var(--color-night-line)">
-          <h2 class="text-sm font-medium" style="color: var(--color-paper)">修改密码</h2>
+        <div class="p-6 space-y-4" style="border-top: 1px solid var(--color-border)">
+          <h2 class="text-sm font-medium" style="color: var(--color-ink)">修改密码</h2>
           <div class="space-y-3">
             <n-input v-model:value="oldPassword" type="password" placeholder="当前密码" show-password-on="click" />
             <n-input v-model:value="newPassword" type="password" placeholder="新密码（6-20位，含字母和数字）" show-password-on="click"

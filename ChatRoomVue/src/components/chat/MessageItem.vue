@@ -1,8 +1,8 @@
-﻿<!-- src/components/chat/MessageItem.vue — 单条消息（深夜电台气泡） -->
+<!-- src/components/chat/MessageItem.vue — 单条消息（亮色气泡） -->
 <template>
   <!-- 撤回消息：居中提示 -->
   <div v-if="message.recalled" class="flex justify-center py-1 px-4 msg-enter">
-    <span class="text-xs px-3 py-1 rounded-full" style="background: var(--color-night-raise); color: var(--color-paper-faint)">
+    <span class="text-xs px-3 py-1 rounded-full" style="background: var(--color-card); color: var(--color-ink-faint)">
       {{ message.content }}
     </span>
   </div>
@@ -15,9 +15,9 @@
 
     <div class="min-w-0 flex flex-col" :class="isSelf ? 'items-end' : 'items-start'">
       <!-- 发送者 + 时间 -->
-      <div class="text-xs mb-0dot5 px-1 flex items-center gap-2" style="color: var(--color-paper-faint)">
+      <div class="text-xs mb-0dot5 px-1 flex items-center gap-2" style="color: var(--color-ink-faint)">
         <template v-if="message.aiReply">
-          <span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="color: var(--color-amber); background: var(--color-amber-ghost)">AI</span>
+          <span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="color: var(--color-signal); background: var(--color-signal-ghost)">AI</span>
         </template>
         <span>{{ message.sender?.name }}</span>
         <span class="tabular">{{ formatTime(message.createdAt) }}</span>
@@ -25,14 +25,14 @@
 
       <!-- 引用摘要 -->
       <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs truncate max-w-[400px]"
-           style="background: var(--color-night-raise); border-left: 2px solid var(--color-amber); color: var(--color-paper-soft)">
-        <span style="color: var(--color-amber)">{{ quotedMsg.senderName }}：</span>{{ quotedMsg.content }}
+           style="background: var(--color-card); border-left: 2px solid var(--color-signal); color: var(--color-ink-soft)">
+        <span style="color: var(--color-signal)">{{ quotedMsg.senderName }}：</span>{{ quotedMsg.content }}
       </div>
 
       <!-- AI 消息（信号签名竖线） -->
       <div v-if="message.aiReply"
            class="ai-bubble rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
-           style="background: var(--color-amber-ghost); color: var(--color-amber); border-left: 2px solid var(--color-amber)">
+           style="background: var(--color-signal-ghost); color: var(--color-signal); border-left: 2px solid var(--color-signal)">
         {{ message.content }}
       </div>
 
@@ -51,23 +51,23 @@
 
       <!-- 视频消息 -->
       <div v-else-if="message.messageType === 'file' && isVideo(message.fileName)"
-           class="rounded-lg overflow-hidden max-w-[400px]" style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+           class="rounded-lg overflow-hidden max-w-[400px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
         <video controls preload="metadata" class="w-full rounded-t-lg max-h-[300px]">
           <source :src="message.filePath" />
           您的浏览器不支持视频播放
         </video>
-        <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5" style="color: var(--color-paper-soft); border-top: 1px solid var(--color-night-line)">
+        <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5" style="color: var(--color-ink-soft); border-top: 1px solid var(--color-border)">
           <AppIcon name="video" :size="13" />{{ message.fileName }}
         </div>
       </div>
 
       <!-- 文件消息 -->
       <div v-else-if="message.messageType === 'file'"
-           class="rounded-lg px-3 py-2 max-w-[480px]" style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
-        <div class="flex items-center gap-2 text-sm" style="color: var(--color-paper)">
-          <AppIcon name="file-text" :size="15" style="color: var(--color-amber)" />
+           class="rounded-lg px-3 py-2 max-w-[480px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
+        <div class="flex items-center gap-2 text-sm" style="color: var(--color-ink)">
+          <AppIcon name="file-text" :size="15" style="color: var(--color-signal)" />
           <span class="truncate">{{ message.fileName }}</span>
-          <span class="text-xs tabular" style="color: var(--color-paper-faint)">{{ formatFileSize(message.fileSize) }}</span>
+          <span class="text-xs tabular" style="color: var(--color-ink-faint)">{{ formatFileSize(message.fileSize) }}</span>
         </div>
       </div>
 
@@ -88,13 +88,13 @@
     <template v-if="menuVisible">
       <div class="fixed inset-0 z-40" @click="menuVisible = false"></div>
       <div class="fixed rounded-lg py-1 z-50 min-w-[120px] shadow-xl"
-           style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)"
+           style="background: var(--color-card); border: 1px solid var(--color-border)"
            :style="{ left: menuX + 'px', top: menuY + 'px' }">
-        <button class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-paper)" @click="handleQuote">
+        <button class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-ink)" @click="handleQuote">
           引用
         </button>
         <a v-if="hasFile" :href="message.filePath + '?name=' + encodeURIComponent(message.fileName)" download
-           class="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-paper)">
+           class="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-ink)">
           下载
         </a>
         <button v-if="canRecall" class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5"
@@ -171,7 +171,7 @@ function highlightMentions(content) {
   if (!content) return ''
   const escaped = escapeHtml(content)
   return escaped.replace(/@([^<>\s]+)/g, (match, name) => {
-    return `<span style="color: var(--color-amber); font-weight: 600">@${escapeHtml(name)}</span>`
+    return `<span style="color: var(--color-signal); font-weight: 600">@${escapeHtml(name)}</span>`
   })
 }
 
@@ -220,8 +220,8 @@ async function doRecall() {
 <style scoped>
 .bubble-self {
   position: relative;
-  background: var(--color-amber);
-  color: #1A1205;
+  background: var(--color-signal);
+  color: #FFFFFF;
 }
 .bubble-self::after {
   content: '';
@@ -229,13 +229,13 @@ async function doRecall() {
   top: 10px;
   right: -7px;
   border: 7px solid transparent;
-  border-left-color: var(--color-amber);
+  border-left-color: var(--color-signal);
 }
 .bubble-other {
   position: relative;
-  background: var(--color-night-raise);
-  color: var(--color-paper);
-  border: 1px solid var(--color-night-line);
+  background: var(--color-card);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
 }
 .bubble-other::after {
   content: '';
@@ -243,7 +243,7 @@ async function doRecall() {
   top: 10px;
   left: -7px;
   border: 7px solid transparent;
-  border-right-color: var(--color-night-line);
+  border-right-color: var(--color-border);
 }
 </style>
 

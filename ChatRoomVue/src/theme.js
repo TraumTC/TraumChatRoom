@@ -1,48 +1,47 @@
-// src/theme.js — Naive UI 主题（「深夜电台 · 琥珀信号」）
-// 深蓝夜空 + 琥珀信号灯：对话是暗夜里被点亮的信号。
-import { darkTheme } from 'naive-ui'
+// src/theme.js — Naive UI 主题（亮色 · 白底蓝强调）
+// 改造前原始 Token：暖白纸面 + 墨色文字 + 品牌蓝强调。
+import { lightTheme } from 'naive-ui'
 
 // 设计 Token（与 styles/main.css 的 CSS 变量保持一致）
 export const tokens = {
-  // 夜空底色
-  night: '#0E1621',        // 页面底
-  nightRaise: '#151E2B',   // 侧栏/输入区底
-  nightHover: '#1D2735',   // hover / 他人气泡
-  nightLine: '#26324A',    // 描边/分割线
-  // 琥珀信号
-  amber: '#E8A33D',        // 强调：自己消息/主按钮/在线点/AI
-  amberDeep: '#C98A2E',    // hover/pressed
-  amberGhost: 'rgba(232,163,61,0.14)', // 选中行底/focus ring
-  // 纸面文字（暖白）
-  paper: '#F5F1E8',        // 主文字
-  paperSoft: '#9AA3B2',    // 次文字
-  paperFaint: '#6B7484',   // 占位/禁用
+  bg: '#F7F7F5',            // 页面底（暖白纸面）
+  card: '#FFFFFF',          // 卡片/气泡/输入区
+  hover: '#F3F4F6',         // 列表 hover / 他人气泡
+  border: '#E5E7EB',        // 描边/分割线
+  // 墨色文字
+  ink: '#1F2328',           // 主文字
+  inkSoft: '#6B7280',       // 次文字
+  inkFaint: '#9CA3AF',      // 占位/禁用
+  // 品牌蓝强调
+  signal: '#3B82F6',        // 自己气泡/主按钮/AI/链接/激活
+  signalDeep: '#2563EB',    // hover/pressed
+  signalGhost: '#EFF6FF',   // AI 气泡底/选中行底/focus ring
   // 语义色
-  live: '#4ADE80',         // 在场绿
-  alarm: '#F87171',        // 警示红
-  warn: '#F59E0B'
+  live: '#10B981',          // 在线绿
+  alarm: '#EF4444',         // 警示红
+  warn: '#F59E0B'           // 警示黄
 }
 
 // Naive UI 主题覆盖
 export const themeOverrides = {
   common: {
-    primaryColor: tokens.amber,
-    primaryColorHover: tokens.amberDeep,
-    primaryColorPressed: tokens.amberDeep,
-    primaryColorSuppl: tokens.amberGhost,
-    bodyColor: tokens.night,
-    cardColor: tokens.nightRaise,
-    modalColor: tokens.nightRaise,
-    popoverColor: tokens.nightRaise,
-    tableColor: tokens.nightRaise,
-    inputColor: tokens.nightRaise,
-    inputColorDisabled: tokens.nightHover,
-    textColor1: tokens.paper,
-    textColor2: tokens.paperSoft,
-    textColor3: tokens.paperFaint,
-    borderColor: tokens.nightLine,
-    dividerColor: tokens.nightLine,
-    hoverColor: tokens.nightHover,
+    primaryColor: tokens.signal,
+    primaryColorHover: tokens.signalDeep,
+    primaryColorPressed: tokens.signalDeep,
+    primaryColorSuppl: tokens.signalGhost,
+    bodyColor: tokens.bg,
+    cardColor: tokens.card,
+    modalColor: tokens.card,
+    popoverColor: tokens.card,
+    tableColor: tokens.card,
+    inputColor: tokens.card,
+    inputColorDisabled: tokens.hover,
+    textColor1: tokens.ink,
+    textColor2: tokens.inkSoft,
+    textColor3: tokens.inkFaint,
+    borderColor: tokens.border,
+    dividerColor: tokens.border,
+    hoverColor: tokens.hover,
     successColor: tokens.live,
     warningColor: tokens.warn,
     errorColor: tokens.alarm,
@@ -55,9 +54,8 @@ export const themeOverrides = {
 
 export function createAppTheme() {
   return {
-    theme: darkTheme,
+    theme: lightTheme,
     themeOverrides,
-    // 与 main.css 的 CSS 变量同名，供自绘组件使用
-    'data-theme': 'night-radio'
+    'data-theme': 'light-blue'
   }
 }

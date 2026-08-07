@@ -1,17 +1,17 @@
-<!-- src/components/chat/MessageInput.vue — 消息输入区（深夜电台） -->
+<!-- src/components/chat/MessageInput.vue — 消息输入区（亮色） -->
 <template>
-  <div class="relative" style="background: var(--color-night-raise); border-top: 1px solid var(--color-night-line)">
+  <div class="relative" style="background: var(--color-card); border-top: 1px solid var(--color-border)">
     <!-- 引用预览条 -->
     <div v-if="chatStore.replyTo"
          class="flex items-center gap-2 px-3 py-2"
-         style="background: var(--color-night-hover); border-bottom: 1px solid var(--color-night-line)">
-      <div class="w-0.5 h-4 rounded-full shrink-0" style="background: var(--color-amber)"></div>
+         style="background: var(--color-hover); border-bottom: 1px solid var(--color-border)">
+      <div class="w-0.5 h-4 rounded-full shrink-0" style="background: var(--color-signal)"></div>
       <div class="flex-1 min-w-0">
-        <span class="text-xs font-medium" style="color: var(--color-amber)">{{ chatStore.replyTo.senderName }}</span>
-        <span class="text-xs ml-1 truncate" style="color: var(--color-paper-soft)">{{ chatStore.replyTo.content }}</span>
+        <span class="text-xs font-medium" style="color: var(--color-signal)">{{ chatStore.replyTo.senderName }}</span>
+        <span class="text-xs ml-1 truncate" style="color: var(--color-ink-soft)">{{ chatStore.replyTo.content }}</span>
       </div>
       <button @click="chatStore.clearReplyTo()"
-              class="shrink-0 p-0.5 transition-colors" style="color: var(--color-paper-faint)" @mouseenter="$event.target.style.color='var(--color-paper)'" @mouseleave="$event.target.style.color='var(--color-paper-faint)'">
+              class="shrink-0 p-0.5 transition-colors" style="color: var(--color-ink-faint)" @mouseenter="$event.target.style.color='var(--color-ink)'" @mouseleave="$event.target.style.color='var(--color-ink-faint)'">
         <AppIcon name="x" :size="14" />
       </button>
     </div>
@@ -26,7 +26,7 @@
                     @close="showMention = false" />
 
       <!-- 文件上传 -->
-      <label class="cursor-pointer shrink-0 transition-colors p-1" style="color: var(--color-paper-soft)">
+      <label class="cursor-pointer shrink-0 transition-colors p-1" style="color: var(--color-ink-soft)">
         <AppIcon name="paperclip" :size="18" />
         <input type="file" class="hidden" :accept="acceptTypes" @change="handleFileUpload" />
       </label>
@@ -43,7 +43,7 @@
         rows="1"
         ref="inputRef"
         class="flex-1 resize-none rounded-lg px-3 py-2 text-sm max-h-40 focus:outline-none"
-        style="background: var(--color-night-hover); color: var(--color-paper); border: 1px solid var(--color-night-line)"
+        style="background: var(--color-hover); color: var(--color-ink); border: 1px solid var(--color-border)"
       />
 
       <!-- 字数提示 -->

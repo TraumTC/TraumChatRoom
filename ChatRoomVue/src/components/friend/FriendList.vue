@@ -1,8 +1,8 @@
-<!-- src/components/friend/FriendList.vue — 好友列表（深夜电台） -->
+<!-- src/components/friend/FriendList.vue — 好友列表（亮色） -->
 <template>
   <div class="flex flex-col h-full">
-    <div class="flex items-center justify-between px-3 py-2" style="border-bottom: 1px solid var(--color-night-line)">
-      <span class="text-xs font-medium" style="color: var(--color-paper-faint)">好友</span>
+    <div class="flex items-center justify-between px-3 py-2" style="border-bottom: 1px solid var(--color-border)">
+      <span class="text-xs font-medium" style="color: var(--color-ink-faint)">好友</span>
       <div class="flex gap-1">
         <n-button quaternary circle size="small" @click="showRequests = true" aria-label="好友申请">
           <template #icon><AppIcon name="user-plus" :size="15" /></template>
@@ -19,12 +19,12 @@
     <div class="flex-1 overflow-y-auto scroll-thin">
       <div v-if="loading" class="p-3">
         <div v-for="i in 3" :key="i" class="rounded h-12 mb-2 animate-pulse"
-             style="background: var(--color-night-hover)"></div>
+             style="background: var(--color-hover)"></div>
       </div>
 
-      <div v-else-if="friends.length === 0" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
+      <div v-else-if="friends.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
         暂无好友
-        <n-button text size="small" class="block mx-auto mt-2" style="color: var(--color-amber)"
+        <n-button text size="small" class="block mx-auto mt-2" style="color: var(--color-signal)"
                   @click="$emit('addFriend')">去添加</n-button>
       </div>
 

@@ -1,13 +1,13 @@
-<!-- src/components/chat/PrivateChatTab.vue — 私聊标签条（深夜电台） -->
+<!-- src/components/chat/PrivateChatTab.vue — 私聊标签条（亮色） -->
 <template>
   <div class="h-10 px-2 flex items-center gap-1 overflow-x-auto"
-       style="background: var(--color-night-raise); border-bottom: 1px solid var(--color-night-line)">
+       style="background: var(--color-ghost); border-bottom: 1px solid var(--color-border)">
     <button v-for="tab in privateTabs" :key="tab.username"
             @click="selectTab(tab)"
             @auxclick.prevent="closeTab(tab)"
             class="px-3 py-1.5 text-sm rounded-t whitespace-nowrap shrink-0 transition-colors"
             :class="isActive(tab) ? 'is-active' : ''"
-            :style="isActive(tab) ? 'color: var(--color-amber)' : 'color: var(--color-paper-soft)'">
+            :style="isActive(tab) ? 'color: var(--color-signal)' : 'color: var(--color-ink-soft)'">
       {{ tab.name }}
       <span v-if="getUnread(tab.username) > 0"
             class="ml-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] leading-none inline-flex items-center justify-center tabular"
@@ -15,10 +15,10 @@
         {{ getUnread(tab.username) }}
       </span>
       <span @click.stop.prevent="closeTab(tab)" class="ml-1 cursor-pointer"
-            style="color: var(--color-paper-faint)">×</span>
+            style="color: var(--color-ink-faint)">×</span>
     </button>
 
-    <span v-if="privateTabs.length === 0" class="text-xs px-2" style="color: var(--color-paper-faint)">
+    <span v-if="privateTabs.length === 0" class="text-xs px-2" style="color: var(--color-ink-faint)">
       点击在线用户或好友开始私聊
     </span>
   </div>
@@ -59,6 +59,6 @@ function closeTab(tab) {
 
 <style scoped>
 .is-active {
-  border-bottom: 2px solid var(--color-amber);
+  border-bottom: 2px solid var(--color-signal);
 }
 </style>

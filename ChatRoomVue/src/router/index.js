@@ -5,13 +5,15 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    name: 'Login',
-    component: () => import('@/views/LoginView.vue'),
-    meta: { guest: true }  // 已登录用户不能访问
+    name: 'Home',
+    component: () => import('@/views/HomeView.vue'),
+    meta: { guest: true }  // 已登录（非游客）用户自动跳聊天室
   },
   {
     path: '/login',
-    redirect: '/'  // 兼容旧链接，重定向到首页
+    name: 'Login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { guest: true }
   },
   {
     path: '/register',

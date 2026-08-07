@@ -1,15 +1,15 @@
-<!-- src/components/friend/FriendItem.vue — 单个好友项（深夜电台） -->
+<!-- src/components/friend/FriendItem.vue — 单个好友项（亮色） -->
 <template>
   <div class="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors hover:bg-white/5"
        @click="$emit('openChat', friend)">
     <div class="relative shrink-0">
       <UserAvatar :user="friend" size="md" />
       <span v-if="friend.online" class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full signal-dot"
-            style="border: 2px solid var(--color-night-raise)"></span>
+            style="border: 2px solid var(--color-card)"></span>
     </div>
     <div class="flex-1 min-w-0">
-      <div class="text-sm truncate" style="color: var(--color-paper)">{{ friend.remark || friend.name }}</div>
-      <div class="text-xs" style="color: var(--color-paper-faint)">
+      <div class="text-sm truncate" style="color: var(--color-ink)">{{ friend.remark || friend.name }}</div>
+      <div class="text-xs" style="color: var(--color-ink-faint)">
         {{ friend.online ? '在线' : formatTime(friend.lastActiveTime) }}
       </div>
     </div>

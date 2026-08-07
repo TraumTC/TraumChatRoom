@@ -1,9 +1,9 @@
-<!-- src/views/AdminUsersView.vue — 管理员-用户管理（深夜电台） -->
+<!-- src/views/AdminUsersView.vue — 管理员-用户管理（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-night)">
+  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
     <div class="max-w-6xl w-full mx-auto p-6">
-      <h1 class="text-lg font-semibold mb-6" style="color: var(--color-paper)">用户管理</h1>
+      <h1 class="text-lg font-semibold mb-6" style="color: var(--color-ink)">用户管理</h1>
 
       <!-- 工具栏 -->
       <div class="flex items-center gap-3 mb-4 flex-wrap">
@@ -21,7 +21,7 @@
 
       <!-- 分页 -->
       <div class="flex items-center justify-between py-3">
-        <span class="text-sm" style="color: var(--color-paper-soft)">共 {{ total }} 条</span>
+        <span class="text-sm" style="color: var(--color-ink-soft)">共 {{ total }} 条</span>
         <n-pagination v-model:page="page" :page-size="size" :item-count="total"
                       @update:page="loadUsers" />
       </div>
@@ -58,8 +58,8 @@ function statusRender(row) {
 
 function actionsRender(row) {
   return h('div', { style: 'display:flex;gap:8px;justify-content:flex-end' }, [
-    h('a', { style: 'color:var(--color-amber);font-size:12px;cursor:pointer', onClick: () => resetPassword(row) }, '重置密码'),
-    h('a', { style: 'color:var(--color-paper-soft);font-size:12px;cursor:pointer', onClick: () => toggleStatus(row) }, row.status === 1 ? '禁用' : '启用'),
+    h('a', { style: 'color:var(--color-signal);font-size:12px;cursor:pointer', onClick: () => resetPassword(row) }, '重置密码'),
+    h('a', { style: 'color:var(--color-ink-soft);font-size:12px;cursor:pointer', onClick: () => toggleStatus(row) }, row.status === 1 ? '禁用' : '启用'),
     h('a', { style: 'color:var(--color-alarm);font-size:12px;cursor:pointer', onClick: () => deleteUser(row) }, '删除')
   ])
 }
@@ -176,7 +176,7 @@ async function resetPassword(user) {
     dialog.warning({
       title: '重置密码',
       content: () => h('div', null, [
-        h('p', { style: 'margin-bottom:8px;color:var(--color-paper-soft)' }, `为 ${user.name} 设置新密码（6-20位，含字母和数字）：`),
+        h('p', { style: 'margin-bottom:8px;color:var(--color-ink-soft)' }, `为 ${user.name} 设置新密码（6-20位，含字母和数字）：`),
         h('n-input', { type: 'password', placeholder: '新密码' })
       ]),
       positiveText: '重置',

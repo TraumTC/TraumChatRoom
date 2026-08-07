@@ -1,22 +1,17 @@
-<!-- src/views/LoginView.vue — 登录页（深夜电台） -->
+<!-- src/views/LoginView.vue — 登录页（亮色） -->
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4"
-       style="background: var(--color-night)">
-    <!-- 背景氛围：一束琥珀光 -->
-    <div class="fixed inset-0 pointer-events-none"
-         style="background: radial-gradient(ellipse at 50% 120%, rgba(232,163,61,0.12), transparent 60%)"></div>
-
-    <div class="relative w-full max-w-md space-y-6 rounded-xl p-8"
-         style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
-      <!-- 品牌 -->
+  <div class="min-h-screen flex items-center justify-center px-4 py-12" style="background: var(--color-bg)">
+    <div class="w-full max-w-md space-y-8 rounded-xl p-8 shadow-md"
+         style="background: var(--color-card); border: 1px solid var(--color-border)">
+      <!-- 标题 -->
       <div class="text-center">
-        <div class="flex items-center justify-center gap-2 mb-3">
-          <span class="signal-dot signal-dot--amber"></span>
-          <span class="text-2xl font-bold" style="color: var(--color-paper)">
-            Traum<span style="color: var(--color-amber)">Chat</span>
-          </span>
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <span class="signal-dot signal-dot--blue"></span>
+          <h2 class="text-2xl font-bold" style="color: var(--color-ink)">
+            Traum<span style="color: var(--color-signal)">Chat</span>
+          </h2>
         </div>
-        <p class="text-sm" style="color: var(--color-paper-soft)">深夜电台 · 让对话被点亮</p>
+        <p class="text-sm" style="color: var(--color-ink-soft)">欢迎回来，请登录您的账户</p>
       </div>
 
       <n-alert v-if="error" type="error" :show-icon="false" closable @close="error = ''">
@@ -28,6 +23,7 @@
         登录失败次数过多，请在 {{ lockDisplay }} 后重试
       </n-alert>
 
+      <!-- 登录表单 -->
       <n-form @submit.prevent="handleLogin">
         <div class="space-y-4">
           <n-input v-model:value="username" type="text" placeholder="用户名" size="large"
@@ -45,24 +41,26 @@
         </n-button>
       </n-form>
 
-      <div class="relative flex items-center gap-3 my-2">
-        <div class="flex-1" style="border-top: 1px solid var(--color-night-line)"></div>
-        <span class="text-xs" style="color: var(--color-paper-faint)">或</span>
-        <div class="flex-1" style="border-top: 1px solid var(--color-night-line)"></div>
+      <!-- 分割线 -->
+      <div class="relative flex items-center gap-3">
+        <div class="flex-1" style="border-top: 1px solid var(--color-border)"></div>
+        <span class="text-xs" style="color: var(--color-ink-faint)">或者</span>
+        <div class="flex-1" style="border-top: 1px solid var(--color-border)"></div>
       </div>
 
+      <!-- 游客入口 + 注册链接 -->
       <div class="space-y-3">
-        <n-button block size="large" ghost class="guest-btn" :loading="guestLoading" @click="loginAsGuest">
+        <n-button block size="large" class="guest-btn" :loading="guestLoading" @click="loginAsGuest">
           <template #icon><AppIcon name="radio" :size="16" /></template>
           以游客身份进入
         </n-button>
 
-        <div class="text-center space-y-2">
+        <div class="text-center space-y-1">
           <RouterLink to="/register" class="inline-block text-sm font-medium transition-opacity hover:opacity-80"
-                      style="color: var(--color-amber)">
+                      style="color: var(--color-signal)">
             没有账号？去注册 →
           </RouterLink>
-          <p class="text-xs" style="color: var(--color-paper-faint)">游客无需注册，系统自动分配专属名称</p>
+          <p class="text-xs" style="color: var(--color-ink-faint)">游客无需注册，系统会自动为您分配一个专属名称</p>
         </div>
       </div>
     </div>
@@ -107,8 +105,6 @@ async function handleLogin() {
   if (success) {
     router.push('/chat')
   } else {
-    // 解析后端 lockRemainSeconds（AuthServiceImpl 已返回精确剩余秒数）
-    const lockSeconds = authStore.error?.match(/请在\s*([\d\s分秒]+)\s*后重试/)
     const raw = authStore.error
     const secondsMatch = raw?.match(/(\d+)\s*分\s*(\d+)\s*秒/)
     if (secondsMatch) {
@@ -140,10 +136,10 @@ onUnmounted(() => {
 
 <style scoped>
 .guest-btn {
-  color: var(--color-amber) !important;
-  border-color: var(--color-amber) !important;
+  color: var(--color-signal) !important;
+  border-color: var(--color-signal) !important;
 }
 .guest-btn:hover {
-  background: var(--color-amber-ghost) !important;
+  background: var(--color-signal-ghost) !important;
 }
 </style>

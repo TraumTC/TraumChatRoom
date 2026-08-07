@@ -1,6 +1,6 @@
-﻿<!-- src/views/ChatView.vue — 聊天室主页面（深夜电台） -->
+<!-- src/views/ChatView.vue — 聊天室主页面（亮色） -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-night)">
+  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
 
     <div class="flex flex-1 min-h-0">
@@ -9,35 +9,35 @@
 
       <!-- 左侧栏 -->
       <aside :class="['w-64 shrink-0 flex flex-col', isMobile ? 'fixed z-30 left-0 top-14 bottom-0 transition-transform duration-200' : '']"
-             :style="isMobile ? { transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', background: 'var(--color-night-raise)', borderRight: '1px solid var(--color-night-line)' }
-                                 : { background: 'var(--color-night-raise)', borderRight: '1px solid var(--color-night-line)' }">
+             :style="isMobile ? { transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', background: 'var(--color-ghost)', borderRight: '1px solid var(--color-border)' }
+                                 : { background: 'var(--color-ghost)', borderRight: '1px solid var(--color-border)' }">
         <!-- 好友列表（游客隐藏） -->
-        <div v-if="!authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-night-line)">
+        <div v-if="!authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-border)">
           <FriendList @openChat="startPrivateChat" @addFriend="showAddFriend = true" />
         </div>
 
         <!-- 在线用户 -->
         <div class="flex-1 overflow-y-auto scroll-thin min-h-0">
-          <div class="p-4 pb-2 flex items-center gap-2" style="border-bottom: 1px solid var(--color-night-line)">
+          <div class="p-4 pb-2 flex items-center gap-2" style="border-bottom: 1px solid var(--color-border)">
             <span class="signal-dot"></span>
-            <span class="text-sm tabular" style="color: var(--color-paper-soft)">
-              在线 <span style="color: var(--color-paper); font-weight: 600">{{ onlineCount }}</span>
+            <span class="text-sm tabular" style="color: var(--color-ink-soft)">
+              在线 <span style="color: var(--color-ink); font-weight: 600">{{ onlineCount }}</span>
             </span>
           </div>
-          <div class="px-3 py-1dot5 text-xs font-medium" style="color: var(--color-paper-faint)">在线用户</div>
+          <div class="px-3 py-1dot5 text-xs font-medium" style="color: var(--color-ink-faint)">在线用户</div>
           <div v-for="user in onlineUsers" :key="user.username"
                class="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors"
                :class="{ 'is-active': isPrivateActive(user.username) }"
                @click="startPrivateChat(user)">
             <span class="signal-dot"></span>
-            <span class="flex-1 text-sm truncate" style="color: var(--color-paper)">{{ user.name }}</span>
+            <span class="flex-1 text-sm truncate" style="color: var(--color-ink)">{{ user.name }}</span>
             <span v-if="hasPrivateUnread(user.username)"
                   class="min-w-4 h-4 px-1 rounded-full text-white text-[10px] leading-none flex items-center justify-center tabular"
                   style="background: var(--color-alarm)">
               {{ getUnread(user.username) }}
             </span>
           </div>
-          <div v-if="onlineUsers.length === 0" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
+          <div v-if="onlineUsers.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
             暂无在线用户
           </div>
         </div>
@@ -53,38 +53,38 @@
 
         <!-- 移动端折叠开关 -->
         <button v-if="isMobile" @click="sidebarOpen = true"
-                class="px-3 py-1 text-xs self-start" style="color: var(--color-paper-soft)">
+                class="px-3 py-1 text-xs self-start" style="color: var(--color-ink-soft)">
           <AppIcon name="panel-left" :size="14" />
         </button>
 
         <!-- 连接状态提示 -->
         <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"
-             style="background: rgba(232,163,61,0.15); color: var(--color-amber)">
+             style="background: rgba(59,130,246,0.08); color: var(--color-signal)">
           {{ wsStore.connecting ? '正在连接...' : '连接已断开，正在重连...' }}
         </div>
 
         <!-- 会话标题 -->
         <div v-if="isPrivateMode" class="px-4 py-2 flex items-center gap-2"
-             style="background: var(--color-night-raise); border-bottom: 1px solid var(--color-night-line)">
+             style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
           <span class="signal-dot"></span>
-          <span class="text-sm font-medium" style="color: var(--color-paper)">{{ currentChat.name }}</span>
+          <span class="text-sm font-medium" style="color: var(--color-ink)">{{ currentChat.name }}</span>
           <button @click="chatStore.openGroupChat()" class="ml-auto text-xs transition-colors"
-                  style="color: var(--color-paper-faint)">
+                  style="color: var(--color-ink-faint)">
             返回群聊
           </button>
         </div>
 
         <!-- 聊天区 -->
         <div ref="messageArea" class="flex-1 overflow-y-auto scroll-thin py-2" @scroll="handleScroll"
-             style="background: var(--color-night)">
-          <div v-if="chatStore.loading" class="py-4 text-center text-sm" style="color: var(--color-paper-faint)">
+             style="background: var(--color-bg)">
+          <div v-if="chatStore.loading" class="py-4 text-center text-sm" style="color: var(--color-ink-faint)">
             加载中...
           </div>
-          <div v-else-if="!hasMore" class="py-4 text-center text-xs" style="color: var(--color-paper-faint)">
+          <div v-else-if="!hasMore" class="py-4 text-center text-xs" style="color: var(--color-ink-faint)">
             没有更多消息了
           </div>
 
-          <div v-if="displayMessages.length === 0" class="py-12 text-center text-sm" style="color: var(--color-paper-faint)">
+          <div v-if="displayMessages.length === 0" class="py-12 text-center text-sm" style="color: var(--color-ink-faint)">
             {{ isPrivateMode ? '开始私聊吧' : '还没有消息，来打个招呼吧' }}
           </div>
           <MessageItem v-for="msg in displayMessages" :key="msg.id" :message="msg" />
@@ -297,7 +297,7 @@ onUnmounted(() => {
 
 <style scoped>
 .is-active {
-  background: var(--color-amber-ghost);
+  background: var(--color-signal-ghost);
 }
 </style>
 

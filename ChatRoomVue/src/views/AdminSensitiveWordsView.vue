@@ -1,10 +1,10 @@
-<!-- src/views/AdminSensitiveWordsView.vue — 管理员-敏感词管理（深夜电台） -->
+<!-- src/views/AdminSensitiveWordsView.vue — 管理员-敏感词管理（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-night)">
+  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
     <div class="max-w-4xl w-full mx-auto p-6">
       <div class="flex items-center justify-between mb-6">
-        <h1 class="text-lg font-semibold" style="color: var(--color-paper)">敏感词管理</h1>
+        <h1 class="text-lg font-semibold" style="color: var(--color-ink)">敏感词管理</h1>
         <n-button type="primary" @click="showAdd = true">
           <template #icon><AppIcon name="plus" :size="15" /></template>
           添加敏感词
@@ -22,7 +22,7 @@
 
       <!-- 列表 -->
       <n-data-table :columns="columns" :data="words" :bordered="true" size="small" :scroll-x="600" />
-      <div v-if="words.length === 0" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
+      <div v-if="words.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
         暂无敏感词
       </div>
 
@@ -75,7 +75,7 @@ function categoryName(cat) {
 }
 
 function levelRender(row) {
-  const color = { 1: 'var(--color-warn)', 2: 'var(--color-alarm)', 3: 'var(--color-paper-soft)' }[row.level] || 'var(--color-paper-soft)'
+  const color = { 1: 'var(--color-warn)', 2: 'var(--color-alarm)', 3: 'var(--color-ink-soft)' }[row.level] || 'var(--color-ink-soft)'
   return h('span', { style: `color:${color}` }, levelName(row.level))
 }
 

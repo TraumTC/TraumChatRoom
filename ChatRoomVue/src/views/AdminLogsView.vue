@@ -1,16 +1,16 @@
-<!-- src/views/AdminLogsView.vue — 管理员-操作日志（深夜电台） -->
+<!-- src/views/AdminLogsView.vue — 管理员-操作日志（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-night)">
+  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
     <div class="max-w-6xl w-full mx-auto p-6">
-      <h1 class="text-lg font-semibold mb-6" style="color: var(--color-paper)">操作日志</h1>
+      <h1 class="text-lg font-semibold mb-6" style="color: var(--color-ink)">操作日志</h1>
 
       <!-- 筛选 -->
       <div class="flex items-center gap-3 mb-4 flex-wrap">
         <n-select v-model:value="actionFilter" :options="actionOptions" placeholder="全部操作" clearable style="width: 140px"
                   @update:value="page = 1; loadLogs()" />
         <n-input v-model:value="startDate" type="date" placeholder="开始日期" style="width: 150px" />
-        <span style="color: var(--color-paper-faint)">至</span>
+        <span style="color: var(--color-ink-faint)">至</span>
         <n-input v-model:value="endDate" type="date" placeholder="结束日期" style="width: 150px" />
         <n-button type="primary" @click="page = 1; loadLogs()">查询</n-button>
       </div>
@@ -18,13 +18,13 @@
       <!-- 表格 -->
       <n-data-table :columns="columns" :data="logs" :loading="loading"
                     :bordered="true" size="small" :scroll-x="900" />
-      <div v-if="logs.length === 0 && !loading" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
+      <div v-if="logs.length === 0 && !loading" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
         暂无日志
       </div>
 
       <!-- 分页 -->
       <div class="flex items-center justify-between py-3">
-        <span class="text-sm" style="color: var(--color-paper-soft)">共 {{ total }} 条</span>
+        <span class="text-sm" style="color: var(--color-ink-soft)">共 {{ total }} 条</span>
         <n-pagination v-model:page="page" :page-size="size" :item-count="total" @update:page="loadLogs" />
       </div>
     </div>

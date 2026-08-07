@@ -1,15 +1,15 @@
-<!-- src/views/RegisterView.vue — 注册页（深夜电台） -->
+<!-- src/views/RegisterView.vue — 注册页（亮色） -->
 <template>
   <div class="min-h-screen flex items-center justify-center px-4"
-       style="background: var(--color-night)">
+       style="background: var(--color-bg)">
     <div class="fixed inset-0 pointer-events-none"
-         style="background: radial-gradient(ellipse at 50% 120%, rgba(232,163,61,0.12), transparent 60%)"></div>
+         style="background: radial-gradient(ellipse at 50% 120%, rgba(59,130,246,0.10), transparent 60%)"></div>
 
     <div class="relative w-full max-w-md space-y-6 rounded-xl p-8"
-         style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+         style="background: var(--color-card); border: 1px solid var(--color-border)">
       <div class="text-center">
-        <h2 class="text-xl font-semibold" style="color: var(--color-paper)">创建账户</h2>
-        <p class="mt-1 text-sm" style="color: var(--color-paper-soft)">加入深夜电台，开始你的对话</p>
+        <h2 class="text-xl font-semibold" style="color: var(--color-ink)">创建账户</h2>
+        <p class="mt-1 text-sm" style="color: var(--color-ink-soft)">加入我们，开始你的对话</p>
       </div>
 
       <n-alert v-if="error" type="error" :show-icon="false" closable @close="error = ''">
@@ -42,7 +42,7 @@
       </n-form>
 
       <div class="text-center">
-        <RouterLink to="/" class="text-sm font-medium transition-opacity hover:opacity-80" style="color: var(--color-amber)">
+        <RouterLink to="/" class="text-sm font-medium transition-opacity hover:opacity-80" style="color: var(--color-signal)">
           已有账号？立即登录 →
         </RouterLink>
       </div>

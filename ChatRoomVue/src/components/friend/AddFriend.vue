@@ -1,4 +1,4 @@
-<!-- src/components/friend/AddFriend.vue — 添加好友弹窗（深夜电台） -->
+<!-- src/components/friend/AddFriend.vue — 添加好友弹窗（亮色） -->
 <template>
   <n-modal v-model:show="visible" preset="card" title="添加好友" class="max-w-md" :style="{ width: '90%', maxWidth: '28rem' }"
            @close="$emit('close')">
@@ -7,8 +7,8 @@
     </n-input>
 
     <div class="mt-3 max-h-64 overflow-y-auto scroll-thin">
-      <div v-if="searching" class="py-8 text-center text-sm" style="color: var(--color-paper-faint)">搜索中...</div>
-      <div v-else-if="results.length === 0 && keyword" class="py-8 text-center text-sm" style="color: var(--color-paper-faint)">
+      <div v-if="searching" class="py-8 text-center text-sm" style="color: var(--color-ink-faint)">搜索中...</div>
+      <div v-else-if="results.length === 0 && keyword" class="py-8 text-center text-sm" style="color: var(--color-ink-faint)">
         未找到用户
       </div>
 
@@ -16,14 +16,14 @@
            class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-white/5">
         <UserAvatar :user="user" size="md" />
         <div class="flex-1 min-w-0">
-          <div class="text-sm truncate" style="color: var(--color-paper)">{{ user.name }}</div>
-          <div class="text-xs" style="color: var(--color-paper-faint)">{{ user.username }}</div>
+          <div class="text-sm truncate" style="color: var(--color-ink)">{{ user.name }}</div>
+          <div class="text-xs" style="color: var(--color-ink-faint)">{{ user.username }}</div>
         </div>
 
         <n-button v-if="user.friendStatus === 'none'" type="primary" size="small" @click="showApply(user)">
           添加
         </n-button>
-        <span v-else-if="user.friendStatus === 'friend'" class="text-xs" style="color: var(--color-paper-faint)">已是好友</span>
+        <span v-else-if="user.friendStatus === 'friend'" class="text-xs" style="color: var(--color-ink-faint)">已是好友</span>
         <span v-else-if="user.friendStatus === 'pending_sent'" class="text-xs" style="color: var(--color-warn)">已发送</span>
         <n-button v-else-if="user.friendStatus === 'pending_received'" type="success" size="small" @click="handleAccept(user)">
           同意
