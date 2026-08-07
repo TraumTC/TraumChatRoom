@@ -7,6 +7,7 @@ import { useWebSocketStore } from '@/stores/websocket'
 
 // 模块级变量：所有 useWebSocket() 调用共享同一个连接
 let stompClient = null
+let heartbeatTimer = null
 
 export function useWebSocket() {
   const authStore = useAuthStore()
@@ -32,7 +33,8 @@ export function useWebSocket() {
 
     const token = authStore.accessToken
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-    const wsUrl = token ? `${baseUrl}/ws?token=${encodeURIComponent(token)}` : `${baseUrl}/ws`
+    // Token 通过 STOMP connectHeaders 传递（不进 URL，避免进入代理/访问日志）
+    const wsUrl = `${baseUrl}/ws`
 
     stompClient = new Client({
       webSocketFactory: () => new SockJS(wsUrl),
@@ -49,6 +51,7 @@ export function useWebSocket() {
         wsStore.reconnectCount = 0
         subscribeAll()
         syncState()
+        startHeartbeat()
       },
 
       onStompError: (frame) => {
@@ -66,6 +69,7 @@ export function useWebSocket() {
       onDisconnect: () => {
         wsStore.connected = false
         wsStore.connecting = false
+        stopHeartbeat()
       }
     })
 
@@ -131,7 +135,7 @@ export function useWebSocket() {
     })
   }
 
-  // 发送群聊消息
+  // 发送群聊消息（带 clientId 幂等，防重连/双击重复）
   function sendGroupMessage(content) {
     if (!stompClient || !stompClient.connected) {
       chatStore.setError('连接已断开，正在重连...')
@@ -139,15 +143,16 @@ export function useWebSocket() {
       return false
     }
     const replyToId = chatStore.replyTo?.id || null
+    const clientId = crypto.randomUUID()
     stompClient.publish({
       destination: '/app/space',
-      body: JSON.stringify({ content, replyToId: replyToId ? String(replyToId) : null })
+      body: JSON.stringify({ content, replyToId: replyToId ? String(replyToId) : null, clientId })
     })
     chatStore.clearReplyTo()
     return true
   }
 
-  // 发送私聊消息
+  // 发送私聊消息（receiver 传 username）
   function sendPrivateMessage(receiver, content) {
     if (!stompClient || !stompClient.connected) {
       chatStore.setError('连接已断开，正在重连...')
@@ -155,12 +160,13 @@ export function useWebSocket() {
       return false
     }
     const replyToId = chatStore.replyTo?.id || null
+    const clientId = crypto.randomUUID()
 
     // 乐观更新：立即在本地显示自己发的消息（不依赖后端回传）
     const localMsg = {
       id: -Date.now(),  // 负数临时 ID，不会与数据库 ID 冲突
       sender: { id: authStore.user?.id, name: authStore.user?.name, avatar: authStore.user?.avatar },
-      receiver: { id: null, name: chatStore.currentChat.name || receiver },
+      receiver: { id: null, name: receiver },
       content,
       messageType: 'text',
       aiReply: false,
@@ -172,10 +178,24 @@ export function useWebSocket() {
 
     stompClient.publish({
       destination: '/app/private.message',
-      body: JSON.stringify({ receiver, content, replyToId: replyToId ? String(replyToId) : null })
+      body: JSON.stringify({ receiver, content, replyToId: replyToId ? String(replyToId) : null, clientId })
     })
     chatStore.clearReplyTo()
     return true
+  }
+
+  // 应用层心跳：更新服务端在线 ZSet 分数（STOMP 协议心跳不触发 /app/heartbeat）
+  function startHeartbeat() {
+    stopHeartbeat()
+    heartbeatTimer = setInterval(() => {
+      sendHeartbeat()
+    }, 20000)
+  }
+  function stopHeartbeat() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer)
+      heartbeatTimer = null
+    }
   }
 
   // 发送心跳
@@ -192,6 +212,7 @@ export function useWebSocket() {
 
   // 断开连接
   function disconnect() {
+    stopHeartbeat()
     if (stompClient) {
       stompClient.deactivate()
       stompClient = null

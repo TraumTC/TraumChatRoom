@@ -1,67 +1,42 @@
-<!-- src/components/friend/FriendItem.vue — 单个好友项 -->
+<!-- src/components/friend/FriendItem.vue — 单个好友项（深夜电台） -->
 <template>
-  <div class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+  <div class="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors hover:bg-white/5"
        @click="$emit('openChat', friend)">
-    <div class="relative">
+    <div class="relative shrink-0">
       <UserAvatar :user="friend" size="md" />
-      <span v-if="friend.online"
-            class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+      <span v-if="friend.online" class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full signal-dot"
+            style="border: 2px solid var(--color-night-raise)"></span>
     </div>
     <div class="flex-1 min-w-0">
-      <div class="text-sm text-gray-900 truncate">{{ friend.remark || friend.name }}</div>
-      <div class="text-xs text-gray-400">{{ friend.online ? '在线' : formatTime(friend.lastActiveTime) }}</div>
+      <div class="text-sm truncate" style="color: var(--color-paper)">{{ friend.remark || friend.name }}</div>
+      <div class="text-xs" style="color: var(--color-paper-faint)">
+        {{ friend.online ? '在线' : formatTime(friend.lastActiveTime) }}
+      </div>
     </div>
 
-    <!-- 私聊未读红点 -->
-    <span v-if="hasUnread"
-          class="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>
+    <span v-if="hasUnread" class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--color-alarm)"></span>
 
-    <!-- 更多操作 -->
     <div class="relative shrink-0">
-      <button class="p-1.5 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-              @click.stop="showMenu = !showMenu" aria-label="更多操作">
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      </button>
+      <n-button quaternary circle size="small" @click.stop="showMenu = !showMenu" aria-label="更多操作">
+        <template #icon><AppIcon name="ellipsis" :size="16" /></template>
+      </n-button>
 
-      <!-- 菜单 -->
-      <div v-if="showMenu" class="absolute right-0 mt-1 bg-white shadow-lg rounded-lg py-1 min-w-36 z-30 text-sm"
-           @click.stop>
-        <button class="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-50" @click="emit('openChat', friend)">
-          发消息
-        </button>
-        <button class="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-50" @click="showRemark = true">
-          改备注
-        </button>
-        <div class="my-1 border-t border-gray-100"></div>
-        <button class="w-full px-3 py-2 text-left text-red-500 hover:bg-red-50" @click="handleDelete">
-          删除好友
-        </button>
-      </div>
+      <n-dropdown v-model:show="showMenu" trigger="click" :options="menuOptions"
+                  placement="bottom-end" @select="onMenuSelect" />
     </div>
 
-    <!-- 修改备注弹窗 -->
-    <div v-if="showRemark" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="showRemark = false">
-      <div class="fixed inset-0 bg-black/40 z-40"></div>
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-sm relative z-50">
-        <div class="px-5 pt-5 text-lg font-semibold text-gray-900">修改备注</div>
-        <div class="px-5 py-4">
-          <input v-model="remark" placeholder="输入备注名（留空清除）" maxlength="20"
-                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-        </div>
-        <div class="px-5 pb-5 pt-2 flex justify-end gap-2">
-          <button class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded" @click="showRemark = false">取消</button>
-          <button class="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600" @click="saveRemark">保存</button>
-        </div>
-      </div>
-    </div>
+    <n-modal v-model:show="showRemark" preset="dialog" title="修改备注"
+             :positive-text="'保存'" negative-text="取消"
+             @positive-click="saveRemark" @negative-click="showRemark = false">
+      <n-input v-model:value="remark" placeholder="输入备注名（留空清除）" maxlength="20" />
+    </n-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import { useChatStore } from '@/stores/chat'
 import { friendApi } from '@/api/friend'
 import { formatTime } from '@/utils/format'
@@ -74,28 +49,55 @@ const showMenu = ref(false)
 const showRemark = ref(false)
 const remark = ref('')
 
-// 检查是否有来自该好友的私聊未读
+// 未读红点：以 username 为 key
 const hasUnread = computed(() => {
-  return !!chatStore.privateUnreadSenders[props.friend.name]
+  return !!chatStore.privateUnreadSenders[props.friend.username || props.friend.name]
 })
+
+const menuOptions = [
+  { label: '发消息', key: 'chat' },
+  { label: '改备注', key: 'remark' },
+  { type: 'divider', key: 'd1' },
+  { label: '删除好友', key: 'delete', props: { style: 'color: var(--color-alarm)' } }
+]
+
+function onMenuSelect(key) {
+  if (key === 'chat') emit('openChat', props.friend)
+  else if (key === 'remark') { remark.value = props.friend.remark || ''; showRemark.value = true }
+  else if (key === 'delete') handleDelete()
+}
 
 async function saveRemark() {
   try {
     await friendApi.updateRemark(props.friend.id, { remark: remark.value })
     showRemark.value = false
-    emit('deleted')  // 触发列表刷新
+    emit('deleted')
   } catch (e) {
-    alert(e.response?.data?.message || '修改失败')
+    window.$message?.error(e.response?.data?.message || '修改失败')
   }
 }
 
-async function handleDelete() {
-  if (!confirm(`确定要删除好友「${props.friend.name}」吗？`)) return
-  try {
-    await friendApi.delete(props.friend.id)
-    emit('deleted')
-  } catch (e) {
-    alert(e.response?.data?.message || '删除失败')
+function handleDelete() {
+  const dialog = window.$dialog
+  if (dialog) {
+    dialog.warning({
+      title: '删除好友',
+      content: `确定要删除好友「${props.friend.name}」吗？`,
+      positiveText: '删除',
+      negativeText: '取消',
+      onPositiveClick: async () => {
+        try {
+          await friendApi.delete(props.friend.id)
+          emit('deleted')
+        } catch (e) {
+          window.$message?.error(e.response?.data?.message || '删除失败')
+        }
+      }
+    })
+  } else {
+    if (confirm(`确定要删除好友「${props.friend.name}」吗？`)) {
+      friendApi.delete(props.friend.id).then(() => emit('deleted')).catch(e => window.$message?.error(e.response?.data?.message || '删除失败'))
+    }
   }
 }
 </script>

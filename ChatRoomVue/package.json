@@ -9,17 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lucide/vue": "^1.29.0",
     "@stomp/stompjs": "^7.3.0",
     "axios": "^1.19.0",
+    "naive-ui": "^2.40.3",
     "pinia": "^4.0.2",
     "sockjs-client": "^1.6.1",
     "vue": "^3.5.40",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
-    "tailwindcss": "^4.3.3",
     "vite": "^8.2.0"
   }
 }

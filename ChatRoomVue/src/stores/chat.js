@@ -2,20 +2,21 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// 私聊数据一律以 username 为 key（name 可重复，username 唯一），防止重名串消息
 export const useChatStore = defineStore('chat', () => {
   // 状态
   const messages = ref([])              // 群聊消息
   const onlineUsers = ref([])           // 在线用户列表
   const privateMessages = ref({})       // 私聊消息 { username: [message, ...] }
-  const privateTabs = ref([])           // 私聊标签列表 [{ name, id }]
-  const currentChat = ref({ type: 'group' })  // 当前会话：{type:'group'} 或 {type:'private', name, id}
+  const privateTabs = ref([])           // 私聊标签列表 [{ username, name, id }]
+  const currentChat = ref({ type: 'group' })  // 当前会话：{type:'group'} 或 {type:'private', username, name, id}
   const unreadCounts = ref({})          // 未读消息计数 { username: count }
   const loading = ref(false)
   const error = ref(null)
   const notifications = ref([])         // 通知队列（Toast）
   const replyTo = ref(null)             // 引用消息 { id, senderName, content }
   const friendRequestCount = ref(0)     // 未处理的好友申请数量
-  const privateUnreadSenders = ref({})  // 有未读私聊消息的发送者 { name: { name, username } }
+  const privateUnreadSenders = ref({})  // 有未读私聊消息的发送者 { username: { name, username } }
   const isPageHidden = ref(false)       // 页面是否隐藏（用于标题闪烁）
   const originalTitle = document.title
 
@@ -35,28 +36,40 @@ export const useChatStore = defineStore('chat', () => {
     if (isPageHidden.value) startTitleFlash()
   }
 
-  // 添加私聊消息（用对方的名字作为 key）
+  // 判断消息是否为自己发出
+  function isMyMessage(msg) {
+    const myId = localStorage.getItem('myId')
+    if (myId) {
+      return msg.sender?.id != null && String(msg.sender.id) === myId
+    }
+    return msg.sender?.name === localStorage.getItem('myName')
+  }
+
+  // 添加私聊消息（以 username 为 key 去重）
   function addPrivateMessage(msg) {
-    const myId = JSON.parse(localStorage.getItem('myId') || 'null')
-    const myName = localStorage.getItem('myName')
-    // 优先用 ID 比较，ID 不可用时用用户名比较（游客无 ID）
-    const isMyMsg = myId != null ? msg.sender?.id === myId : msg.sender?.name === myName
-    // 对方的名字：我发的 → receiver.name；别人发的 → sender.name
-    const otherName = isMyMsg ? (msg.receiver?.name || 'unknown') : (msg.sender?.name || 'unknown')
+    const isMyMsg = isMyMessage(msg)
+    // 对方 username：我发的 → receiver.username；别人发的 → sender.username
+    const otherUsername = isMyMsg
+      ? (msg.receiver?.name || 'unknown')   // 后端回显 receiver_name 即对方 username
+      : (msg.sender?.name || 'unknown')
+    const otherName = isMyMsg
+      ? (msg.receiver?.name || otherUsername)
+      : (msg.sender?.name || otherUsername)
 
-    const isCurrent = currentChat.value.type === 'private' && currentChat.value.name === otherName
+    const isCurrent = currentChat.value.type === 'private'
+      && currentChat.value.username === otherUsername
 
-    // 确保私聊消息容器存在
-    if (!privateMessages.value[otherName]) {
-      privateMessages.value[otherName] = []
+    // 确保私聊消息容器存在（key = username）
+    if (!privateMessages.value[otherUsername]) {
+      privateMessages.value[otherUsername] = []
     }
 
-    // 去重 + 替换临时消息
-    const arr = privateMessages.value[otherName]
+    // 去重
+    const arr = privateMessages.value[otherUsername]
     const existingIdx = arr.findIndex(m => m.id === msg.id)
     if (existingIdx >= 0) return  // 完全重复，跳过
 
-    // 如果是后端回传的真实消息（正 ID），替换对应的临时消息（负 ID）
+    // 后端回传的真实消息（正 ID）替换对应的临时消息（负 ID）
     if (msg.id > 0 && isMyMsg) {
       const tempIdx = arr.findIndex(m =>
         m.id < 0 && m.content === msg.content && m.sender?.name === msg.sender?.name
@@ -71,18 +84,17 @@ export const useChatStore = defineStore('chat', () => {
 
     // 不是当前聊天对象时增加未读计数（仅他人消息）
     if (!isCurrent && !isMyMsg) {
-      unreadCounts.value[otherName] = (unreadCounts.value[otherName] || 0) + 1
-      // 记录发送者（用于红点显示）
-      privateUnreadSenders.value[otherName] = {
+      unreadCounts.value[otherUsername] = (unreadCounts.value[otherUsername] || 0) + 1
+      privateUnreadSenders.value[otherUsername] = {
         name: otherName,
-        username: msg.sender?.username || otherName
+        username: otherUsername
       }
       if (isPageHidden.value) startTitleFlash()
     }
 
-    // 自动打开私聊标签（如果是对方发来的新消息）
-    if (!isCurrent && !isMyMsg && !privateTabs.value.some(t => t.name === otherName)) {
-      privateTabs.value.push({ name: otherName, id: msg.sender?.id })
+    // 自动打开私聊标签
+    if (!isCurrent && !isMyMsg && !privateTabs.value.some(t => t.username === otherUsername)) {
+      privateTabs.value.push({ username: otherUsername, name: otherName, id: msg.sender?.id })
     }
   }
 
@@ -138,27 +150,28 @@ export const useChatStore = defineStore('chat', () => {
     currentChat.value = { type: 'group' }
   }
 
-  // 打开私聊
+  // 打开私聊（入参统一 { username, name, id }）
   function openPrivateChat(user) {
-    currentChat.value = { type: 'private', name: user.name, username: user.username || user.name, id: user.id }
-    if (user.name) {
-      // 确保标签存在
-      if (!privateTabs.value.some(t => t.name === user.name)) {
-        privateTabs.value.push({ name: user.name, id: user.id })
+    const username = user.username || user.name
+    const name = user.name || username
+    currentChat.value = { type: 'private', username, name, id: user.id }
+    if (username) {
+      if (!privateTabs.value.some(t => t.username === username)) {
+        privateTabs.value.push({ username, name, id: user.id })
       }
-      unreadCounts.value[user.name] = 0  // 清除未读
-      delete privateUnreadSenders.value[user.name]  // 清除红点
+      unreadCounts.value[username] = 0  // 清除未读
+      delete privateUnreadSenders.value[username]  // 清除红点
     }
   }
 
   // 关闭私聊标签
-  function closePrivateTab(name) {
-    privateTabs.value = privateTabs.value.filter(t => t.name !== name)
+  function closePrivateTab(username) {
+    privateTabs.value = privateTabs.value.filter(t => t.username !== username)
   }
 
-  // 加载私聊历史到 store
-  function setPrivateMessages(name, msgs) {
-    privateMessages.value[name] = msgs
+  // 加载私聊历史到 store（key = username）
+  function setPrivateMessages(username, msgs) {
+    privateMessages.value[username] = msgs
   }
 
   // 添加通知（Toast）
@@ -177,7 +190,7 @@ export const useChatStore = defineStore('chat', () => {
     let toggle = false
     flashTimer = setInterval(() => {
       toggle = !toggle
-      document.title = toggle ? '🔴 新消息' : originalTitle
+      document.title = toggle ? '· 新消息' : originalTitle
     }, 1000)
   }
   function stopTitleFlash() {

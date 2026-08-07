@@ -1,57 +1,48 @@
-<!-- src/components/friend/FriendList.vue — 好友列表（侧栏） -->
+<!-- src/components/friend/FriendList.vue — 好友列表（深夜电台） -->
 <template>
   <div class="flex flex-col h-full">
-    <!-- 标题 + 操作 -->
-    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-      <span class="text-xs text-gray-400 font-medium">好友</span>
+    <div class="flex items-center justify-between px-3 py-2" style="border-bottom: 1px solid var(--color-night-line)">
+      <span class="text-xs font-medium" style="color: var(--color-paper-faint)">好友</span>
       <div class="flex gap-1">
-        <!-- 申请红点 -->
-        <button class="relative p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                @click="showRequests = true" aria-label="好友申请">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-          <span v-if="pendingCount > 0"
-                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500"></span>
-        </button>
-        <button class="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                @click="$emit('addFriend')" aria-label="添加好友">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-          </svg>
-        </button>
+        <n-button quaternary circle size="small" @click="showRequests = true" aria-label="好友申请">
+          <template #icon><AppIcon name="user-plus" :size="15" /></template>
+          <template v-if="pendingCount > 0">
+            <span class="absolute top-0 right-0 w-2 h-2 rounded-full" style="background: var(--color-alarm)"></span>
+          </template>
+        </n-button>
+        <n-button quaternary circle size="small" @click="$emit('addFriend')" aria-label="添加好友">
+          <template #icon><AppIcon name="user-round-plus" :size="15" /></template>
+        </n-button>
       </div>
     </div>
 
-    <!-- 好友列表 -->
     <div class="flex-1 overflow-y-auto scroll-thin">
       <div v-if="loading" class="p-3">
-        <div v-for="i in 3" :key="i" class="animate-pulse bg-gray-100 rounded h-12 mb-2"></div>
+        <div v-for="i in 3" :key="i" class="rounded h-12 mb-2 animate-pulse"
+             style="background: var(--color-night-hover)"></div>
       </div>
 
-      <div v-else-if="friends.length === 0" class="py-10 text-center text-sm text-gray-400">
+      <div v-else-if="friends.length === 0" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
         暂无好友
-        <button class="block mx-auto mt-2 text-xs text-blue-500 hover:text-blue-600"
-                @click="$emit('addFriend')">去添加</button>
+        <n-button text size="small" class="block mx-auto mt-2" style="color: var(--color-amber)"
+                  @click="$emit('addFriend')">去添加</n-button>
       </div>
 
       <FriendItem v-for="friend in friends" :key="friend.id"
                   :friend="friend"
-                  @open-chat="(f) => $emit('openChat', f)"
+                  @openChat="(f) => $emit('openChat', f)"
                   @deleted="loadFriends" />
     </div>
 
-    <!-- 申请弹窗 -->
     <FriendRequest v-if="showRequests" @close="showRequests = false" @changed="onRequestChanged" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import FriendItem from './FriendItem.vue'
 import FriendRequest from './FriendRequest.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import { friendApi } from '@/api/friend'
 import { useChatStore } from '@/stores/chat'
 
@@ -62,7 +53,6 @@ const friends = ref([])
 const loading = ref(false)
 const showRequests = ref(false)
 
-// 使用 store 中的计数（WebSocket 实时更新）
 const pendingCount = computed(() => chatStore.friendRequestCount)
 
 async function loadFriends() {
@@ -86,7 +76,6 @@ async function loadPendingCount() {
   } catch (e) { /* 忽略 */ }
 }
 
-// 处理完申请后刷新计数
 function onRequestChanged() {
   loadPendingCount()
   loadFriends()

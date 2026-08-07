@@ -1,23 +1,25 @@
-<!-- src/components/chat/MentionPopup.vue — @提及弹窗 -->
+<!-- src/components/chat/MentionPopup.vue — @提及弹窗（键盘导航由父组件 MessageInput 统一协调） -->
 <template>
-  <div class="absolute bottom-full mb-2 w-60 bg-white shadow-lg rounded-lg py-1 z-20 overflow-hidden">
-    <div v-if="filteredUsers.length === 0" class="px-3 py-2 text-sm text-gray-400">
+  <div class="absolute bottom-full mb-2 w-60 rounded-lg py-1 z-20 overflow-hidden shadow-xl"
+       style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+    <div v-if="filteredUsers.length === 0" class="px-3 py-2 text-sm" style="color: var(--color-paper-faint)">
       无匹配用户
     </div>
     <div v-for="(user, index) in filteredUsers" :key="user.username"
-         :class="['px-3 py-2 flex items-center gap-2 text-sm cursor-pointer',
-                  index === selectedIndex ? 'bg-blue-50' : 'hover:bg-gray-50']"
+         :class="['px-3 py-2 flex items-center gap-2 text-sm cursor-pointer transition-colors',
+                  index === selectedIndex ? 'is-selected' : 'hover:bg-white/5']"
          @click="select(user)"
          @mouseenter="selectedIndex = index">
       <UserAvatar :user="user" size="sm" />
-      <span class="text-gray-800">{{ user.name }}</span>
-      <span v-if="user.isAi" class="text-xs text-blue-500 font-medium ml-auto">AI</span>
+      <span style="color: var(--color-paper)">{{ user.name }}</span>
+      <span v-if="user.isAi" class="text-xs font-medium ml-auto"
+            style="color: var(--color-amber)">AI</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import { userApi } from '@/api/user'
 
@@ -29,7 +31,6 @@ const emit = defineEmits(['select', 'close'])
 const users = ref([])
 const selectedIndex = ref(0)
 
-// 按关键词过滤
 const filteredUsers = computed(() => {
   if (!props.keyword) return users.value
   return users.value.filter(u =>
@@ -37,7 +38,6 @@ const filteredUsers = computed(() => {
   )
 })
 
-// 加载可@用户
 async function loadUsers() {
   try {
     const res = await userApi.getMentionable()
@@ -51,30 +51,30 @@ function select(user) {
   emit('select', user)
 }
 
-// 键盘上下选择 + 回车确认
-function handleKeydown(e) {
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    selectedIndex.value = (selectedIndex.value + 1) % filteredUsers.value.length
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    selectedIndex.value = (selectedIndex.value - 1 + filteredUsers.value.length) % filteredUsers.value.length
-  } else if (e.key === 'Enter') {
-    e.preventDefault()
-    if (filteredUsers.value[selectedIndex.value]) {
-      select(filteredUsers.value[selectedIndex.value])
-    }
-  } else if (e.key === 'Escape') {
-    emit('close')
+// 供父组件键盘导航调用
+function moveSelection(delta) {
+  if (filteredUsers.value.length === 0) return
+  selectedIndex.value =
+    (selectedIndex.value + delta + filteredUsers.value.length) % filteredUsers.value.length
+}
+function selectCurrent() {
+  if (filteredUsers.value[selectedIndex.value]) {
+    select(filteredUsers.value[selectedIndex.value])
+    return true
   }
+  return false
 }
 
 onMounted(() => {
   loadUsers()
-  window.addEventListener('keydown', handleKeydown)
+  selectedIndex.value = 0
 })
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
+defineExpose({ moveSelection, selectCurrent, filteredUsers })
 </script>
+
+<style scoped>
+.is-selected {
+  background: var(--color-amber-ghost);
+}
+</style>

@@ -1,126 +1,116 @@
-<!-- src/components/chat/MessageItem.vue — 单条消息（微信风格气泡） -->
+﻿<!-- src/components/chat/MessageItem.vue — 单条消息（深夜电台气泡） -->
 <template>
-  <!-- 撤回消息：系统提示样式 -->
-  <div v-if="message.recalled"
-       class="flex justify-center py-1 px-4">
-    <span class="text-xs text-gray-400 bg-gray-50/80 px-3 py-1 rounded-full">
+  <!-- 撤回消息：居中提示 -->
+  <div v-if="message.recalled" class="flex justify-center py-1 px-4 msg-enter">
+    <span class="text-xs px-3 py-1 rounded-full" style="background: var(--color-night-raise); color: var(--color-paper-faint)">
       {{ message.content }}
     </span>
   </div>
 
   <!-- 正常消息 -->
-  <div v-else class="flex gap-3 px-4 py-1.5 group" :class="isSelf ? 'flex-row-reverse' : ''"
+  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
        @contextmenu.prevent="onContextMenu">
     <!-- 头像 -->
-    <UserAvatar :user="message.sender" size="md" />
+    <UserAvatar :user="message.sender" size="md" class="mt-1" />
 
-    <!-- 消息内容 -->
-    <div class="min-w-0" :class="isSelf ? 'flex flex-col items-end' : 'flex flex-col items-start'">
-      <!-- 发送者名称 + 时间 -->
-      <div class="text-xs text-gray-400 mb-1 px-1">
-        <span v-if="message.aiReply" class="text-blue-500 font-medium mr-1">AI</span>
+    <div class="min-w-0 flex flex-col" :class="isSelf ? 'items-end' : 'items-start'">
+      <!-- 发送者 + 时间 -->
+      <div class="text-xs mb-0dot5 px-1 flex items-center gap-2" style="color: var(--color-paper-faint)">
+        <template v-if="message.aiReply">
+          <span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="color: var(--color-amber); background: var(--color-amber-ghost)">AI</span>
+        </template>
         <span>{{ message.sender?.name }}</span>
-        <span class="ml-2">{{ formatTime(message.createdAt) }}</span>
+        <span class="tabular">{{ formatTime(message.createdAt) }}</span>
       </div>
 
       <!-- 引用摘要 -->
-      <div v-if="quotedMsg" class="mb-1 px-2.5 py-1.5 bg-gray-50 border-l-2 border-blue-400 rounded text-xs text-gray-500 max-w-[400px] truncate">
-        <span class="text-blue-500 font-medium">{{ quotedMsg.senderName }}:</span>
-        {{ quotedMsg.content }}
+      <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs truncate max-w-[400px]"
+           style="background: var(--color-night-raise); border-left: 2px solid var(--color-amber); color: var(--color-paper-soft)">
+        <span style="color: var(--color-amber)">{{ quotedMsg.senderName }}：</span>{{ quotedMsg.content }}
       </div>
 
-      <!-- AI 消息 -->
+      <!-- AI 消息（信号签名竖线） -->
       <div v-if="message.aiReply"
-           class="relative bubble-other bg-blue-50 text-blue-900 border border-blue-100 rounded-lg px-3 py-2 break-words text-sm max-w-[480px]">
+           class="ai-bubble rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+           style="background: var(--color-amber-ghost); color: var(--color-amber); border-left: 2px solid var(--color-amber)">
         {{ message.content }}
       </div>
 
       <!-- 文本消息 -->
       <div v-else-if="message.messageType === 'text'"
-           class="relative rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
-           :class="isSelf
-             ? 'bubble-self bg-[#95EC69] text-gray-900'
-             : 'bubble-other bg-white text-gray-900 border border-gray-200'"
-           v-html="highlightMentions(message.content)">
-      </div>
+           class="rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+           :class="isSelf ? 'bubble-self' : 'bubble-other'"
+           v-html="safeContent"></div>
 
       <!-- 图片消息 -->
       <div v-else-if="message.messageType === 'image'">
-        <img :src="message.filePath"
-             :alt="message.fileName"
+        <img :src="message.filePath" :alt="message.fileName"
              class="max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
              @click="showPreview = true" />
       </div>
 
       <!-- 视频消息 -->
       <div v-else-if="message.messageType === 'file' && isVideo(message.fileName)"
-           class="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-[400px]">
+           class="rounded-lg overflow-hidden max-w-[400px]" style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
         <video controls preload="metadata" class="w-full rounded-t-lg max-h-[300px]">
           <source :src="message.filePath" />
           您的浏览器不支持视频播放
         </video>
-        <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100 truncate">
-          🎬 {{ message.fileName }}
+        <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5" style="color: var(--color-paper-soft); border-top: 1px solid var(--color-night-line)">
+          <AppIcon name="video" :size="13" />{{ message.fileName }}
         </div>
       </div>
 
       <!-- 文件消息 -->
       <div v-else-if="message.messageType === 'file'"
-           class="bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-[480px]">
-        <div class="flex items-center gap-2 text-sm text-gray-700">
-          <span>📄 {{ message.fileName }}</span>
-          <span class="text-xs text-gray-400">{{ formatFileSize(message.fileSize) }}</span>
+           class="rounded-lg px-3 py-2 max-w-[480px]" style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+        <div class="flex items-center gap-2 text-sm" style="color: var(--color-paper)">
+          <AppIcon name="file-text" :size="15" style="color: var(--color-amber)" />
+          <span class="truncate">{{ message.fileName }}</span>
+          <span class="text-xs tabular" style="color: var(--color-paper-faint)">{{ formatFileSize(message.fileSize) }}</span>
         </div>
       </div>
 
       <!-- 兜底 -->
-      <div v-else
-           class="relative rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
-           :class="isSelf
-             ? 'bubble-self bg-[#95EC69] text-gray-900'
-             : 'bubble-other bg-white text-gray-900 border border-gray-200'">
+      <div v-else class="rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+           :class="isSelf ? 'bubble-self' : 'bubble-other'">
         {{ message.content }}
       </div>
     </div>
 
     <!-- 图片预览 -->
-    <ImagePreview :visible="showPreview"
-                  :src="message.filePath"
-                  :fileName="message.fileName"
-                  @close="showPreview = false" />
+    <ImagePreview :visible="showPreview" :src="message.filePath"
+                  :fileName="message.fileName" @close="showPreview = false" />
   </div>
 
   <!-- 右键菜单 -->
   <Teleport to="body">
-    <div v-if="menuVisible"
-         class="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 min-w-[100px]"
-         :style="{ left: menuX + 'px', top: menuY + 'px' }"
-         @click="menuVisible = false">
-      <button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              @click="handleQuote">
-        引用
-      </button>
-      <!-- 下载（仅文件/图片/视频消息） -->
-      <a v-if="hasFile"
-         :href="message.filePath + '?name=' + encodeURIComponent(message.fileName)"
-         download
-         class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        下载
-      </a>
-      <button v-if="canRecall"
-              class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-              @click="handleRecall">
-        撤回
-      </button>
-    </div>
+    <template v-if="menuVisible">
+      <div class="fixed inset-0 z-40" @click="menuVisible = false"></div>
+      <div class="fixed rounded-lg py-1 z-50 min-w-[120px] shadow-xl"
+           style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)"
+           :style="{ left: menuX + 'px', top: menuY + 'px' }">
+        <button class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-paper)" @click="handleQuote">
+          引用
+        </button>
+        <a v-if="hasFile" :href="message.filePath + '?name=' + encodeURIComponent(message.fileName)" download
+           class="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-paper)">
+          下载
+        </a>
+        <button v-if="canRecall" class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5"
+                style="color: var(--color-alarm)" @click="handleRecall">
+          撤回
+        </button>
+      </div>
+    </template>
   </Teleport>
-  <div v-if="menuVisible" class="fixed inset-0 z-40" @click="menuVisible = false"></div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import ImagePreview from '@/components/common/ImagePreview.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { messageApi } from '@/api/message'
@@ -137,20 +127,17 @@ const menuY = ref(0)
 
 const isSelf = computed(() => {
   const myId = authStore.user?.id
-  // 优先用 ID 比较，ID 不可用时用用户名比较（游客无 ID）
   if (myId != null) return props.message.sender?.id === myId
   return props.message.sender?.name === authStore.user?.name
 })
 
-// 是否有文件（图片/文件/视频消息）
 const hasFile = computed(() => {
   return props.message.messageType === 'image' || props.message.messageType === 'file'
 })
 
 const quotedMsg = computed(() => {
   if (!props.message.replyToId) return null
-  const all = chatStore.messages
-  const found = all.find(m => m.id === props.message.replyToId)
+  const found = chatStore.messages.find(m => m.id === props.message.replyToId)
   if (found) return { senderName: found.sender?.name, content: found.content }
   return { senderName: '', content: '消息已加载...' }
 })
@@ -165,6 +152,35 @@ const canRecall = computed(() => {
   return (Date.now() - sentTime) < 2 * 60 * 1000
 })
 
+// 安全渲染：先 HTML 转义，再高亮 @提及（防 XSS）
+const safeContent = computed(() => {
+  return highlightMentions(props.message.content)
+})
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function highlightMentions(content) {
+  if (!content) return ''
+  const escaped = escapeHtml(content)
+  return escaped.replace(/@([^<>\s]+)/g, (match, name) => {
+    return `<span style="color: var(--color-amber); font-weight: 600">@${escapeHtml(name)}</span>`
+  })
+}
+
+function isVideo(fileName) {
+  if (!fileName) return false
+  const ext = fileName.split('.').pop().toLowerCase()
+  return ['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)
+}
+
 function onContextMenu(e) {
   menuX.value = e.clientX
   menuY.value = e.clientY
@@ -178,53 +194,56 @@ function handleQuote() {
 
 async function handleRecall() {
   menuVisible.value = false
-  if (!confirm('确定要撤回这条消息吗？')) return
-  try {
-    await messageApi.recall(props.message.id)
-  } catch (e) {
-    alert(e.response?.data?.message || '撤回失败')
+  const dialog = window.$dialog
+  if (dialog) {
+    dialog.warning({
+      title: '撤回消息',
+      content: '确定要撤回这条消息吗？',
+      positiveText: '撤回',
+      negativeText: '取消',
+      onPositiveClick: () => doRecall()
+    })
+  } else {
+    doRecall()
   }
 }
 
-function highlightMentions(content) {
-  if (!content) return ''
-  return content.replace(/@([^\s]+)/g, (match, name) => {
-    return `<span class="text-blue-500 font-medium">@${name}</span>`
-  })
-}
-
-// 判断是否为视频文件
-function isVideo(fileName) {
-  if (!fileName) return false
-  const ext = fileName.split('.').pop().toLowerCase()
-  return ['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)
+async function doRecall() {
+  try {
+    await messageApi.recall(props.message.id)
+  } catch (e) {
+    window.$message?.error(e.response?.data?.message || '撤回失败')
+  }
 }
 </script>
 
 <style scoped>
 .bubble-self {
   position: relative;
+  background: var(--color-amber);
+  color: #1A1205;
 }
 .bubble-self::after {
   content: '';
   position: absolute;
   top: 10px;
-  right: -8px;
-  border: 8px solid transparent;
-  border-left-color: #95EC69;
+  right: -7px;
+  border: 7px solid transparent;
+  border-left-color: var(--color-amber);
 }
 .bubble-other {
   position: relative;
+  background: var(--color-night-raise);
+  color: var(--color-paper);
+  border: 1px solid var(--color-night-line);
 }
 .bubble-other::after {
   content: '';
   position: absolute;
   top: 10px;
-  left: -8px;
-  border: 8px solid transparent;
-  border-right-color: white;
-}
-.bubble-other.bg-blue-50::after {
-  border-right-color: #eff6ff;
+  left: -7px;
+  border: 7px solid transparent;
+  border-right-color: var(--color-night-line);
 }
 </style>
+

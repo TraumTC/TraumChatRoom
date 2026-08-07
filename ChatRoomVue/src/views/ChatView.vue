@@ -1,39 +1,43 @@
-<!-- src/views/ChatView.vue — 聊天室主页面 -->
+﻿<!-- src/views/ChatView.vue — 聊天室主页面（深夜电台） -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden bg-white">
-    <!-- 顶部导航栏 -->
+  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-night)">
     <AppHeader />
 
-    <!-- 主体区域 -->
     <div class="flex flex-1 min-h-0">
+      <!-- 移动端遮罩 -->
+      <div v-if="sidebarOpen && isMobile" class="fixed inset-0 z-20" style="background: rgba(0,0,0,0.5)" @click="sidebarOpen = false"></div>
+
       <!-- 左侧栏 -->
-      <aside class="w-64 shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col">
+      <aside :class="['w-64 shrink-0 flex flex-col', isMobile ? 'fixed z-30 left-0 top-14 bottom-0 transition-transform duration-200' : '']"
+             :style="isMobile ? { transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', background: 'var(--color-night-raise)', borderRight: '1px solid var(--color-night-line)' }
+                                 : { background: 'var(--color-night-raise)', borderRight: '1px solid var(--color-night-line)' }">
         <!-- 好友列表（游客隐藏） -->
-        <div v-if="!authStore.isGuest" class="border-b border-gray-200 flex-1 flex flex-col min-h-0">
-          <FriendList @open-chat="startPrivateChat" @add-friend="showAddFriend = true" />
+        <div v-if="!authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-night-line)">
+          <FriendList @openChat="startPrivateChat" @addFriend="showAddFriend = true" />
         </div>
 
         <!-- 在线用户 -->
         <div class="flex-1 overflow-y-auto scroll-thin min-h-0">
-          <div class="p-4 pb-2 border-b border-gray-200">
-            <div class="text-sm text-gray-500">
-              在线人数：<span class="font-semibold text-gray-900">{{ onlineCount }}</span>
-            </div>
-          </div>
-          <div class="px-3 py-1.5 text-xs text-gray-400 font-medium">在线用户</div>
-          <div v-for="user in onlineUsers" :key="user.username"
-               class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
-               :class="{ 'bg-blue-50': isPrivateActive(user.name) }"
-               @click="startPrivateChat(user)">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span class="flex-1 text-sm text-gray-800 truncate">{{ user.name }}</span>
-            <!-- 私聊未读红点 -->
-            <span v-if="hasPrivateUnread(user.name)"
-                  class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-none flex items-center justify-center">
-              {{ getUnread(user.name) }}
+          <div class="p-4 pb-2 flex items-center gap-2" style="border-bottom: 1px solid var(--color-night-line)">
+            <span class="signal-dot"></span>
+            <span class="text-sm tabular" style="color: var(--color-paper-soft)">
+              在线 <span style="color: var(--color-paper); font-weight: 600">{{ onlineCount }}</span>
             </span>
           </div>
-          <div v-if="onlineUsers.length === 0" class="py-10 text-center text-sm text-gray-400">
+          <div class="px-3 py-1dot5 text-xs font-medium" style="color: var(--color-paper-faint)">在线用户</div>
+          <div v-for="user in onlineUsers" :key="user.username"
+               class="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors"
+               :class="{ 'is-active': isPrivateActive(user.username) }"
+               @click="startPrivateChat(user)">
+            <span class="signal-dot"></span>
+            <span class="flex-1 text-sm truncate" style="color: var(--color-paper)">{{ user.name }}</span>
+            <span v-if="hasPrivateUnread(user.username)"
+                  class="min-w-4 h-4 px-1 rounded-full text-white text-[10px] leading-none flex items-center justify-center tabular"
+                  style="background: var(--color-alarm)">
+              {{ getUnread(user.username) }}
+            </span>
+          </div>
+          <div v-if="onlineUsers.length === 0" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
             暂无在线用户
           </div>
         </div>
@@ -45,35 +49,42 @@
       <!-- 右侧 -->
       <main class="flex-1 flex flex-col min-w-0">
         <!-- 私聊标签条 -->
-        <PrivateChatTab v-if="!authStore.isGuest" />
+        <PrivateChatTab v-if="!authStore.isGuest" @open-group="chatStore.openGroupChat" />
+
+        <!-- 移动端折叠开关 -->
+        <button v-if="isMobile" @click="sidebarOpen = true"
+                class="px-3 py-1 text-xs self-start" style="color: var(--color-paper-soft)">
+          <AppIcon name="panel-left" :size="14" />
+        </button>
 
         <!-- 连接状态提示 -->
-        <div v-if="!wsStore.connected" class="px-4 py-1 bg-amber-50 text-amber-600 text-xs text-center">
+        <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"
+             style="background: rgba(232,163,61,0.15); color: var(--color-amber)">
           {{ wsStore.connecting ? '正在连接...' : '连接已断开，正在重连...' }}
         </div>
 
         <!-- 会话标题 -->
-        <div v-if="isPrivateMode" class="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="text-sm font-medium text-gray-900">{{ currentChat.name }}</span>
-          <button @click="chatStore.openGroupChat()" class="ml-auto text-xs text-gray-400 hover:text-gray-600">
+        <div v-if="isPrivateMode" class="px-4 py-2 flex items-center gap-2"
+             style="background: var(--color-night-raise); border-bottom: 1px solid var(--color-night-line)">
+          <span class="signal-dot"></span>
+          <span class="text-sm font-medium" style="color: var(--color-paper)">{{ currentChat.name }}</span>
+          <button @click="chatStore.openGroupChat()" class="ml-auto text-xs transition-colors"
+                  style="color: var(--color-paper-faint)">
             返回群聊
           </button>
         </div>
 
         <!-- 聊天区 -->
-        <div ref="messageArea" class="flex-1 overflow-y-auto scroll-thin py-2 bg-gray-50"
-             @scroll="handleScroll">
-          <!-- 加载更多 -->
-          <div v-if="chatStore.loading" class="py-4 text-center text-sm text-gray-400">
+        <div ref="messageArea" class="flex-1 overflow-y-auto scroll-thin py-2" @scroll="handleScroll"
+             style="background: var(--color-night)">
+          <div v-if="chatStore.loading" class="py-4 text-center text-sm" style="color: var(--color-paper-faint)">
             加载中...
           </div>
-          <div v-else-if="!hasMore" class="py-4 text-center text-xs text-gray-400">
+          <div v-else-if="!hasMore" class="py-4 text-center text-xs" style="color: var(--color-paper-faint)">
             没有更多消息了
           </div>
 
-          <!-- 消息列表 -->
-          <div v-if="displayMessages.length === 0" class="py-12 text-center text-sm text-gray-400">
+          <div v-if="displayMessages.length === 0" class="py-12 text-center text-sm" style="color: var(--color-paper-faint)">
             {{ isPrivateMode ? '开始私聊吧' : '还没有消息，来打个招呼吧' }}
           </div>
           <MessageItem v-for="msg in displayMessages" :key="msg.id" :message="msg" />
@@ -84,14 +95,6 @@
                       :receiver="isPrivateMode ? currentChat.username : null"
                       @fileUpload="handleFileUpload" />
       </main>
-    </div>
-
-    <!-- Toast 通知 -->
-    <div class="fixed top-4 right-4 z-60 flex flex-col gap-2">
-      <div v-for="n in chatStore.notifications" :key="n.id"
-           :class="['text-sm rounded-lg px-4 py-2 shadow-lg', toastClass(n.type)]">
-        {{ n.message }}
-      </div>
     </div>
   </div>
 </template>
@@ -105,6 +108,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { messageApi } from '@/api/message'
 import { fileApi } from '@/api/file'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import MessageItem from '@/components/chat/MessageItem.vue'
 import MessageInput from '@/components/chat/MessageInput.vue'
 import PrivateChatTab from '@/components/chat/PrivateChatTab.vue'
@@ -120,6 +124,8 @@ const messageArea = ref(null)
 const pageSize = 50
 const hasMore = ref(true)
 const showAddFriend = ref(false)
+const sidebarOpen = ref(false)
+const isMobile = ref(window.innerWidth < 1024)
 let unsubscribe = null
 
 const messages = computed(() => chatStore.messages)
@@ -128,61 +134,52 @@ const onlineCount = computed(() => onlineUsers.value.length)
 const currentChat = computed(() => chatStore.currentChat)
 const isPrivateMode = computed(() => currentChat.value.type === 'private')
 
-// 当前显示的消息（群聊或私聊）
+// 当前显示的消息（群聊或私聊，私聊 key 用 username）
 const displayMessages = computed(() => {
   if (!isPrivateMode.value) return chatStore.messages
-  const name = currentChat.value.name
-  return chatStore.privateMessages[name] || []
+  const username = currentChat.value.username
+  return chatStore.privateMessages[username] || []
 })
 
-function isPrivateActive(name) {
-  return isPrivateMode.value && currentChat.value.name === name
+function isPrivateActive(username) {
+  return isPrivateMode.value && currentChat.value.username === username
 }
 
-function getUnread(name) {
-  return chatStore.unreadCounts[name] || 0
+function getUnread(username) {
+  return chatStore.unreadCounts[username] || 0
 }
 
-function hasPrivateUnread(name) {
-  return getUnread(name) > 0
-}
-
-function toastClass(type) {
-  return {
-    info: 'bg-gray-900/90 text-white',
-    success: 'bg-emerald-500/90 text-white',
-    error: 'bg-red-500/90 text-white'
-  }[type] || 'bg-gray-900/90 text-white'
+function hasPrivateUnread(username) {
+  return getUnread(username) > 0
 }
 
 // 打开私聊并加载历史
 async function startPrivateChat(user) {
-  // 游客不能私聊
   if (authStore.isGuest) {
-    chatStore.addNotification({ type: 'error', message: '游客不能发送私聊消息' })
+    window.$message?.error('游客不能发送私聊消息')
     return
   }
   chatStore.openPrivateChat(user)
 
-  // 加载私聊历史（如果没有）
-  const name = user.name
-  const username = user.username || user.name  // 优先用 username，兼容旧格式
-  if (!chatStore.privateMessages[name] || chatStore.privateMessages[name].length === 0) {
+  const username = user.username || user.name
+  if (!chatStore.privateMessages[username] || chatStore.privateMessages[username].length === 0) {
     chatStore.setLoading(true)
     try {
       const res = await messageApi.getPrivateHistory(username, { size: pageSize })
       if (res.data.code === 200) {
-        chatStore.setPrivateMessages(name, [...res.data.data.items].reverse())
+        chatStore.setPrivateMessages(username, [...res.data.data.items].reverse())
       }
     } catch (e) {
       chatStore.setError('加载私聊历史失败')
+      window.$message?.error('加载私聊历史失败')
     } finally {
       chatStore.setLoading(false)
     }
   }
+  scrollToBottom()
 }
 
-// 加载历史消息（群聊）
+// 加载历史消息（群聊，游标分页）
 async function loadHistory() {
   if (chatStore.loading || !hasMore.value || isPrivateMode.value) return
   chatStore.setLoading(true)
@@ -221,22 +218,21 @@ async function handleFileUpload(file) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('type', type)
-  // 私聊时附带接收者
+  // 私聊时附接收者（必须传 username，后端按用户名查找并校验好友）
   if (isPrivateMode.value) {
-    formData.append('receiver', currentChat.value.name)
+    formData.append('receiver', currentChat.value.username)
   }
 
   try {
     const res = await fileApi.upload(formData)
     if (res.data.code !== 200) {
-      chatStore.addNotification({ type: 'error', message: res.data.message || '上传失败' })
+      window.$message?.error(res.data.message || '上传失败')
     }
   } catch (e) {
-    chatStore.addNotification({ type: 'error', message: '上传失败，请重试' })
+    window.$message?.error('上传失败，请重试')
   }
 }
 
-// 滚动到底部（新消息时）
 function scrollToBottom() {
   nextTick(() => {
     if (messageArea.value) {
@@ -245,11 +241,22 @@ function scrollToBottom() {
   })
 }
 
+// 监听群聊消息数量变化 → 新消息滚底（修复 $subscribe 失效）
+watch(() => chatStore.messages.length, (newLen, oldLen) => {
+  if (newLen > oldLen && !isPrivateMode.value) {
+    scrollToBottom()
+  }
+})
+
 // 监听当前会话变化，切换时滚动到底部
 watch(isPrivateMode, scrollToBottom)
 
+function handleResize() {
+  isMobile.value = window.innerWidth < 1024
+  if (!isMobile.value) sidebarOpen.value = true
+}
+
 onMounted(async () => {
-  // 记录用户信息用于判断是否自己发的消息
   if (authStore.user?.id) {
     localStorage.setItem('myId', JSON.stringify(authStore.user.id))
   }
@@ -257,7 +264,6 @@ onMounted(async () => {
     localStorage.setItem('myName', authStore.user.name)
   }
 
-  // 加载群聊最近消息
   chatStore.setLoading(true)
   try {
     const res = await messageApi.getHistory({ size: pageSize })
@@ -271,18 +277,8 @@ onMounted(async () => {
     chatStore.setLoading(false)
   }
 
-  // 连接 WebSocket
   connect()
-
-  // 新群聊消息自动滚动到底部
-  unsubscribe = chatStore.$subscribe((mutation, state) => {
-    if (mutation.storeId === 'chat' && mutation.type === 'direct' &&
-        mutation.events.key === 'messages') {
-      scrollToBottom()
-    }
-  })
-
-  // 页面可见性监听（标题闪烁）
+  window.addEventListener('resize', handleResize)
   document.addEventListener('visibilitychange', handleVisibility)
 })
 
@@ -293,7 +289,15 @@ function handleVisibility() {
 onUnmounted(() => {
   disconnect()
   if (unsubscribe) unsubscribe()
+  window.removeEventListener('resize', handleResize)
   document.removeEventListener('visibilitychange', handleVisibility)
   chatStore.stopTitleFlash()
 })
 </script>
+
+<style scoped>
+.is-active {
+  background: var(--color-amber-ghost);
+}
+</style>
+

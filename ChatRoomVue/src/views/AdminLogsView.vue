@@ -1,85 +1,50 @@
-<!-- src/views/AdminLogsView.vue — 管理员-操作日志 -->
+<!-- src/views/AdminLogsView.vue — 管理员-操作日志（深夜电台） -->
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen flex flex-col" style="background: var(--color-night)">
     <AppHeader />
-    <div class="max-w-6xl mx-auto p-6">
-      <h1 class="text-xl font-bold text-gray-900 mb-6">操作日志</h1>
+    <div class="max-w-6xl w-full mx-auto p-6">
+      <h1 class="text-lg font-semibold mb-6" style="color: var(--color-paper)">操作日志</h1>
 
       <!-- 筛选 -->
-      <div class="flex items-center gap-4 mb-4 flex-wrap">
-        <select v-model="actionFilter" @change="loadLogs"
-                class="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-          <option value="">全部操作</option>
-          <option v-for="a in actionOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
-        </select>
-        <input v-model="startDate" type="date"
-               class="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-        <span class="text-gray-400">至</span>
-        <input v-model="endDate" type="date"
-               class="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-        <button @click="loadLogs" class="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
-          查询
-        </button>
+      <div class="flex items-center gap-3 mb-4 flex-wrap">
+        <n-select v-model:value="actionFilter" :options="actionOptions" placeholder="全部操作" clearable style="width: 140px"
+                  @update:value="page = 1; loadLogs()" />
+        <n-input v-model:value="startDate" type="date" placeholder="开始日期" style="width: 150px" />
+        <span style="color: var(--color-paper-faint)">至</span>
+        <n-input v-model:value="endDate" type="date" placeholder="结束日期" style="width: 150px" />
+        <n-button type="primary" @click="page = 1; loadLogs()">查询</n-button>
       </div>
 
-      <!-- 日志表格 -->
-      <div class="overflow-x-auto bg-white rounded-lg border border-gray-200">
-        <table class="w-full">
-          <thead>
-            <tr class="bg-gray-50">
-              <th class="px-4 py-3 text-xs text-gray-500 uppercase text-left">时间</th>
-              <th class="px-4 py-3 text-xs text-gray-500 uppercase text-left">操作者</th>
-              <th class="px-4 py-3 text-xs text-gray-500 uppercase text-left">操作</th>
-              <th class="px-4 py-3 text-xs text-gray-500 uppercase text-left">目标</th>
-              <th class="px-4 py-3 text-xs text-gray-500 uppercase text-left">IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="log in logs" :key="log.id" class="border-t border-gray-100 hover:bg-gray-50">
-              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ formatTime(log.createdAt) }}</td>
-              <td class="px-4 py-3 text-sm text-gray-900">{{ log.username }}</td>
-              <td class="px-4 py-3 text-sm text-gray-700">{{ actionName(log.action) }}</td>
-              <td class="px-4 py-3 text-sm text-gray-500">
-                {{ log.targetType || '-' }}{{ log.targetId ? ' #' + log.targetId : '' }}
-              </td>
-              <td class="px-4 py-3 text-sm text-gray-500">{{ log.ip }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="logs.length === 0" class="py-10 text-center text-sm text-gray-400">
-          暂无日志
-        </div>
+      <!-- 表格 -->
+      <n-data-table :columns="columns" :data="logs" :loading="loading"
+                    :bordered="true" size="small" :scroll-x="900" />
+      <div v-if="logs.length === 0 && !loading" class="py-10 text-center text-sm" style="color: var(--color-paper-faint)">
+        暂无日志
       </div>
 
       <!-- 分页 -->
-      <div class="flex items-center justify-between py-3 text-sm">
-        <span class="text-gray-500">共 {{ total }} 条</span>
-        <div class="flex gap-1">
-          <button :disabled="page <= 1" @click="page--; loadLogs()"
-                  class="px-2.5 py-1 rounded text-gray-600 hover:bg-gray-100 disabled:opacity-40">上一页</button>
-          <span class="px-2.5 py-1 text-gray-600">{{ page }} / {{ totalPages }}</span>
-          <button :disabled="page >= totalPages" @click="page++; loadLogs()"
-                  class="px-2.5 py-1 rounded text-gray-600 hover:bg-gray-100 disabled:opacity-40">下一页</button>
-        </div>
+      <div class="flex items-center justify-between py-3">
+        <span class="text-sm" style="color: var(--color-paper-soft)">共 {{ total }} 条</span>
+        <n-pagination v-model:page="page" :page-size="size" :item-count="total" @update:page="loadLogs" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, h, onMounted } from 'vue'
 import { adminApi } from '@/api/admin'
 import { formatTime } from '@/utils/format'
 import AppHeader from '@/components/layout/AppHeader.vue'
 
 const logs = ref([])
-const actionFilter = ref('')
+const actionFilter = ref(null)
 const startDate = ref('')
 const endDate = ref('')
 const page = ref(1)
 const size = 20
 const total = ref(0)
-const totalPages = ref(1)
+const loading = ref(false)
 
 const actionOptions = [
   { value: 'LOGIN', label: '登录' },
@@ -98,7 +63,20 @@ const actionOptions = [
   { value: 'DELETE_SENSITIVE_WORD', label: '删除敏感词' }
 ]
 
+function actionName(action) {
+  return actionOptions.find(a => a.value === action)?.label || action
+}
+
+const columns = [
+  { title: '时间', key: 'createdAt', width: 170, render: (row) => formatTime(row.createdAt) },
+  { title: '操作者', key: 'username', width: 130 },
+  { title: '操作', key: 'action', width: 120, render: (row) => actionName(row.action) },
+  { title: '目标', key: 'target', width: 150, render: (row) => `${row.targetType || '-'}${row.targetId ? ' #' + row.targetId : ''}` },
+  { title: 'IP', key: 'ip', width: 150 }
+]
+
 async function loadLogs() {
+  loading.value = true
   try {
     const res = await adminApi.getLogs({
       page: page.value, size,
@@ -109,13 +87,9 @@ async function loadLogs() {
     if (res.data.code === 200) {
       logs.value = res.data.data.items
       total.value = res.data.data.total
-      totalPages.value = res.data.data.totalPages
     }
   } catch (e) { /* 忽略 */ }
-}
-
-function actionName(action) {
-  return actionOptions.find(a => a.value === action)?.label || action
+  finally { loading.value = false }
 }
 
 onMounted(loadLogs)

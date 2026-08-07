@@ -1,64 +1,49 @@
-<!-- src/views/RegisterView.vue — 注册页 -->
+<!-- src/views/RegisterView.vue — 注册页（深夜电台） -->
 <template>
-  <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
-      <!-- 标题 -->
-      <div>
-        <h2 class="text-center text-3xl font-extrabold text-gray-900">创建账户</h2>
-        <p class="mt-2 text-center text-sm text-gray-600">加入我们，开始聊天</p>
+  <div class="min-h-screen flex items-center justify-center px-4"
+       style="background: var(--color-night)">
+    <div class="fixed inset-0 pointer-events-none"
+         style="background: radial-gradient(ellipse at 50% 120%, rgba(232,163,61,0.12), transparent 60%)"></div>
+
+    <div class="relative w-full max-w-md space-y-6 rounded-xl p-8"
+         style="background: var(--color-night-raise); border: 1px solid var(--color-night-line)">
+      <div class="text-center">
+        <h2 class="text-xl font-semibold" style="color: var(--color-paper)">创建账户</h2>
+        <p class="mt-1 text-sm" style="color: var(--color-paper-soft)">加入深夜电台，开始你的对话</p>
       </div>
 
-      <!-- 错误提示 -->
-      <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+      <n-alert v-if="error" type="error" :show-icon="false" closable @close="error = ''">
         {{ error }}
-      </div>
+      </n-alert>
 
-      <!-- 注册表单 -->
-      <form @submit.prevent="handleRegister" class="mt-8 space-y-6">
+      <n-form @submit.prevent="handleRegister">
         <div class="space-y-4">
-          <!-- 用户名 -->
-          <div>
-            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名 *</label>
-            <input id="username" v-model="username" type="text" required autofocus maxlength="20"
-                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                   placeholder="请设置用户名（字母数字下划线）" />
-            <p class="mt-1 text-xs text-gray-500">
-              用户名长度：<span :class="username.length >= 20 ? 'text-red-600 font-semibold' : 'text-gray-500'">{{ username.length }}</span>/20 个字符
-            </p>
-            <p v-if="usernameError" class="mt-1 text-xs text-red-500">{{ usernameError }}</p>
-          </div>
+          <n-input v-model:value="username" type="text" placeholder="用户名（字母数字下划线，2-20位）"
+                   maxlength="20" autofocus :status="usernameError ? 'error' : undefined" @keyup.enter="handleRegister">
+            <template #prefix><AppIcon name="user" :size="16" /></template>
+          </n-input>
+          <div v-if="usernameError" class="text-xs -mt-3" style="color: var(--color-alarm)">{{ usernameError }}</div>
 
-          <!-- 昵称 -->
-          <div>
-            <label for="displayName" class="block text-sm font-medium text-gray-700 mb-1">昵称 *</label>
-            <input id="displayName" v-model="name" type="text" required maxlength="20"
-                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                   placeholder="请设置您的昵称" />
-            <p class="mt-1 text-xs text-gray-500">
-              昵称长度：<span :class="name.length >= 20 ? 'text-red-600 font-semibold' : 'text-gray-500'">{{ name.length }}</span>/20 个字符
-            </p>
-          </div>
+          <n-input v-model:value="name" type="text" placeholder="昵称（1-20位）"
+                   maxlength="20" @keyup.enter="handleRegister">
+            <template #prefix><AppIcon name="badge-check" :size="16" /></template>
+          </n-input>
 
-          <!-- 密码 -->
-          <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码 *</label>
-            <input id="password" v-model="password" type="password" required
-                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                   placeholder="请设置密码（6-20位，含字母和数字）" />
-            <p v-if="passwordError" class="mt-1 text-xs text-red-500">{{ passwordError }}</p>
-          </div>
+          <n-input v-model:value="password" type="password" placeholder="密码（6-20位，含字母和数字）"
+                   show-password-on="click" :status="passwordError ? 'error' : undefined" @keyup.enter="handleRegister">
+            <template #prefix><AppIcon name="lock" :size="16" /></template>
+          </n-input>
+          <div v-if="passwordError" class="text-xs -mt-3" style="color: var(--color-alarm)">{{ passwordError }}</div>
         </div>
 
-        <button type="submit" :disabled="authStore.loading"
-                class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50">
-          {{ authStore.loading ? '注册中...' : '注册' }}
-        </button>
-      </form>
+        <n-button type="primary" size="large" block class="mt-5" :loading="authStore.loading" attr-type="submit">
+          注册
+        </n-button>
+      </n-form>
 
-      <!-- 登录链接 -->
       <div class="text-center">
-        <RouterLink to="/" class="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-          已有帐号？立即登录 →
+        <RouterLink to="/" class="text-sm font-medium transition-opacity hover:opacity-80" style="color: var(--color-amber)">
+          已有账号？立即登录 →
         </RouterLink>
       </div>
     </div>
@@ -70,6 +55,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -81,13 +67,16 @@ const usernameError = ref('')
 const passwordError = ref('')
 
 async function handleRegister() {
-  // 前端校验（与后端 @Pattern 一致）
   usernameError.value = ''
   passwordError.value = ''
   error.value = ''
 
   if (!/^[a-zA-Z0-9_]{2,20}$/.test(username.value)) {
     usernameError.value = '用户名仅支持字母、数字、下划线，长度2-20位'
+    return
+  }
+  if (!name.value.trim()) {
+    error.value = '昵称不能为空'
     return
   }
   if (password.value.length < 6 || password.value.length > 20) {
@@ -102,10 +91,11 @@ async function handleRegister() {
   try {
     const res = await authApi.register({
       username: username.value,
-      name: name.value,
+      name: name.value.trim(),
       password: password.value
     })
     if (res.data.code === 200) {
+      window.$message?.success('注册成功，请登录')
       router.push('/')
     } else {
       error.value = res.data.message

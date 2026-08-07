@@ -1,19 +1,18 @@
-<!-- src/components/chat/MessageInput.vue — 消息输入框 -->
+<!-- src/components/chat/MessageInput.vue — 消息输入区（深夜电台） -->
 <template>
-  <div class="border-t border-gray-200 bg-white relative">
+  <div class="relative" style="background: var(--color-night-raise); border-top: 1px solid var(--color-night-line)">
     <!-- 引用预览条 -->
     <div v-if="chatStore.replyTo"
-         class="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
-      <div class="w-0.5 h-4 bg-blue-400 rounded-full shrink-0"></div>
+         class="flex items-center gap-2 px-3 py-2"
+         style="background: var(--color-night-hover); border-bottom: 1px solid var(--color-night-line)">
+      <div class="w-0.5 h-4 rounded-full shrink-0" style="background: var(--color-amber)"></div>
       <div class="flex-1 min-w-0">
-        <span class="text-xs text-blue-500 font-medium">{{ chatStore.replyTo.senderName }}</span>
-        <span class="text-xs text-gray-400 ml-1 truncate">{{ chatStore.replyTo.content }}</span>
+        <span class="text-xs font-medium" style="color: var(--color-amber)">{{ chatStore.replyTo.senderName }}</span>
+        <span class="text-xs ml-1 truncate" style="color: var(--color-paper-soft)">{{ chatStore.replyTo.content }}</span>
       </div>
       <button @click="chatStore.clearReplyTo()"
-              class="text-gray-400 hover:text-gray-600 shrink-0 p-0.5">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+              class="shrink-0 p-0.5 transition-colors" style="color: var(--color-paper-faint)" @mouseenter="$event.target.style.color='var(--color-paper)'" @mouseleave="$event.target.style.color='var(--color-paper-faint)'">
+        <AppIcon name="x" :size="14" />
       </button>
     </div>
 
@@ -21,48 +20,49 @@
     <div class="p-3 flex items-end gap-2 relative">
       <!-- @提及弹窗 -->
       <MentionPopup v-if="showMention"
+                    ref="mentionPopupRef"
                     :keyword="mentionKeyword"
                     @select="handleMentionSelect"
                     @close="showMention = false" />
 
-      <!-- 文件上传按钮 -->
-      <label class="text-gray-500 hover:text-blue-500 text-lg cursor-pointer shrink-0">
-        📎
+      <!-- 文件上传 -->
+      <label class="cursor-pointer shrink-0 transition-colors p-1" style="color: var(--color-paper-soft)">
+        <AppIcon name="paperclip" :size="18" />
         <input type="file" class="hidden" :accept="acceptTypes" @change="handleFileUpload" />
       </label>
 
       <!-- 输入框 -->
       <textarea
         v-model="inputText"
-        @keydown.enter.exact.prevent="sendMessage"
+        @keydown="handleKeydown"
         @input="handleInput"
         @compositionstart="isComposing = true"
         @compositionend="handleCompositionEnd"
-        placeholder="输入消息... (Enter发送, Shift+Enter换行)"
+        placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
         maxlength="2000"
         rows="1"
         ref="inputRef"
-        class="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 max-h-40"
+        class="flex-1 resize-none rounded-lg px-3 py-2 text-sm max-h-40 focus:outline-none"
+        style="background: var(--color-night-hover); color: var(--color-paper); border: 1px solid var(--color-night-line)"
       />
 
       <!-- 字数提示 -->
-      <div v-if="inputText.length >= 2000" class="absolute bottom-full mb-1 text-xs text-amber-500">
+      <div v-if="inputText.length >= 2000" class="absolute bottom-full mb-1 text-xs" style="color: var(--color-warn)">
         已达 2000 字上限
       </div>
 
       <!-- 发送按钮 -->
-      <button @click="sendMessage"
-              :disabled="!inputText.trim()"
-              class="shrink-0 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed">
+      <n-button type="primary" :disabled="!inputText.trim()" @click="sendMessage">
         发送
-      </button>
+      </n-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import MentionPopup from './MentionPopup.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -77,6 +77,7 @@ const inputRef = ref(null)
 const showMention = ref(false)
 const mentionKeyword = ref('')
 const isComposing = ref(false)
+const mentionPopupRef = ref(null)
 
 const props = defineProps({
   chatType: { type: String, default: 'group' },
@@ -87,6 +88,42 @@ const acceptTypes = computed(() => {
   if (authStore.isGuest) return 'image/*'
   return 'image/*,.pdf,.doc,.docx,.zip,.rar,.md,video/mp4,video/webm,video/ogg,video/quicktime'
 })
+
+// 统一键盘处理：IME 组合期间不发送；@弹窗打开时 Enter/方向键交给弹窗导航
+function handleKeydown(e) {
+  if (isComposing.value) return  // 中文输入法上屏 Enter 不触发任何行为
+
+  // @弹窗打开：Enter/↑↓/Esc 由弹窗导航，不再发送
+  if (showMention.value && mentionPopupRef.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      mentionPopupRef.value.moveSelection(1)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      mentionPopupRef.value.moveSelection(-1)
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (mentionPopupRef.value.selectCurrent()) {
+        // 已选择用户，不再发送
+      }
+      return
+    }
+    if (e.key === 'Escape') {
+      showMention.value = false
+      return
+    }
+  }
+
+  // 普通 Enter（非 shift）→ 发送
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    sendMessage()
+  }
+}
 
 function sendMessage() {
   const text = inputText.value.trim()
@@ -125,10 +162,11 @@ function detectMention() {
   showMention.value = false
 }
 
-function handleMentionSelect(user) {
+async function handleMentionSelect(user) {
   const lastAtIndex = inputText.value.lastIndexOf('@')
   inputText.value = inputText.value.substring(0, lastAtIndex) + `@${user.name} `
   showMention.value = false
+  await nextTick()
   inputRef.value?.focus()
 }
 

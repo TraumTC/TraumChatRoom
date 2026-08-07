@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue()],
+  css: {
+    // lightningcss 无法解析含 `.5` 的转义类名，退回 esbuild minify
+    transformer: 'postcss',
+    minify: 'esbuild'
+  },
   server: {
     port: 5173,
     proxy: {
