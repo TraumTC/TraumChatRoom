@@ -112,6 +112,40 @@ public class AdminController {
     }
 
     /**
+     * 修改敏感词
+     * PUT /api/admin/sensitive-words/{id}
+     */
+    @LogOperation(action = "UPDATE_SENSITIVE_WORD", targetType = "sensitive_word")
+    @PutMapping("/sensitive-words/{id}")
+    public Result<Void> updateSensitiveWord(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
+        SensitiveWord existing = sensitiveWordMapper.findById(id);
+        if (existing == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "敏感词不存在");
+        }
+
+        String word = (String) body.get("word");
+        Integer level = (Integer) body.get("level");
+        String category = (String) body.get("category");
+
+        if (word == null || word.trim().isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "敏感词不能为空");
+        }
+
+        existing.setWord(word.trim());
+        existing.setLevel(level != null ? level : existing.getLevel());
+        existing.setCategory(category);
+
+        sensitiveWordMapper.update(existing);
+
+        // 刷新内存中的敏感词库
+        sensitiveWordFilter.refresh();
+
+        log.info("修改敏感词: {} -> {}", id, existing.getWord());
+
+        return Result.success();
+    }
+
+    /**
      * 删除敏感词
      * DELETE /api/admin/sensitive-words/{id}
      */

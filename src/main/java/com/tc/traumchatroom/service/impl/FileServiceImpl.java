@@ -54,7 +54,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public Map<String, Object> uploadAndSendMessage(MultipartFile file, String type,
-                                                     String receiver, String senderUsername) {
+                                                     String receiver, String senderUsername, String clientIp) {
         // 1. 校验文件
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "文件不能为空");
@@ -132,6 +132,7 @@ public class FileServiceImpl implements FileService {
 
         // 10. 保存消息
         message.setCreatedAt(LocalDateTime.now());
+        message.setSenderIp(clientIp);
         messageMapper.insert(message);
 
         // 11. 构造响应

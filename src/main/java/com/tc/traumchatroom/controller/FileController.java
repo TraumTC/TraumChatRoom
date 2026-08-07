@@ -44,10 +44,12 @@ public class FileController {
     public Result<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam("type") String type,
-            @RequestParam(value = "receiver", required = false) String receiver) {
+            @RequestParam(value = "receiver", required = false) String receiver,
+            HttpServletRequest request) {
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Map<String, Object> result = fileService.uploadAndSendMessage(file, type, receiver, username);
+        String clientIp = com.tc.traumchatroom.util.IpUtil.fromHttp(request);
+        Map<String, Object> result = fileService.uploadAndSendMessage(file, type, receiver, username, clientIp);
         return Result.success(result);
     }
 

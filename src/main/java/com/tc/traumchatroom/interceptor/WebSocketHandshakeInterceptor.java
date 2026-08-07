@@ -56,6 +56,9 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
             log.debug("WebSocket 握手成功，游客身份");
         }
 
+        // 4. 记录客户端 IP（用于消息 sender_ip 存储）
+        attributes.put("clientIp", com.tc.traumchatroom.util.IpUtil.fromWebSocket(request));
+
         return true;  // 允许连接
     }
 

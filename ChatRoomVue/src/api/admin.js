@@ -9,6 +9,7 @@ export const adminApi = {
   getLogs: (params) => api.get('/api/admin/logs', { params }),
   getSensitiveWords: (params) => api.get('/api/admin/sensitive-words', { params }),
   addSensitiveWord: (data) => api.post('/api/admin/sensitive-words', data),
+  updateSensitiveWord: (id, data) => api.put(`/api/admin/sensitive-words/${id}`, data),
   deleteSensitiveWord: (id) => api.delete(`/api/admin/sensitive-words/${id}`),
   refreshSensitiveWords: () => api.post('/api/admin/sensitive-words/refresh')
 }

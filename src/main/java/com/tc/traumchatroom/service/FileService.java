@@ -15,9 +15,10 @@ public interface FileService {
      * @param type 消息类型：image 或 file
      * @param receiver 接收者用户名（私聊时传，群聊为null）
      * @param senderUsername 发送者用户名
+     * @param clientIp 发送者IP
      * @return 文件信息（fileUrl, fileName, message）
      */
-    Map<String, Object> uploadAndSendMessage(MultipartFile file, String type, String receiver, String senderUsername);
+    Map<String, Object> uploadAndSendMessage(MultipartFile file, String type, String receiver, String senderUsername, String clientIp);
 
     /**
      * 获取文件的存储路径（用于下载）

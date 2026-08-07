@@ -12,12 +12,11 @@
     <!-- 右侧 -->
     <div class="flex items-center gap-2 sm:gap-3">
       <template v-if="authStore.isAuthenticated">
-        <!-- 管理员入口 -->
+        <!-- 管理员入口（文字 + 胶囊样式） -->
         <RouterLink v-if="authStore.isAdmin" to="/admin/users"
-                    class="text-xs flex items-center gap-1 px-2 py-1 rounded-md transition-colors"
-                    style="color: var(--color-ink-soft)" :active-class="'active'">
-          <AppIcon name="shield" :size="14" />
-          <span class="hidden sm:inline">管理</span>
+                    class="text-xs px-3 py-1 rounded-full font-medium transition-colors"
+                    style="color: var(--color-signal); background: var(--color-signal-ghost); border: 1px solid var(--color-border)">
+          管理
         </RouterLink>
 
         <!-- 头像（普通用户可点击预览，游客仅展示） -->

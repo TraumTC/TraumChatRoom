@@ -57,6 +57,13 @@
         VALUES (#{word}, #{level}, #{category})
     </insert>
 
+    <!-- 更新敏感词 -->
+    <update id="update">
+        UPDATE sensitive_word
+        SET word = #{word}, level = #{level}, category = #{category}
+        WHERE id = #{id}
+    </update>
+
     <!-- 删除敏感词 -->
     <delete id="deleteById">
         DELETE FROM sensitive_word WHERE id = #{id}

@@ -35,6 +35,9 @@ public interface SensitiveWordMapper {
     /** 插入敏感词 */
     int insert(SensitiveWord word);
 
+    /** 更新敏感词 */
+    int update(SensitiveWord word);
+
     /** 删除敏感词 */
     int deleteById(@Param("id") Integer id);
 }

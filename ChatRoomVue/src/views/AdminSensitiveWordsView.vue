@@ -5,7 +5,7 @@
     <div class="max-w-4xl w-full mx-auto p-6">
       <div class="flex items-center justify-between mb-6">
         <h1 class="text-lg font-semibold" style="color: var(--color-ink)">敏感词管理</h1>
-        <n-button type="primary" @click="showAdd = true">
+        <n-button type="primary" @click="openAdd">
           <template #icon><AppIcon name="plus" :size="15" /></template>
           添加敏感词
         </n-button>
@@ -26,14 +26,14 @@
         暂无敏感词
       </div>
 
-      <!-- 添加弹窗 -->
-      <n-modal v-model:show="showAdd" preset="card" title="添加敏感词"
+      <!-- 添加/修改弹窗 -->
+      <n-modal v-model:show="showModal" preset="card" :title="editingId ? '修改敏感词' : '添加敏感词'"
                :style="{ width: '90%', maxWidth: '22rem' }">
         <div class="space-y-3">
-          <n-input v-model:value="newWord" placeholder="敏感词" maxlength="50" @keyup.enter="addWord" />
+          <n-input v-model:value="newWord" placeholder="敏感词" maxlength="50" @keyup.enter="saveWord" />
           <n-select v-model:value="newLevel" :options="levelOptions" />
           <n-select v-model:value="newCategory" :options="categoryOptions" />
-          <n-button type="primary" block @click="addWord">添加</n-button>
+          <n-button type="primary" block @click="saveWord">{{ editingId ? '保存' : '添加' }}</n-button>
         </div>
       </n-modal>
     </div>
@@ -51,7 +51,8 @@ const chatStore = useChatStore()
 const words = ref([])
 const levelFilter = ref(null)
 const categoryFilter = ref(null)
-const showAdd = ref(false)
+const showModal = ref(false)
+const editingId = ref(null)
 const newWord = ref('')
 const newLevel = ref(1)
 const newCategory = ref('insult')
@@ -86,7 +87,10 @@ const columns = [
   { title: '分类', key: 'category', width: 100, render: (r) => categoryName(r.category) },
   {
     title: '操作', key: 'actions', align: 'right',
-    render: (row) => h('a', { style: 'color:var(--color-alarm);font-size:12px;cursor:pointer', onClick: () => deleteWord(row) }, '删除')
+    render: (row) => h('div', { style: 'display:flex;gap:12px;justify-content:flex-end' }, [
+      h('a', { style: 'color:var(--color-signal);font-size:12px;cursor:pointer', onClick: () => openEdit(row) }, '修改'),
+      h('a', { style: 'color:var(--color-alarm);font-size:12px;cursor:pointer', onClick: () => deleteWord(row) }, '删除')
+    ])
   }
 ]
 
@@ -103,24 +107,45 @@ async function loadWords() {
   } catch (e) { /* 忽略 */ }
 }
 
-async function addWord() {
+function openAdd() {
+  editingId.value = null
+  newWord.value = ''
+  newLevel.value = 1
+  newCategory.value = 'insult'
+  showModal.value = true
+}
+
+function openEdit(row) {
+  editingId.value = row.id
+  newWord.value = row.word
+  newLevel.value = row.level
+  newCategory.value = row.category || 'insult'
+  showModal.value = true
+}
+
+async function saveWord() {
   if (!newWord.value.trim()) return
   try {
-    const res = await adminApi.addSensitiveWord({
+    const payload = {
       word: newWord.value.trim(),
       level: newLevel.value,
       category: newCategory.value
-    })
+    }
+    let res
+    if (editingId.value) {
+      res = await adminApi.updateSensitiveWord(editingId.value, payload)
+    } else {
+      res = await adminApi.addSensitiveWord(payload)
+    }
     if (res.data.code === 200) {
-      window.$message?.success('敏感词已添加')
-      showAdd.value = false
-      newWord.value = ''
+      window.$message?.success(editingId.value ? '敏感词已修改' : '敏感词已添加')
+      showModal.value = false
       loadWords()
     } else {
       window.$message?.error(res.data.message)
     }
   } catch (e) {
-    window.$message?.error(e.response?.data?.message || '添加失败')
+    window.$message?.error(e.response?.data?.message || (editingId.value ? '修改失败' : '添加失败'))
   }
 }
 

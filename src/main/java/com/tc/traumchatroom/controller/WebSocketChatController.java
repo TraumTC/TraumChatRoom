@@ -100,7 +100,8 @@ public class WebSocketChatController {
      * 服务端广播到 /topic/messages
      */
     @MessageMapping("/space")
-    public void sendGroupMessage(Map<String, String> payload, Principal principal) {
+    public void sendGroupMessage(Map<String, String> payload, Principal principal,
+                                 org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
         String content = payload.get("content");
         String username = principal.getName();
         String clientId = payload.get("clientId");
@@ -173,6 +174,7 @@ public class WebSocketChatController {
         message.setMessageType("text");
         message.setIsAiReply(0);
         message.setIsRecalled(0);
+        message.setSenderIp(resolveClientIp(accessor));
 
         // 引用回复
         String replyToIdStr = payload.get("replyToId");
@@ -257,7 +259,8 @@ public class WebSocketChatController {
      * 服务端推送到 /user/{receiver}/queue/private-messages
      */
     @MessageMapping("/private.message")
-    public void sendPrivateMessage(Map<String, String> payload, Principal principal) {
+    public void sendPrivateMessage(Map<String, String> payload, Principal principal,
+                                   org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
         String content = payload.get("content");
         String receiverUsername = payload.get("receiver");
         String senderUsername = principal.getName();
@@ -350,6 +353,7 @@ public class WebSocketChatController {
         message.setMessageType("text");
         message.setIsAiReply(0);
         message.setIsRecalled(0);
+        message.setSenderIp(resolveClientIp(accessor));
 
         // 引用回复
         String replyToIdStr2 = payload.get("replyToId");
@@ -469,6 +473,20 @@ public class WebSocketChatController {
         // 普通用户从数据库获取
         User user = userMapper.findByUsername(username);
         return user != null ? user.getName() : username;
+    }
+
+    /**
+     * 从 STOMP 会话属性读取握手时采集的客户端 IP（无则返回 null）
+     */
+    private String resolveClientIp(org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
+        try {
+            Object ip = accessor != null && accessor.getSessionAttributes() != null
+                    ? accessor.getSessionAttributes().get("clientIp")
+                    : null;
+            return ip != null ? ip.toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

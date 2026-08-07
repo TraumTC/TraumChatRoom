@@ -7,9 +7,9 @@
     </span>
   </div>
 
-  <!-- 正常消息 -->
-  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
-       @contextmenu.prevent="onContextMenu">
+  <!-- 正常消息（右键菜单由 NDropdown 处理） -->
+  <n-dropdown v-else trigger="contextmenu" :options="menuOptions" @select="handleMenuSelect">
+    <div class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''">
     <!-- 头像 -->
     <UserAvatar :user="message.sender" size="md" class="mt-1" />
 
@@ -81,33 +81,12 @@
     <!-- 图片预览 -->
     <ImagePreview :visible="showPreview" :src="message.filePath"
                   :fileName="message.fileName" @close="showPreview = false" />
-  </div>
-
-  <!-- 右键菜单 -->
-  <Teleport to="body">
-    <template v-if="menuVisible">
-      <div class="fixed inset-0 z-40" @click="menuVisible = false"></div>
-      <div class="fixed rounded-lg py-1 z-50 min-w-[120px] shadow-xl"
-           style="background: var(--color-card); border: 1px solid var(--color-border)"
-           :style="{ left: menuX + 'px', top: menuY + 'px' }">
-        <button class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-ink)" @click="handleQuote">
-          引用
-        </button>
-        <a v-if="hasFile" :href="message.filePath + '?name=' + encodeURIComponent(message.fileName)" download
-           class="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5" style="color: var(--color-ink)">
-          下载
-        </a>
-        <button v-if="canRecall" class="w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5"
-                style="color: var(--color-alarm)" @click="handleRecall">
-          撤回
-        </button>
-      </div>
-    </template>
-  </Teleport>
+    </div>
+  </n-dropdown>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import ImagePreview from '@/components/common/ImagePreview.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -121,9 +100,6 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 
 const showPreview = ref(false)
-const menuVisible = ref(false)
-const menuX = ref(0)
-const menuY = ref(0)
 
 const isSelf = computed(() => {
   const myId = authStore.user?.id
@@ -154,7 +130,7 @@ const canRecall = computed(() => {
 
 // 安全渲染：先 HTML 转义，再高亮 @提及（防 XSS）
 const safeContent = computed(() => {
-  return highlightMentions(props.message.content)
+  return highlightMentions(props.message.content, isSelf.value)
 })
 
 function escapeHtml(str) {
@@ -167,11 +143,13 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
-function highlightMentions(content) {
+// @提及高亮：自己气泡为蓝底白字（高亮用白/加粗保证可见），他人气泡用品牌蓝
+function highlightMentions(content, self) {
   if (!content) return ''
   const escaped = escapeHtml(content)
+  const highlightColor = self ? '#FFFFFF' : 'var(--color-signal)'
   return escaped.replace(/@([^<>\s]+)/g, (match, name) => {
-    return `<span style="color: var(--color-signal); font-weight: 600">@${escapeHtml(name)}</span>`
+    return `<span style="color: ${highlightColor}; font-weight: 600">@${escapeHtml(name)}</span>`
   })
 }
 
@@ -181,19 +159,49 @@ function isVideo(fileName) {
   return ['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)
 }
 
-function onContextMenu(e) {
-  menuX.value = e.clientX
-  menuY.value = e.clientY
-  menuVisible.value = true
+// NDropdown 菜单项（带图标，动态生成）
+const menuOptions = computed(() => {
+  const options = [
+    {
+      label: '引用',
+      key: 'quote',
+      icon: () => h(AppIcon, { name: 'corner-up-left', size: 15 })
+    }
+  ]
+  if (hasFile.value) {
+    options.push({
+      label: '下载',
+      key: 'download',
+      icon: () => h(AppIcon, { name: 'download', size: 15 })
+    })
+  }
+  if (canRecall.value) {
+    options.push({
+      label: '撤回',
+      key: 'recall',
+      icon: () => h(AppIcon, { name: 'rotate-ccw', size: 15 }),
+      props: { style: 'color: var(--color-alarm)' }
+    })
+  }
+  return options
+})
+
+function handleMenuSelect(key) {
+  if (key === 'quote') handleQuote()
+  else if (key === 'download') {
+    // 触发下载链接
+    const a = document.createElement('a')
+    a.href = props.message.filePath + '?name=' + encodeURIComponent(props.message.fileName || '')
+    a.download = ''
+    a.click()
+  } else if (key === 'recall') handleRecall()
 }
 
 function handleQuote() {
   chatStore.setReplyTo(props.message)
-  menuVisible.value = false
 }
 
 async function handleRecall() {
-  menuVisible.value = false
   const dialog = window.$dialog
   if (dialog) {
     dialog.warning({
@@ -219,31 +227,13 @@ async function doRecall() {
 
 <style scoped>
 .bubble-self {
-  position: relative;
   background: var(--color-signal);
   color: #FFFFFF;
 }
-.bubble-self::after {
-  content: '';
-  position: absolute;
-  top: 10px;
-  right: -7px;
-  border: 7px solid transparent;
-  border-left-color: var(--color-signal);
-}
 .bubble-other {
-  position: relative;
   background: var(--color-card);
   color: var(--color-ink);
   border: 1px solid var(--color-border);
-}
-.bubble-other::after {
-  content: '';
-  position: absolute;
-  top: 10px;
-  left: -7px;
-  border: 7px solid transparent;
-  border-right-color: var(--color-border);
 }
 </style>
 
