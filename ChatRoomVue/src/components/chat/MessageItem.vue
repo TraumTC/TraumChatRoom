@@ -87,11 +87,13 @@
   <Teleport to="body">
     <template v-if="menuVisible">
       <div class="fixed inset-0 z-40" @click="closeMenu"></div>
-      <div class="fixed rounded-lg py-1.5 z-50 shadow-xl" :style="menuStyle"
-           style="background: var(--color-card); border: 1px solid var(--color-border); min-width: 130px">
+      <div class="fixed rounded-lg overflow-hidden z-50 shadow-lg" :style="menuStyle"
+           style="background: var(--color-card); border: 1px solid var(--color-border); min-width: 132px; padding: 4px">
         <button v-for="item in menuItems" :key="item.key"
-                class="w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors hover:bg-white/5"
+                class="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors"
                 :style="item.key === 'recall' ? 'color: var(--color-alarm)' : 'color: var(--color-ink)'"
+                @mouseenter="$event.target.style.background='var(--color-hover)'"
+                @mouseleave="$event.target.style.background='transparent'"
                 @click="handleMenu(item.key)">
           <AppIcon :name="item.icon" :size="15" />
           {{ item.label }}

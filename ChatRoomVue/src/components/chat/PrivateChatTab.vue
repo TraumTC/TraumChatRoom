@@ -7,8 +7,8 @@
         <span class="inline-flex items-center gap-1.5">
           {{ tab.name }}
           <n-badge v-if="getUnread(tab.username) > 0" :value="getUnread(tab.username)" type="error" />
-          <button class="ml-0.5 rounded-full transition-colors" style="color: var(--color-ink-faint)"
-                  @click.stop="closeTab(tab)" aria-label="关闭标签">
+          <button @click.stop="closeTab(tab)" aria-label="关闭标签"
+                  style="color: var(--color-ink-faint); cursor: pointer">
             <AppIcon name="x" :size="12" />
           </button>
         </span>
