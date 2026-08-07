@@ -104,8 +104,9 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
 
-        // 5. 登录成功，清除该用户的失败计数
+        // 5. 登录成功，清除失败计数（用户维度 + IP 维度）
         redisTemplate.delete("chat:login:fail:user:" + request.getUsername());
+        redisTemplate.delete("chat:login:fail:ip:" + clientIp);
 
         // 6. 更新最后活跃时间
         userMapper.updateLastActiveTime(user.getId());

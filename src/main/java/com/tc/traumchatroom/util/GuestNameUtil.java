@@ -33,10 +33,13 @@ public class GuestNameUtil {
 
     /**
      * 生成游客用户名（登录用）
-     * 格式：guest_时间戳
+     * 格式：guest_时间戳_8位随机（时间戳+随机后缀保证高并发下不碰撞）
      */
     public static String generateGuestUsername() {
-        return "guest_" + Instant.now().getEpochSecond();
+        String rand = Long.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+        // 取后 8 位十六进制作为随机后缀，时间戳用毫秒
+        String suffix = rand.length() > 8 ? rand.substring(rand.length() - 8) : rand;
+        return "guest_" + System.currentTimeMillis() + "_" + suffix;
     }
 
     /**

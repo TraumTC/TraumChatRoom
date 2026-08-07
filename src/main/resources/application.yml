@@ -4,17 +4,20 @@ server:
 spring:
   application:
     name: TraumChatRoom
+  profiles:
+    # 默认使用开发配置（application-dev.yml）。生产环境必须用 --spring.profiles.active=prod
+    active: dev
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/NewChatDB
-    username: root
-    password: 123456
+    url: ${DB_URL:jdbc:mysql://localhost:3306/NewChatDB}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
   data:
     redis:
-      host: 121.40.16.113
-      port: 6379
-      database: 0
-      password: 123456
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
           max-active: 16
@@ -42,7 +45,7 @@ file:
 ai:
   api:
     url: https://api.deepseek.com/v1/chat/completions
-    key: ${AI_API_KEY:sk-ea4434f132fc4c12bcb53bd568c657b7}
+    key: ${AI_API_KEY:}
     model: deepseek-chat
     max-tokens: 1024
     temperature: 0.7
@@ -51,9 +54,9 @@ ai:
   rate-limit:
     max-per-minute: 3
 
-# JWT 配置
+# JWT 配置（密钥必须通过环境变量注入，禁止硬编码默认值）
 jwt:
-  secret: ${JWT_SECRET:+j7WlQ2Eu4YZT0oc/a1epPTUftSRdCpwJxTHNQFnfuA=}
+  secret: ${JWT_SECRET:}
   access-expiration: 86400000
   refresh-expiration: 604800000
 

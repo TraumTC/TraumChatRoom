@@ -38,6 +38,12 @@
         VALUES (#{username}, #{name}, #{password}, #{role}, #{avatar}, #{status})
     </insert>
 
+    <!-- 插入新用户（冲突忽略：username/name 唯一键冲突时静默跳过） -->
+    <insert id="insertIgnore" useGeneratedKeys="true" keyProperty="id">
+        INSERT IGNORE INTO user (username, name, password, role, avatar, status)
+        VALUES (#{username}, #{name}, #{password}, #{role}, #{avatar}, #{status})
+    </insert>
+
     <!-- 修改用户资料 -->
     <update id="updateProfile">
         UPDATE user
@@ -122,6 +128,16 @@
              OR name LIKE CONCAT('%', #{keyword}, '%'))
         ORDER BY name ASC
         LIMIT #{limit}
+    </select>
+
+    <!-- 按 ID 集合批量查询用户（优化 N+1） -->
+    <select id="findByIds" resultMap="UserResultMap">
+        SELECT * FROM user
+        WHERE deleted_at IS NULL
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 
 </mapper>

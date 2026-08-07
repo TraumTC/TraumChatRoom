@@ -37,6 +37,16 @@ public class ChatServiceImpl implements ChatService {
     @Resource
     private SimpMessagingTemplate messagingTemplate;
 
+    @Resource
+    private com.tc.traumchatroom.mapper.FriendMapper friendMapper;
+
+    @Resource
+    private org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
+
+    /** 撤回时间窗（秒），可配置，默认 120 秒 */
+    @org.springframework.beans.factory.annotation.Value("${chat.recall-window-seconds:120}")
+    private long recallWindowSeconds;
+
     // ---------- 群聊历史 ----------
 
     @Override
@@ -82,6 +92,11 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "游客不能查看私聊记录");
         }
 
+        // 私聊历史仅限好友关系（防止任意用户窥探他人会话）
+        if (!friendMapper.exists(currentUser.getId(), targetUser.getId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能查看好友的私聊记录");
+        }
+
         // 查询私聊消息
         List<Message> messages = messageMapper.selectPrivateHistory(
                 currentUser.getId(), currentUsername,
@@ -119,19 +134,28 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息已被撤回");
         }
 
-        // 3. 权限检查：本人或管理员
+        // 3. 权限检查：本人（含游客）或管理员
         User currentUser = userMapper.findByUsername(currentUsername);
         boolean isAdmin = "ROLE_ADMIN".equals(currentRole);
         boolean isOwner = currentUser != null && message.getSenderId() != null
                 && message.getSenderId().equals(currentUser.getId());
-
         if (!isOwner && !isAdmin) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤回自己的消息");
+            // 游客本人：sender_id 为 null，按 Redis 游客显示名匹配 sender_name
+            if (currentUsername.startsWith("guest_")) {
+                String guestKey = "chat:guest:" + currentUsername;
+                Object guestName = redisTemplate.opsForHash().get(guestKey, "name");
+                if (guestName != null && guestName.toString().equals(message.getSenderName())) {
+                    isOwner = true;
+                }
+            }
+            if (!isOwner) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤回自己的消息");
+            }
         }
 
-        // 4. 时间检查：2 分钟内
+        // 4. 时间检查：配置的撤回窗口内
         if (message.getCreatedAt() != null) {
-            LocalDateTime deadline = message.getCreatedAt().plusMinutes(2);
+            LocalDateTime deadline = message.getCreatedAt().plusSeconds(recallWindowSeconds);
             if (LocalDateTime.now().isAfter(deadline)) {
                 throw new BusinessException(ErrorCode.RECALL_TIMEOUT);
             }

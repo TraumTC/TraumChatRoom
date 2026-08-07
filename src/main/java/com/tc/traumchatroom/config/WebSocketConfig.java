@@ -5,6 +5,7 @@ import com.tc.traumchatroom.interceptor.WebSocketHandshakeInterceptor;
 import com.tc.traumchatroom.util.JwtUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
@@ -70,17 +71,30 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.taskExecutor(wsInboundExecutor());
+        registration.interceptors(wsChannelInterceptor());
+    }
+
+    /**
+     * WebSocket 入站线程池（由容器管理生命周期，关闭时自动回收）
+     */
+    @Bean
+    public ThreadPoolTaskExecutor wsInboundExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(20);
         executor.setMaxPoolSize(50);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("ws-inbound-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        registration.taskExecutor(executor);
+        return executor;
+    }
 
-        // 添加 Channel 拦截器，处理 CONNECT 事件（从 STOMP header 提取 JWT）
-        registration.interceptors(new ChannelInterceptor() {
+    /**
+     * 入站 Channel 拦截器：处理 CONNECT 事件（从 STOMP header 提取 JWT）
+     */
+    @Bean
+    public ChannelInterceptor wsChannelInterceptor() {
+        return new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor =
@@ -126,7 +140,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                 return null;
             }
-        });
+        };
     }
 
     @Override

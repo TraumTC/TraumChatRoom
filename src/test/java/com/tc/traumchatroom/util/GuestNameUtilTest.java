@@ -32,4 +32,14 @@ class GuestNameUtilTest {
         String username = GuestNameUtil.generateGuestUsername();
         assertThat(username).startsWith("guest_");
     }
+
+    @Test
+    void generateGuestUsernameUniqueUnderConcurrency() {
+        // 快速连续生成，验证时间戳 + 随机后缀保证不碰撞
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 1000; i++) {
+            seen.add(GuestNameUtil.generateGuestUsername());
+        }
+        assertThat(seen).hasSize(1000);
+    }
 }

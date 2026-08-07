@@ -3,6 +3,7 @@ package com.tc.traumchatroom.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,9 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
+    /** HMAC-SHA256 要求密钥至少 32 字节（256 位） */
+    private static final int MIN_SECRET_BYTES = 32;
+
     @Value("${jwt.secret}")
     private String secret;
 
@@ -29,6 +33,22 @@ public class JwtUtil {
 
     @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
+
+    /**
+     * 启动校验：JWT 密钥缺失或过短时拒绝启动。
+     * 防止密钥未配置（硬编码默认值已移除）或配置了弱密钥导致可被伪造。
+     */
+    @PostConstruct
+    public void validateSecret() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.secret 未配置。请通过环境变量 JWT_SECRET 注入密钥（至少 " + MIN_SECRET_BYTES + " 字节）。");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "jwt.secret 长度不足 " + MIN_SECRET_BYTES + " 字节，无法安全签名。请更换更强的密钥。");
+        }
+    }
 
     /**
      * 获取签名密钥

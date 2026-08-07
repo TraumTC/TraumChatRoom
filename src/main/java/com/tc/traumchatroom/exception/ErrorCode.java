@@ -29,6 +29,7 @@ public enum ErrorCode {
     REQUEST_NOT_FOUND(2003, "好友申请不存在"),
     CANNOT_ADD_SELF(2004, "不能添加自己为好友"),
     RECALL_TIMEOUT(2005, "超过撤回时间限制"),
+    REQUEST_EXPIRED(2006, "好友申请已过期"),
 
     // AI 相关
     AI_RATE_LIMIT(3001, "AI调用频率超限"),

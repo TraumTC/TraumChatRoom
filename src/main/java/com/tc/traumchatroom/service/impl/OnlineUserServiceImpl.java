@@ -40,6 +40,8 @@ public class OnlineUserServiceImpl implements OnlineUserService {
     @Override
     public Set<String> getOnlineUsers() {
         long cutoff = System.currentTimeMillis() - HEARTBEAT_TIMEOUT_MS;
+        // 清理过期成员，避免 ZSet 无限膨胀
+        redisTemplate.opsForZSet().removeRangeByScore(ONLINE_USERS_KEY, Double.NEGATIVE_INFINITY, cutoff);
         // 获取最近 5 分钟内有心跳的用户
         Set<String> users = redisTemplate.opsForZSet().rangeByScore(ONLINE_USERS_KEY, cutoff, Double.MAX_VALUE);
         return users != null ? users : Collections.emptySet();

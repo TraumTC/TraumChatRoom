@@ -62,7 +62,11 @@ public class FileController {
             // 从 URI 中提取文件路径（去掉 /api/file/download/ 前缀）
             String uri = request.getRequestURI();
             String prefix = "/api/file/download/";
-            String fileName = uri.substring(uri.indexOf(prefix) + prefix.length());
+            int idx = uri.indexOf(prefix);
+            if (idx < 0) {
+                return ResponseEntity.badRequest().build();
+            }
+            String fileName = uri.substring(idx + prefix.length());
 
             String filePath = fileService.getFilePath(fileName);
             File file = new File(filePath);

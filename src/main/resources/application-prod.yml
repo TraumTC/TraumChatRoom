@@ -1,0 +1,21 @@
+# 生产环境配置模板
+# 使用方法：spring.profiles.active=prod + 环境变量注入所有密钥
+# 必填环境变量：JWT_SECRET / DB_PASSWORD / REDIS_PASSWORD / AI_API_KEY
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+ai:
+  api:
+    key: ${AI_API_KEY}
+
+jwt:
+  # 生产密钥必须由环境变量提供，这里无默认值，缺失时 JwtUtil 启动校验会拒绝启动
+  secret: ${JWT_SECRET}

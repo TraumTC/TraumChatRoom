@@ -12,6 +12,7 @@ import com.tc.traumchatroom.mapper.OperationLogMapper;
 import com.tc.traumchatroom.mapper.SensitiveWordMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.SensitiveWordFilter;
+import com.tc.traumchatroom.service.CacheService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -46,6 +47,9 @@ public class AdminController {
 
     @Resource
     private PasswordEncoder passwordEncoder;
+
+    @Resource
+    private CacheService cacheService;
 
     /**
      * 获取敏感词列表（分页）
@@ -217,6 +221,7 @@ public class AdminController {
         }
 
         userMapper.updateRole(id, role);
+        cacheService.evictUser(id);
         log.info("管理员修改用户 {} 角色为 {}", id, role);
 
         return Result.success();
@@ -266,6 +271,7 @@ public class AdminController {
         }
 
         userMapper.updateProfile(user);
+        cacheService.evictUser(id);
         log.info("管理员修改用户 {} 信息", id);
 
         return Result.success();
@@ -290,6 +296,7 @@ public class AdminController {
         }
 
         userMapper.softDelete(id);
+        cacheService.evictUser(id);
         log.info("管理员删除用户: {}", user.getUsername());
 
         return Result.success();

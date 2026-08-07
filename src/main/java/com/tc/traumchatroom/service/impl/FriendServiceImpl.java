@@ -18,20 +18,24 @@ import com.tc.traumchatroom.service.FriendService;
 import com.tc.traumchatroom.service.OnlineUserService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class FriendServiceImpl implements FriendService {
+
+    /** 好友申请有效期：30 天，超期视为过期 */
+    private static final int REQUEST_EXPIRE_DAYS = 30;
 
     @Resource
     private FriendMapper friendMapper;
@@ -44,9 +48,6 @@ public class FriendServiceImpl implements FriendService {
 
     @Resource
     private OnlineUserService onlineUserService;
-
-    @Resource
-    private RedisTemplate<String, String> redisTemplate;
 
     @Resource
     private SimpMessagingTemplate messagingTemplate;
@@ -102,10 +103,14 @@ public class FriendServiceImpl implements FriendService {
             throw new BusinessException(ErrorCode.ALREADY_FRIENDS);
         }
 
-        // 已有待处理申请
+        // 已有待处理申请（双向：我发给对方，或对方发给我，避免互相 pending）
         FriendRequest existing = friendRequestMapper.findPendingBySenderAndReceiver(sender.getId(), receiver.getId());
         if (existing != null) {
             throw new BusinessException(ErrorCode.REQUEST_EXISTS);
+        }
+        FriendRequest reverse = friendRequestMapper.findPendingBySenderAndReceiver(receiver.getId(), sender.getId());
+        if (reverse != null) {
+            throw new BusinessException(ErrorCode.REQUEST_EXISTS, "对方已向你发送好友申请，请前往处理");
         }
 
         // 创建申请
@@ -158,11 +163,25 @@ public class FriendServiceImpl implements FriendService {
             total = friendRequestMapper.countByReceiverId(currentUser.getId(), statusInt);
         }
 
+        // 批量预取涉及的用户，避免每条申请 2 次 findById（N+1）
+        Map<Integer, User> userMap = loadUsers(
+                requests.stream()
+                        .flatMap(fr -> java.util.stream.Stream.of(fr.getSenderId(), fr.getReceiverId()))
+                        .collect(Collectors.toList()));
+
         List<FriendRequestResponse> items = requests.stream()
-                .map(this::toFriendRequestResponse)
+                .map(fr -> toFriendRequestResponse(fr, userMap))
                 .collect(Collectors.toList());
 
         return new CursorPageVO<>(items, null, total > page * size);
+    }
+
+    /** 批量预取申请涉及的用户，避免 N+1 */
+    private Map<Integer, User> loadUsers(Collection<Integer> ids) {
+        List<Integer> distinct = ids.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (distinct.isEmpty()) return Map.of();
+        return userMapper.findByIds(distinct).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
     }
 
     // ---------- 处理申请 ----------
@@ -182,6 +201,16 @@ public class FriendServiceImpl implements FriendService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能处理发给自己的申请");
         }
 
+        // 申请已过期（30 天）
+        if (isExpired(fr)) {
+            throw new BusinessException(ErrorCode.REQUEST_EXPIRED, "好友申请已过期，无法处理");
+        }
+
+        // 仅待处理状态可被处理（防重复 accept/reject）
+        if (fr.getStatus() != null && fr.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "该申请已被处理");
+        }
+
         if ("accept".equals(request.getAction())) {
             // 同意：更新状态 + 创建双向好友关系
             friendRequestMapper.updateStatus(requestId, 1);
@@ -196,10 +225,6 @@ public class FriendServiceImpl implements FriendService {
             f2.setUserId(fr.getReceiverId());
             f2.setFriendId(fr.getSenderId());
             friendMapper.insert(f2);
-
-            // 清除双方好友列表缓存
-            redisTemplate.delete("chat:friends:" + fr.getSenderId());
-            redisTemplate.delete("chat:friends:" + fr.getReceiverId());
 
             // WebSocket 通知申请方：申请已通过
             User receiverUser = userMapper.findById(fr.getReceiverId());
@@ -223,7 +248,15 @@ public class FriendServiceImpl implements FriendService {
         } else if ("reject".equals(request.getAction())) {
             friendRequestMapper.updateStatus(requestId, 2);
             log.info("用户 {} 拒绝了 {} 的好友申请", currentUsername, fr.getSenderId());
+        } else {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的操作类型: " + request.getAction());
         }
+    }
+
+    /** 判断好友申请是否已过期（创建满 30 天） */
+    private boolean isExpired(FriendRequest fr) {
+        if (fr.getCreatedAt() == null) return false;
+        return LocalDateTime.now().isAfter(fr.getCreatedAt().plusDays(REQUEST_EXPIRE_DAYS));
     }
 
     // ---------- 好友列表 ----------
@@ -238,8 +271,12 @@ public class FriendServiceImpl implements FriendService {
         List<Friend> friends = friendMapper.findByUserId(currentUser.getId(), keyword, offset, size);
         int total = friendMapper.countByUserId(currentUser.getId(), keyword);
 
+        // 批量预取好友用户，避免每条好友一次 findById（N+1）
+        Map<Integer, User> friendMap = loadUsers(
+                friends.stream().map(Friend::getFriendId).collect(Collectors.toList()));
+
         List<FriendResponse> items = friends.stream().map(f -> {
-            User friendUser = userMapper.findById(f.getFriendId());
+            User friendUser = friendMap.get(f.getFriendId());
             if (friendUser == null) return null;
 
             FriendResponse resp = new FriendResponse();
@@ -282,10 +319,6 @@ public class FriendServiceImpl implements FriendService {
         // 双向删除（一条 SQL 删两条：A→B 与 B→A）
         friendMapper.delete(currentUser.getId(), friendId);
 
-        // 清除双方好友列表缓存
-        redisTemplate.delete("chat:friends:" + currentUser.getId());
-        redisTemplate.delete("chat:friends:" + friendId);
-
         log.info("用户 {} 删除了好友 {}", username, friendId);
     }
 
@@ -312,22 +345,22 @@ public class FriendServiceImpl implements FriendService {
 
     // ---------- 辅助方法 ----------
 
-    private FriendRequestResponse toFriendRequestResponse(FriendRequest fr) {
+    private FriendRequestResponse toFriendRequestResponse(FriendRequest fr, Map<Integer, User> userMap) {
         FriendRequestResponse resp = new FriendRequestResponse();
         resp.setId(fr.getId());
         resp.setMessage(fr.getMessage());
-        resp.setStatus(mapStatus(fr.getStatus()));
+        resp.setStatus(mapStatus(fr));
         resp.setCreatedAt(fr.getCreatedAt());
 
         // 发送者信息
-        User sender = userMapper.findById(fr.getSenderId());
+        User sender = userMap.get(fr.getSenderId());
         if (sender != null) {
             resp.setSender(new FriendRequestResponse.SenderInfo(
                     sender.getId(), sender.getUsername(), sender.getName(), sender.getAvatar()));
         }
 
         // 接收者信息
-        User receiver = userMapper.findById(fr.getReceiverId());
+        User receiver = userMap.get(fr.getReceiverId());
         if (receiver != null) {
             resp.setReceiver(new FriendRequestResponse.ReceiverInfo(
                     receiver.getId(), receiver.getUsername(), receiver.getName(), receiver.getAvatar()));
@@ -336,10 +369,11 @@ public class FriendServiceImpl implements FriendService {
         return resp;
     }
 
-    private String mapStatus(Integer status) {
+    private String mapStatus(FriendRequest fr) {
+        Integer status = fr.getStatus();
         if (status == null) return "pending";
         return switch (status) {
-            case 0 -> "pending";
+            case 0 -> isExpired(fr) ? "expired" : "pending";
             case 1 -> "accepted";
             case 2 -> "rejected";
             default -> "unknown";

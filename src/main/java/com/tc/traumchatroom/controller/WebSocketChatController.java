@@ -56,8 +56,43 @@ public class WebSocketChatController {
     @Resource
     private SensitiveWordFilter sensitiveWordFilter;
 
+    @Resource
+    private com.tc.traumchatroom.mapper.FriendMapper friendMapper;
+
+    /** AI 回复异步线程池（见 AsyncConfig.aiTaskExecutor） */
+    @Resource(name = "aiTaskExecutor")
+    private java.util.concurrent.Executor aiTaskExecutor;
+
     /** 消息内容最大长度（防超长消息 DoS） */
     private static final int MAX_MESSAGE_LENGTH = 2000;
+
+    /** 消息发送限流：每用户每分钟最多 30 条（防灌水 DoS） */
+    private static final int SEND_RATE_LIMIT = 30;
+    private static final String SEND_RATE_LUA =
+            "local cur = redis.call('GET', KEYS[1]) " +
+            "if cur == false then " +
+            "  redis.call('SET', KEYS[1], 1, 'EX', 60) " +
+            "  return 1 " +
+            "end " +
+            "local n = redis.call('INCR', KEYS[1]) " +
+            "return n";
+
+    /**
+     * 消息发送限流（Redis 原子计数，每用户每分钟 30 条）
+     * @return true 允许发送；false 超限
+     */
+    private boolean allowSend(String username) {
+        String key = "chat:send:rate:" + username;
+        Long n = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(SEND_RATE_LUA, Long.class),
+                java.util.List.of(key));
+        long count = n != null ? n : 1;
+        if (count > SEND_RATE_LIMIT) {
+            log.warn("用户 {} 发送消息超限，拦截", username);
+            return false;
+        }
+        return true;
+    }
 
     /**
      * 发送群聊消息
@@ -68,6 +103,16 @@ public class WebSocketChatController {
     public void sendGroupMessage(Map<String, String> payload, Principal principal) {
         String content = payload.get("content");
         String username = principal.getName();
+        String clientId = payload.get("clientId");
+
+        // 发送频率限流（每用户每分钟 30 条）
+        if (!allowSend(username)) {
+            messagingTemplate.convertAndSendToUser(
+                    username, "/queue/send-error",
+                    Map.of("type", "send_error", "message", "消息发送过于频繁，请稍后再试")
+            );
+            return;
+        }
 
         // 消息长度校验（空消息 / 超长消息直接拒绝）
         if (content == null || content.isBlank()) {
@@ -115,6 +160,11 @@ public class WebSocketChatController {
             content = filterResult.getContent();
         }
 
+        // 消息幂等：同一 clientId 只处理一次，防重连/双击重复发送（校验通过后占用）
+        if (!acquireMessageIdempotent(username, clientId)) {
+            return;
+        }
+
         // 构造消息实体
         Message message = new Message();
         message.setSenderId(sender.getId());
@@ -146,31 +196,37 @@ public class WebSocketChatController {
 
         // 检测 @小爱，触发 AI 回复（游客无权使用 AI）
         if (!"ROLE_GUEST".equals(sender.getRole()) && aiService.detectAiMention(content)) {
-            triggerAiReply(content, message.getId());
+            triggerAiReply(content, message.getId(), sender.getUsername());
         }
     }
 
     /**
      * 异步触发 AI 回复（不阻塞消息发送）
      */
-    private void triggerAiReply(String content, Long replyToId) {
-        // 使用独立线程异步执行，避免阻塞 WebSocket 消息处理
-        Thread.startVirtualThread(() -> {
+    private void triggerAiReply(String content, Long replyToId, String senderUsername) {
+        // 使用独立线程池异步执行，避免阻塞 WebSocket 消息处理
+        aiTaskExecutor.execute(() -> {
             try {
                 String userQuery = aiService.extractUserQuery(content);
-                String aiReply = aiService.getAiReply(userQuery, "group");
+                // 会话 key 按用户隔离：限流配额与上下文互不共享，防止隐私串扰
+                String aiReply = aiService.getAiReply(userQuery, "group:" + senderUsername);
 
                 // 构造 AI 消息
                 User aiUser = userMapper.findByUsername("ai_xiaoai");
                 if (aiUser == null) {
-                    // 如果 AI 用户不存在，创建一个
+                    // 并发首触发时用 INSERT IGNORE 幂等创建，避免唯一键冲突
                     aiUser = new User();
                     aiUser.setUsername("ai_xiaoai");
                     aiUser.setName("小爱");
                     aiUser.setPassword("ai-no-password");
                     aiUser.setRole("ROLE_AI");
                     aiUser.setStatus(1);
-                    userMapper.insert(aiUser);
+                    userMapper.insertIgnore(aiUser);
+                    aiUser = userMapper.findByUsername("ai_xiaoai");
+                    if (aiUser == null) {
+                        log.error("AI 用户创建失败，跳过 AI 回复");
+                        return;
+                    }
                 }
 
                 Message aiMessage = new Message();
@@ -205,6 +261,16 @@ public class WebSocketChatController {
         String content = payload.get("content");
         String receiverUsername = payload.get("receiver");
         String senderUsername = principal.getName();
+        String clientId = payload.get("clientId");
+
+        // 发送频率限流（每用户每分钟 30 条）
+        if (!allowSend(senderUsername)) {
+            messagingTemplate.convertAndSendToUser(
+                    senderUsername, "/queue/send-error",
+                    Map.of("type", "send_error", "message", "消息发送过于频繁，请稍后再试")
+            );
+            return;
+        }
 
         // 消息长度校验
         if (content == null || content.isBlank()) {
@@ -236,7 +302,24 @@ public class WebSocketChatController {
 
         // 查询接收者
         User receiver = userMapper.findByUsername(receiverUsername);
-        if (sender == null || receiver == null) return;
+        if (sender == null || receiver == null) {
+            messagingTemplate.convertAndSendToUser(
+                    senderUsername,
+                    "/queue/send-error",
+                    Map.of("type", "send_error", "message", "接收者不存在")
+            );
+            return;
+        }
+
+        // 私聊仅限好友关系（防止任意用户骚扰他人）
+        if (!friendMapper.exists(sender.getId(), receiver.getId())) {
+            messagingTemplate.convertAndSendToUser(
+                    senderUsername,
+                    "/queue/send-error",
+                    Map.of("type", "send_error", "message", "只能向好友发送私聊消息")
+            );
+            return;
+        }
 
         // 敏感词过滤
         FilterResult filterResult = sensitiveWordFilter.filter(content);
@@ -250,6 +333,11 @@ public class WebSocketChatController {
         }
         if (filterResult.isReplaced()) {
             content = filterResult.getContent();
+        }
+
+        // 消息幂等：同一 clientId 只处理一次，防重连/双击重复发送（校验通过后占用）
+        if (!acquireMessageIdempotent(senderUsername, clientId)) {
+            return;
         }
 
         // 构造消息实体
@@ -381,6 +469,21 @@ public class WebSocketChatController {
         // 普通用户从数据库获取
         User user = userMapper.findByUsername(username);
         return user != null ? user.getName() : username;
+    }
+
+    /**
+     * 消息幂等：同一 sender+clientId 只处理一次。
+     * 用 Redis SETNX（NXXX) 保证原子占用，TTL 5 分钟（超过后允许重发）。
+     * clientId 为空时视为不启用幂等（兼容旧客户端）。
+     */
+    private boolean acquireMessageIdempotent(String username, String clientId) {
+        if (clientId == null || clientId.isBlank()) {
+            return true;
+        }
+        String key = "chat:msg:idempotent:" + username + ":" + clientId;
+        Boolean first = redisTemplate.opsForValue().setIfAbsent(key, "1",
+                java.time.Duration.ofMinutes(5));
+        return Boolean.TRUE.equals(first);
     }
 
     /**

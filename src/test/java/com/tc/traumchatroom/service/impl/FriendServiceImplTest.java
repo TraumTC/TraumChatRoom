@@ -42,8 +42,6 @@ class FriendServiceImplTest {
     @Mock
     private OnlineUserService onlineUserService;
     @Mock
-    private RedisTemplate<String, String> redisTemplate;
-    @Mock
     private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
@@ -133,9 +131,6 @@ class FriendServiceImplTest {
         // 状态更新 + 双向两条插入
         verify(friendRequestMapper).updateStatus(10L, 1);
         verify(friendMapper, times(2)).insert(any());
-        // 双方好友缓存失效
-        verify(redisTemplate).delete("chat:friends:1");
-        verify(redisTemplate).delete("chat:friends:2");
         // 通知申请方
         verify(messagingTemplate).convertAndSendToUser(anyString(), anyString(), any());
     }
@@ -162,17 +157,77 @@ class FriendServiceImplTest {
         verify(friendRequestMapper, never()).updateStatus(any(), any());
     }
 
-    // ---------- 删除好友（双向 + 缓存失效） ----------
+    @Test
+    void sendRequestReversePendingRejected() {
+        User sender = user(1, "a");
+        User receiver = user(2, "b");
+        when(userMapper.findByUsername("a")).thenReturn(sender);
+        when(userMapper.findById(2)).thenReturn(receiver);
+        when(friendMapper.exists(1, 2)).thenReturn(false);
+        when(friendRequestMapper.findPendingBySenderAndReceiver(1, 2)).thenReturn(null);
+        // 对方已向我发送申请（反向 pending）
+        when(friendRequestMapper.findPendingBySenderAndReceiver(2, 1)).thenReturn(new FriendRequest());
+
+        FriendApplyRequest req = new FriendApplyRequest();
+        req.setReceiverId(2);
+
+        assertThatThrownBy(() -> friendService.sendRequest("a", req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.REQUEST_EXISTS);
+    }
 
     @Test
-    void deleteFriendRemovesBothDirectionsAndEvictsCache() {
+    void handleRequestRejectsAlreadyProcessed() {
+        User current = user(2, "b");
+        FriendRequest fr = new FriendRequest();
+        fr.setId(10L);
+        fr.setSenderId(1);
+        fr.setReceiverId(2);
+        fr.setStatus(1);   // 已同意
+
+        when(userMapper.findByUsername("b")).thenReturn(current);
+        when(friendRequestMapper.findById(10L)).thenReturn(fr);
+
+        FriendHandleRequest req = new FriendHandleRequest();
+        req.setAction("accept");
+
+        assertThatThrownBy(() -> friendService.handleRequest(10L, "b", req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void handleRequestRejectsUnknownAction() {
+        User current = user(2, "b");
+        FriendRequest fr = new FriendRequest();
+        fr.setId(10L);
+        fr.setSenderId(1);
+        fr.setReceiverId(2);
+        fr.setStatus(0);
+
+        when(userMapper.findByUsername("b")).thenReturn(current);
+        when(friendRequestMapper.findById(10L)).thenReturn(fr);
+
+        FriendHandleRequest req = new FriendHandleRequest();
+        req.setAction("unknown");
+
+        assertThatThrownBy(() -> friendService.handleRequest(10L, "b", req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    // ---------- 删除好友（双向） ----------
+
+    @Test
+    void deleteFriendRemovesBothDirections() {
         User current = user(1, "a");
         when(userMapper.findByUsername("a")).thenReturn(current);
 
         friendService.deleteFriend("a", 2);
 
         verify(friendMapper).delete(1, 2);
-        verify(redisTemplate).delete("chat:friends:1");
-        verify(redisTemplate).delete("chat:friends:2");
     }
 }

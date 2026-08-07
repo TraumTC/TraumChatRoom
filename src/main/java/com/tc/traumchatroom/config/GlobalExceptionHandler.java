@@ -4,9 +4,14 @@ import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.exception.BusinessException;
 import com.tc.traumchatroom.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -25,6 +30,22 @@ public class GlobalExceptionHandler {
                 .map(f -> f.getField() + ": " + f.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return new Result<>(400,msg,null);
+    }
+
+    /** 参数类型不匹配 / 缺少参数 / JSON 解析失败 / 绑定失败 → 400（而非 500） */
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
+            HttpMessageNotReadableException.class,
+            BindException.class})
+    public Result<?> handleBadRequest(Exception e) {
+        log.warn("请求参数错误: {}", e.getMessage());
+        return Result.error(ErrorCode.BAD_REQUEST);
+    }
+
+    /** 404：静态资源/接口不存在 */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Result<?> handleNotFound(NoResourceFoundException e) {
+        return Result.error(ErrorCode.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)

@@ -76,11 +76,29 @@ public class CacheService {
 
     /**
      * 获取用户：先查缓存，未命中查数据库并回填
+     * 双重检查 + 本地锁：冷缓存并发时只有一个线程回源，避免缓存击穿（单实例有效）
      */
     public User getUserById(Integer id) {
         if (id == null) return null;
 
         // 1. 查缓存
+        User cached = readFromCache(id);
+        if (cached != null) return cached;
+
+        // 2. 冷缓存：本地互斥回源（多实例场景建议改用 Redis 分布式锁）
+        synchronized (getLock(id)) {
+            cached = readFromCache(id);
+            if (cached != null) return cached;
+
+            User user = userMapper.findById(id);
+            if (user != null) {
+                cacheUser(user);
+            }
+            return user;
+        }
+    }
+
+    private User readFromCache(Integer id) {
         String json = redisTemplate.opsForValue().get(USER_CACHE_KEY + id);
         if (json != null) {
             try {
@@ -89,12 +107,19 @@ public class CacheService {
                 log.warn("反序列化用户缓存失败: id={}", id, e);
             }
         }
+        return null;
+    }
 
-        // 2. 缓存未命中 → 查数据库并回填
-        User user = userMapper.findById(id);
-        if (user != null) {
-            cacheUser(user);
+    /** 锁对象（按 id 哈希到固定桶，避免无谓竞争） */
+    private Object getLock(Integer id) {
+        Object[] buckets = LOCK_BUCKETS;
+        return buckets[Math.floorMod(id, buckets.length)];
+    }
+
+    private static final Object[] LOCK_BUCKETS = new Object[64];
+    static {
+        for (int i = 0; i < LOCK_BUCKETS.length; i++) {
+            LOCK_BUCKETS[i] = new Object();
         }
-        return user;
     }
 }

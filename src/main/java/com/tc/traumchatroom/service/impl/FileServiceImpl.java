@@ -46,6 +46,9 @@ public class FileServiceImpl implements FileService {
     @Resource
     private MessageHandlerFactory messageHandlerFactory;
 
+    @Resource
+    private com.tc.traumchatroom.mapper.FriendMapper friendMapper;
+
     @Value("${file.upload-dir}")
     private String uploadDir;
 
@@ -113,13 +116,18 @@ public class FileServiceImpl implements FileService {
         message.setFilePath("/api/file/download/" + newFileName);
         message.setFileSize(file.getSize());
 
-        // 9. 私聊时设置接收者
+        // 9. 私聊时设置接收者并校验好友关系
         if (StringUtils.hasText(receiver)) {
             User receiverUser = userMapper.findByUsername(receiver);
-            if (receiverUser != null) {
-                message.setReceiverId(receiverUser.getId());
-                message.setReceiverName(receiverUser.getUsername());
+            if (receiverUser == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "接收者不存在");
             }
+            // 私聊文件仅限好友关系，且不得泄露到群聊
+            if (!friendMapper.exists(sender.getId(), receiverUser.getId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "只能向好友发送私聊文件");
+            }
+            message.setReceiverId(receiverUser.getId());
+            message.setReceiverName(receiverUser.getUsername());
         }
 
         // 10. 保存消息
@@ -150,7 +158,16 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public String getFilePath(String fileName) {
-        return Paths.get(uploadDir).toAbsolutePath().normalize().resolve(fileName).toString();
+        // 路径遍历防护：normalize 后必须仍位于上传根目录内
+        Path uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+        if (fileName == null || fileName.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "文件名为空");
+        }
+        Path resolved = uploadRoot.resolve(fileName).normalize();
+        if (!resolved.startsWith(uploadRoot)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "非法文件路径");
+        }
+        return resolved.toString();
     }
 
     private String getFileExtension(String fileName) {

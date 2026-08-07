@@ -22,6 +22,9 @@ public interface UserMapper {
     /** 插入新用户（注册） */
     int insert(User user);
 
+    /** 插入用户（冲突忽略，用于 AI 用户等幂等创建） */
+    int insertIgnore(User user);
+
     /** 修改用户资料（昵称、头像） */
     int updateProfile(User user);
 
@@ -57,4 +60,7 @@ public interface UserMapper {
     List<User> searchUsers(@Param("keyword") String keyword,
                            @Param("excludeId") Integer excludeId,
                            @Param("limit") int limit);
+
+    /** 按 ID 集合批量查询用户（优化 N+1） */
+    List<User> findByIds(@Param("ids") List<Integer> ids);
 }

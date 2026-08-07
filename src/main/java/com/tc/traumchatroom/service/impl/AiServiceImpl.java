@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /**
@@ -46,6 +45,19 @@ public class AiServiceImpl implements AiService {
     // 每用户每分钟最大调用次数
     private static final int MAX_CALLS_PER_MINUTE = 3;
 
+    /** 原子限流 Lua 脚本：不存在则置 1 并设 TTL，否则自增（避免 get+increment+expire 竞态） */
+    private static final String RATE_LIMIT_LUA =
+            "local cur = redis.call('GET', KEYS[1]) " +
+            "if cur == false then " +
+            "  redis.call('SET', KEYS[1], 1, 'EX', tonumber(ARGV[2])) " +
+            "  return 1 " +
+            "end " +
+            "local n = redis.call('INCR', KEYS[1]) " +
+            "if n == 1 then " +
+            "  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2])) " +
+            "end " +
+            "return n";
+
     @Override
     public boolean detectAiMention(String content) {
         return content != null && AI_MENTION.matcher(content).find();
@@ -59,17 +71,17 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public String getAiReply(String userMessage, String sessionKey) {
-        // 1. 限流检查
+        // 1. 限流检查（原子 Lua：计数 + TTL 一次性完成）
         String rateKey = "chat:ai:rate:" + sessionKey;
-        String countStr = redisTemplate.opsForValue().get(rateKey);
-        int count = countStr != null ? Integer.parseInt(countStr) : 0;
-        if (count >= MAX_CALLS_PER_MINUTE) {
+        Long count = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(RATE_LIMIT_LUA, Long.class),
+                List.of(rateKey),
+                String.valueOf(MAX_CALLS_PER_MINUTE), "60"
+        );
+        long current = count != null ? count : 1;
+        if (current > MAX_CALLS_PER_MINUTE) {
             return "小爱正在思考中，请稍后再试~";
         }
-
-        // 2. 记录调用次数
-        redisTemplate.opsForValue().increment(rateKey);
-        redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);
 
         try {
             // 3. 获取最近上下文（最近 5 轮对话）

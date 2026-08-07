@@ -50,22 +50,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 从 Token 中解析用户名
             String username = jwtUtil.getUsernameFromToken(token);
 
-            // 加载用户详情（包含密码和权限）
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            try {
+                // 加载用户详情（包含密码和权限）
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-            // 创建认证令牌（第三个参数是权限列表）
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,  // 密码不需要（已通过 Token 认证）
-                            userDetails.getAuthorities()
-                    );
+                // 创建认证令牌（第三个参数是权限列表）
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,  // 密码不需要（已通过 Token 认证）
+                                userDetails.getAuthorities()
+                        );
 
-            // 设置请求详情（IP、Session 等）
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // 设置请求详情（IP、Session 等）
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            // 4. 存入 SecurityContext（后续通过 SecurityContextHolder.getContext().getAuthentication() 获取）
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                // 4. 存入 SecurityContext（后续通过 SecurityContextHolder.getContext().getAuthentication() 获取）
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+                // 用户不存在（游客过期 / 被删除）：清空认证态，让 Security 返回 401 而非 500
+                SecurityContextHolder.clearContext();
+            }
         }
 
         // 5. 继续执行后续过滤器
