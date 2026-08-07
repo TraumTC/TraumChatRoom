@@ -3,6 +3,7 @@
   <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
     <div class="max-w-6xl w-full mx-auto p-6">
+      <AdminTabs />
       <h1 class="text-lg font-semibold mb-6" style="color: var(--color-ink)">用户管理</h1>
 
       <!-- 工具栏 -->
@@ -35,6 +36,7 @@ import { adminApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { formatTime } from '@/utils/format'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AdminTabs from '@/components/admin/AdminTabs.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const authStore = useAuthStore()

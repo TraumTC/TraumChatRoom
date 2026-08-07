@@ -7,9 +7,12 @@
     </span>
   </div>
 
-  <!-- 正常消息（右键菜单由 NDropdown 处理） -->
-  <n-dropdown v-else trigger="contextmenu" :options="menuOptions" @select="handleMenuSelect">
-    <div class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''">
+  <!-- 正常消息（右键菜单：NDropdown manual 模式，手动定位） -->
+  <n-dropdown v-else trigger="manual" :show="menuVisible" :x="menuX" :y="menuY"
+              :options="menuOptions" @select="handleMenuSelect"
+              @update:show="(v) => { if (!v) menuVisible = false }">
+    <div class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
+         @contextmenu.prevent="openMenu">
     <!-- 头像 -->
     <UserAvatar :user="message.sender" size="md" class="mt-1" />
 
@@ -100,6 +103,9 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 
 const showPreview = ref(false)
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
 
 const isSelf = computed(() => {
   const myId = authStore.user?.id
@@ -185,6 +191,12 @@ const menuOptions = computed(() => {
   }
   return options
 })
+
+function openMenu(e) {
+  menuX.value = e.clientX
+  menuY.value = e.clientY
+  menuVisible.value = true
+}
 
 function handleMenuSelect(key) {
   if (key === 'quote') handleQuote()

@@ -5,7 +5,7 @@
       <span class="text-xs font-medium" style="color: var(--color-ink-faint)">好友</span>
       <div class="flex gap-1">
         <n-button quaternary circle size="small" @click="showRequests = true" aria-label="好友申请">
-          <template #icon><AppIcon name="user-plus" :size="15" /></template>
+          <template #icon><AppIcon name="bell" :size="15" /></template>
           <template v-if="pendingCount > 0">
             <span class="absolute top-0 right-0 w-2 h-2 rounded-full" style="background: var(--color-alarm)"></span>
           </template>

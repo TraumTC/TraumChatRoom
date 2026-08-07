@@ -3,6 +3,7 @@
   <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
     <div class="max-w-4xl w-full mx-auto p-6">
+      <AdminTabs />
       <div class="flex items-center justify-between mb-6">
         <h1 class="text-lg font-semibold" style="color: var(--color-ink)">敏感词管理</h1>
         <n-button type="primary" @click="openAdd">
@@ -45,6 +46,7 @@ import { ref, h, onMounted } from 'vue'
 import { adminApi } from '@/api/admin'
 import { useChatStore } from '@/stores/chat'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AdminTabs from '@/components/admin/AdminTabs.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const chatStore = useChatStore()

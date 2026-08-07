@@ -2,12 +2,12 @@
 <template>
   <n-modal v-model:show="visible" preset="card" title="好友申请"
            class="max-w-md" :style="{ width: '90%', maxWidth: '28rem' }" @close="$emit('close')">
-    <!-- 分类切换 -->
-    <div class="flex gap-4 mb-3">
-      <button :class="['pb-2 text-sm transition-colors', type === 'received' ? 'is-active' : '']"
+    <!-- 分类切换（与私聊标签条一致的 tab 风格） -->
+    <div class="flex gap-1 mb-3" style="border-bottom: 1px solid var(--color-border)">
+      <button :class="['px-3 py-1.5 text-sm transition-colors', type === 'received' ? 'is-active' : '']"
               :style="type === 'received' ? 'color: var(--color-signal)' : 'color: var(--color-ink-faint)'"
               @click="switchType('received')">收到的申请</button>
-      <button :class="['pb-2 text-sm transition-colors', type === 'sent' ? 'is-active' : '']"
+      <button :class="['px-3 py-1.5 text-sm transition-colors', type === 'sent' ? 'is-active' : '']"
               :style="type === 'sent' ? 'color: var(--color-signal)' : 'color: var(--color-ink-faint)'"
               @click="switchType('sent')">发出的申请</button>
     </div>
