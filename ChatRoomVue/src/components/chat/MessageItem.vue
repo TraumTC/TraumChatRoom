@@ -1,4 +1,4 @@
-<!-- src/components/chat/MessageItem.vue — 单条消息（亮色气泡） -->
+<!-- src/components/chat/MessageItem.vue — 单条消息（亮色气泡 + 自绘右键菜单） -->
 <template>
   <!-- 撤回消息：居中提示 -->
   <div v-if="message.recalled" class="flex justify-center py-1 px-4 msg-enter">
@@ -7,12 +7,9 @@
     </span>
   </div>
 
-  <!-- 正常消息（右键菜单：NDropdown manual 模式，手动定位） -->
-  <n-dropdown v-else trigger="manual" :show="menuVisible" :x="menuX" :y="menuY"
-              :options="menuOptions" @select="handleMenuSelect"
-              @update:show="(v) => { if (!v) menuVisible = false }">
-    <div class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
-         @contextmenu.prevent="openMenu">
+  <!-- 正常消息（纯 flex 行，避免组件包裹破坏布局） -->
+  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
+       @contextmenu.prevent="openMenu">
     <!-- 头像 -->
     <UserAvatar :user="message.sender" size="md" class="mt-1" />
 
@@ -84,12 +81,28 @@
     <!-- 图片预览 -->
     <ImagePreview :visible="showPreview" :src="message.filePath"
                   :fileName="message.fileName" @close="showPreview = false" />
-    </div>
-  </n-dropdown>
+  </div>
+
+  <!-- 自绘右键菜单 -->
+  <Teleport to="body">
+    <template v-if="menuVisible">
+      <div class="fixed inset-0 z-40" @click="closeMenu"></div>
+      <div class="fixed rounded-lg py-1.5 z-50 shadow-xl" :style="menuStyle"
+           style="background: var(--color-card); border: 1px solid var(--color-border); min-width: 130px">
+        <button v-for="item in menuItems" :key="item.key"
+                class="w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors hover:bg-white/5"
+                :style="item.key === 'recall' ? 'color: var(--color-alarm)' : 'color: var(--color-ink)'"
+                @click="handleMenu(item.key)">
+          <AppIcon :name="item.icon" :size="15" />
+          {{ item.label }}
+        </button>
+      </div>
+    </template>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, h } from 'vue'
+import { ref, computed } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import ImagePreview from '@/components/common/ImagePreview.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -139,6 +152,74 @@ const safeContent = computed(() => {
   return highlightMentions(props.message.content, isSelf.value)
 })
 
+// 右键菜单项（动态生成）
+const menuItems = computed(() => {
+  const items = [
+    { key: 'quote', label: '引用', icon: 'corner-up-left' }
+  ]
+  if (hasFile.value) {
+    items.push({ key: 'download', label: '下载', icon: 'download' })
+  }
+  if (canRecall.value) {
+    items.push({ key: 'recall', label: '撤回', icon: 'rotate-ccw' })
+  }
+  return items
+})
+
+// 菜单定位（防越出视口右侧/底部）
+const menuStyle = computed(() => {
+  const style = { left: menuX.value + 'px', top: menuY.value + 'px' }
+  const w = 140
+  const h = menuItems.value.length * 38 + 10
+  if (menuX.value + w > window.innerWidth) style.left = (window.innerWidth - w - 8) + 'px'
+  if (menuY.value + h > window.innerHeight) style.top = (window.innerHeight - h - 8) + 'px'
+  return style
+})
+
+function openMenu(e) {
+  menuX.value = e.clientX
+  menuY.value = e.clientY
+  menuVisible.value = true
+}
+
+function closeMenu() {
+  menuVisible.value = false
+}
+
+function handleMenu(key) {
+  closeMenu()
+  if (key === 'quote') chatStore.setReplyTo(props.message)
+  else if (key === 'download') {
+    const a = document.createElement('a')
+    a.href = props.message.filePath + '?name=' + encodeURIComponent(props.message.fileName || '')
+    a.download = ''
+    a.click()
+  } else if (key === 'recall') handleRecall()
+}
+
+async function handleRecall() {
+  const dialog = window.$dialog
+  if (dialog) {
+    dialog.warning({
+      title: '撤回消息',
+      content: '确定要撤回这条消息吗？',
+      positiveText: '撤回',
+      negativeText: '取消',
+      onPositiveClick: () => doRecall()
+    })
+  } else {
+    doRecall()
+  }
+}
+
+async function doRecall() {
+  try {
+    await messageApi.recall(props.message.id)
+  } catch (e) {
+    window.$message?.error(e.response?.data?.message || '撤回失败')
+  }
+}
+
 function escapeHtml(str) {
   if (!str) return ''
   return str
@@ -164,77 +245,6 @@ function isVideo(fileName) {
   const ext = fileName.split('.').pop().toLowerCase()
   return ['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)
 }
-
-// NDropdown 菜单项（带图标，动态生成）
-const menuOptions = computed(() => {
-  const options = [
-    {
-      label: '引用',
-      key: 'quote',
-      icon: () => h(AppIcon, { name: 'corner-up-left', size: 15 })
-    }
-  ]
-  if (hasFile.value) {
-    options.push({
-      label: '下载',
-      key: 'download',
-      icon: () => h(AppIcon, { name: 'download', size: 15 })
-    })
-  }
-  if (canRecall.value) {
-    options.push({
-      label: '撤回',
-      key: 'recall',
-      icon: () => h(AppIcon, { name: 'rotate-ccw', size: 15 }),
-      props: { style: 'color: var(--color-alarm)' }
-    })
-  }
-  return options
-})
-
-function openMenu(e) {
-  menuX.value = e.clientX
-  menuY.value = e.clientY
-  menuVisible.value = true
-}
-
-function handleMenuSelect(key) {
-  if (key === 'quote') handleQuote()
-  else if (key === 'download') {
-    // 触发下载链接
-    const a = document.createElement('a')
-    a.href = props.message.filePath + '?name=' + encodeURIComponent(props.message.fileName || '')
-    a.download = ''
-    a.click()
-  } else if (key === 'recall') handleRecall()
-}
-
-function handleQuote() {
-  chatStore.setReplyTo(props.message)
-}
-
-async function handleRecall() {
-  const dialog = window.$dialog
-  if (dialog) {
-    dialog.warning({
-      title: '撤回消息',
-      content: '确定要撤回这条消息吗？',
-      positiveText: '撤回',
-      negativeText: '取消',
-      onPositiveClick: () => doRecall()
-    })
-  } else {
-    doRecall()
-  }
-}
-
-async function doRecall() {
-  try {
-    await messageApi.recall(props.message.id)
-  } catch (e) {
-    window.$message?.error(e.response?.data?.message || '撤回失败')
-  }
-}
 </script>
 
 <style scoped>
@@ -248,4 +258,3 @@ async function doRecall() {
   border: 1px solid var(--color-border);
 }
 </style>
-

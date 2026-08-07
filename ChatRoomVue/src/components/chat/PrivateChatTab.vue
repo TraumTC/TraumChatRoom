@@ -1,24 +1,20 @@
-<!-- src/components/chat/PrivateChatTab.vue — 私聊标签条（亮色） -->
+<!-- src/components/chat/PrivateChatTab.vue — 私聊标签条（NTabs line 现代化） -->
 <template>
-  <div class="h-10 px-2 flex items-center gap-1 overflow-x-auto"
-       style="background: var(--color-ghost); border-bottom: 1px solid var(--color-border)">
-    <button v-for="tab in privateTabs" :key="tab.username"
-            @click="selectTab(tab)"
-            @auxclick.prevent="closeTab(tab)"
-            class="px-3 py-1.5 text-sm rounded-t whitespace-nowrap shrink-0 transition-colors"
-            :class="isActive(tab) ? 'is-active' : ''"
-            :style="isActive(tab) ? 'color: var(--color-signal)' : 'color: var(--color-ink-soft)'">
-      {{ tab.name }}
-      <span v-if="getUnread(tab.username) > 0"
-            class="ml-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] leading-none inline-flex items-center justify-center tabular"
-            style="background: var(--color-alarm)">
-        {{ getUnread(tab.username) }}
-      </span>
-      <span @click.stop.prevent="closeTab(tab)" class="ml-1 cursor-pointer"
-            style="color: var(--color-ink-faint)">×</span>
-    </button>
-
-    <span v-if="privateTabs.length === 0" class="text-xs px-2" style="color: var(--color-ink-faint)">
+  <div class="px-2" style="background: var(--color-ghost); border-bottom: 1px solid var(--color-border)">
+    <n-tabs v-model:value="activeKey" type="line" size="small" :animated="false"
+            @update:value="onTabChange">
+      <n-tab v-for="tab in privateTabs" :key="tab.username" :name="tab.username">
+        <span class="inline-flex items-center gap-1.5">
+          {{ tab.name }}
+          <n-badge v-if="getUnread(tab.username) > 0" :value="getUnread(tab.username)" type="error" />
+          <button class="ml-0.5 rounded-full transition-colors" style="color: var(--color-ink-faint)"
+                  @click.stop="closeTab(tab)" aria-label="关闭标签">
+            <AppIcon name="x" :size="12" />
+          </button>
+        </span>
+      </n-tab>
+    </n-tabs>
+    <span v-if="privateTabs.length === 0" class="text-xs py-2 inline-block" style="color: var(--color-ink-faint)">
       点击在线用户或好友开始私聊
     </span>
   </div>
@@ -26,26 +22,30 @@
 
 <script setup>
 import { computed } from 'vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
 
 const privateTabs = computed(() => chatStore.privateTabs || [])
 
-function isActive(tab) {
-  return chatStore.currentPrivateChat?.username === tab.username
-}
+// 激活标签 = 当前私聊会话 username
+const activeKey = computed({
+  get: () => chatStore.currentPrivateChat?.username || null,
+  set: () => {}
+})
 
 function getUnread(username) {
   return chatStore.unreadCounts[username] || 0
 }
 
-function selectTab(tab) {
-  chatStore.openPrivateChat(tab)
+function onTabChange(username) {
+  const tab = privateTabs.value.find(t => t.username === username)
+  if (tab) chatStore.openPrivateChat(tab)
 }
 
 function closeTab(tab) {
-  const wasActive = isActive(tab)
+  const wasActive = chatStore.currentPrivateChat?.username === tab.username
   chatStore.closePrivateTab(tab.username)
   if (wasActive) {
     if (privateTabs.value.length > 0) {
@@ -56,9 +56,3 @@ function closeTab(tab) {
   }
 }
 </script>
-
-<style scoped>
-.is-active {
-  border-bottom: 2px solid var(--color-signal);
-}
-</style>
