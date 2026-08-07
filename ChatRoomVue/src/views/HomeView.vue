@@ -5,7 +5,7 @@
     <header class="flex items-center justify-between px-6 h-14 shrink-0"
             style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
       <div class="text-base font-semibold" style="color: var(--color-ink)">
-        Traum<span style="color: var(--color-signal)">Chat</span>
+        Traum<span style="color: var(--color-signal)">Space</span>
       </div>
       <div class="flex items-center gap-2">
         <n-button type="primary" size="small" @click="router.push('/login')">
@@ -21,7 +21,7 @@
         <!-- 品牌区 -->
         <div class="text-center mb-10">
           <h1 class="text-3xl font-bold" style="color: var(--color-ink)">
-            Traum<span style="color: var(--color-signal)">Chat</span>
+            Traum<span style="color: var(--color-signal)">Space</span>
           </h1>
           <p class="text-base mt-3" style="color: var(--color-ink-soft)">一个在线聊天室：群聊 · 私聊 · AI 助手 · 好友</p>
         </div>

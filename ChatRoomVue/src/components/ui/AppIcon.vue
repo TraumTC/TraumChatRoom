@@ -13,8 +13,17 @@ const props = defineProps({
   className: { type: String, default: '' }
 })
 
+// kebab-case → PascalCase：file-text → FileText、log-out → LogOut
+function toPascalCase(name) {
+  return name
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('')
+}
+
 const iconComponent = computed(() => {
-  const key = props.name.charAt(0).toUpperCase() + props.name.slice(1)
-  return Icons[key] || Icons.Circle
+  const key = toPascalCase(props.name)
+  // 优先 PascalCase（Lucide 标准导出），兜底原始 kebab 键（部分库内联别名），最后回退 Circle
+  return Icons[key] || Icons[props.name] || Icons.Circle
 })
 </script>

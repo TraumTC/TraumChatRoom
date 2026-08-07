@@ -2,12 +2,11 @@
 <template>
   <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-10"
           style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
-    <!-- 左侧：品牌（电台呼号） -->
+    <!-- 左侧：品牌 -->
     <RouterLink :to="authStore.isGuest ? '/' : '/chat'"
-                class="flex items-center gap-2 text-base font-semibold tracking-wide transition-opacity hover:opacity-80"
+                class="text-base font-semibold tracking-wide transition-opacity hover:opacity-80"
                 style="color: var(--color-ink)">
-      <span class="signal-dot signal-dot--blue"></span>
-      <span>Traum<span style="color: var(--color-signal)">Chat</span></span>
+      Traum<span style="color: var(--color-signal)">Space</span>
     </RouterLink>
 
     <!-- 右侧 -->
