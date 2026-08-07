@@ -44,12 +44,12 @@
     </div>
 
     <!-- 申请弹窗 -->
-    <FriendRequest v-if="showRequests" @close="showRequests = false" @changed="loadFriends" />
+    <FriendRequest v-if="showRequests" @close="showRequests = false" @changed="onRequestChanged" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import FriendItem from './FriendItem.vue'
 import FriendRequest from './FriendRequest.vue'
 import { friendApi } from '@/api/friend'
@@ -61,7 +61,9 @@ const chatStore = useChatStore()
 const friends = ref([])
 const loading = ref(false)
 const showRequests = ref(false)
-const pendingCount = ref(0)
+
+// 使用 store 中的计数（WebSocket 实时更新）
+const pendingCount = computed(() => chatStore.friendRequestCount)
 
 async function loadFriends() {
   loading.value = true
@@ -79,17 +81,19 @@ async function loadPendingCount() {
   try {
     const res = await friendApi.getRequests({ type: 'received', status: 'pending' })
     if (res.data.code === 200) {
-      pendingCount.value = res.data.data.total
+      chatStore.setFriendRequestCount(res.data.data.total)
     }
   } catch (e) { /* 忽略 */ }
+}
+
+// 处理完申请后刷新计数
+function onRequestChanged() {
+  loadPendingCount()
+  loadFriends()
 }
 
 onMounted(() => {
   loadFriends()
   loadPendingCount()
-})
-
-onUnmounted(() => {
-  // 清理
 })
 </script>

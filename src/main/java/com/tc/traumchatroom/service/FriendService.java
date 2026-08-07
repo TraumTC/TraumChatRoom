@@ -50,4 +50,9 @@ public interface FriendService {
      * 删除好友
      */
     void deleteFriend(String username, Integer friendId);
+
+    /**
+     * 删除好友申请记录
+     */
+    void deleteRequest(Long requestId, String currentUsername);
 }

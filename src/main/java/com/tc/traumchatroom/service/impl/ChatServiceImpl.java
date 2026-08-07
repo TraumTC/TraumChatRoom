@@ -12,11 +12,13 @@ import com.tc.traumchatroom.service.CacheService;
 import com.tc.traumchatroom.service.ChatService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,6 +33,9 @@ public class ChatServiceImpl implements ChatService {
 
     @Resource
     private CacheService cacheService;
+
+    @Resource
+    private SimpMessagingTemplate messagingTemplate;
 
     // ---------- 群聊历史 ----------
 
@@ -135,6 +140,23 @@ public class ChatServiceImpl implements ChatService {
         // 5. 执行撤回
         String recalledContent = message.getSenderName() + " 撤回了一条消息";
         messageMapper.updateRecall(messageId, recalledContent, message.getContent());
+
+        // 6. 广播撤回通知（群聊广播到 /topic/messages，私聊推送给双方）
+        Object recallNotice = Map.of(
+                "type", "message_recalled",
+                "messageId", messageId,
+                "senderName", message.getSenderName(),
+                "recalledAt", LocalDateTime.now().toString()
+        );
+
+        if (message.getReceiverId() != null) {
+            // 私聊：推送给接收者和发送者
+            messagingTemplate.convertAndSendToUser(message.getReceiverName(), "/queue/message-recalled", recallNotice);
+            messagingTemplate.convertAndSendToUser(currentUsername, "/queue/message-recalled", recallNotice);
+        } else {
+            // 群聊：广播给所有人
+            messagingTemplate.convertAndSend("/topic/messages", recallNotice);
+        }
 
         log.info("用户 {} 撤回消息 {}", currentUsername, messageId);
     }

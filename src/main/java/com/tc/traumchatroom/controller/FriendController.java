@@ -104,6 +104,17 @@ public class FriendController {
     }
 
     /**
+     * 删除好友申请记录
+     * DELETE /api/friend/requests/{id}
+     */
+    @DeleteMapping("/api/friend/requests/{id}")
+    public Result<Void> deleteRequest(@PathVariable Long id) {
+        String username = getCurrentUsername();
+        friendService.deleteRequest(id, username);
+        return Result.success();
+    }
+
+    /**
      * 删除好友
      * DELETE /api/friends/{friendId}
      */

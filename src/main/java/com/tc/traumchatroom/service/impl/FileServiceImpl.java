@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -122,9 +123,10 @@ public class FileServiceImpl implements FileService {
         }
 
         // 10. 保存消息
+        message.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(message);
 
-        // 10. 构造响应
+        // 11. 构造响应
         MessageResponse msgResponse = toMessageResponse(message, sender);
 
         // 11. 广播消息

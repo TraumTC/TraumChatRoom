@@ -15,6 +15,7 @@ import com.tc.traumchatroom.service.SensitiveWordFilter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -42,6 +43,9 @@ public class AdminController {
 
     @Resource
     private UserMapper userMapper;
+
+    @Resource
+    private PasswordEncoder passwordEncoder;
 
     /**
      * 获取敏感词列表（分页）
@@ -250,6 +254,15 @@ public class AdminController {
         Integer status = (Integer) body.get("status");
         if (status != null) {
             user.setStatus(status);
+        }
+
+        // 重置密码
+        String password = (String) body.get("password");
+        if (password != null && !password.isBlank()) {
+            if (password.length() < 6 || password.length() > 20) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "密码长度需6-20位");
+            }
+            userMapper.updatePassword(id, passwordEncoder.encode(password));
         }
 
         userMapper.updateProfile(user);

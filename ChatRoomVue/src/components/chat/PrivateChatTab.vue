@@ -12,7 +12,7 @@
             class="ml-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-none inline-flex items-center justify-center">
         {{ getUnread(tab.name) }}
       </span>
-      <span class="ml-1 text-gray-300 hover:text-red-500">×</span>
+      <span @click.stop.prevent="closeTab(tab)" class="ml-1 text-gray-300 hover:text-red-500 cursor-pointer">×</span>
     </button>
 
     <!-- 无标签提示 -->
@@ -44,10 +44,15 @@ function selectTab(tab) {
 }
 
 function closeTab(tab) {
+  const wasActive = isActive(tab)
   chatStore.closePrivateTab(tab.name)
-  // 如果关闭的是当前标签，切换回群聊
-  if (isActive(tab)) {
-    chatStore.openGroupChat()
+  if (wasActive) {
+    if (privateTabs.value.length > 0) {
+      // 切到最后一个标签
+      chatStore.openPrivateChat(privateTabs.value[privateTabs.value.length - 1])
+    } else {
+      chatStore.openGroupChat()
+    }
   }
 }
 </script>

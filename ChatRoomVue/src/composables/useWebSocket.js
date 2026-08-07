@@ -1,35 +1,44 @@
-// src/composables/useWebSocket.js — STOMP 连接管理
+// src/composables/useWebSocket.js — STOMP 连接管理（模块级单例）
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client/dist/sockjs'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
 
+// 模块级变量：所有 useWebSocket() 调用共享同一个连接
+let stompClient = null
+
 export function useWebSocket() {
   const authStore = useAuthStore()
   const chatStore = useChatStore()
   const wsStore = useWebSocketStore()
-  let stompClient = null
 
   function connect() {
-    if (wsStore.connecting || wsStore.connected) return
+    // 已连接 → 跳过
+    if (wsStore.connected && stompClient?.connected) return
+
+    // 正在连接 → 跳过
+    if (wsStore.connecting) return
+
+    // 已有实例但断开 → 重新激活
+    if (stompClient && !stompClient.connected) {
+      wsStore.connecting = true
+      stompClient.activate()
+      return
+    }
+
+    // 首次连接
     wsStore.connecting = true
 
     const token = authStore.accessToken
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
-    // SockJS 不支持自定义 HTTP header，token 通过 URL 参数传递（后端握手拦截器从 URL 提取）
     const wsUrl = token ? `${baseUrl}/ws?token=${encodeURIComponent(token)}` : `${baseUrl}/ws`
 
     stompClient = new Client({
-      // SockJS 连接（支持降级）
       webSocketFactory: () => new SockJS(wsUrl),
-      // STOMP 层也带一份（双重保障）
       connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
-      // 心跳
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
-      // 自动重连
       reconnectDelay: 5000,
       maxReconnectAttempts: 10,
 
@@ -39,18 +48,19 @@ export function useWebSocket() {
         wsStore.connecting = false
         wsStore.reconnectCount = 0
         subscribeAll()
-        // 重连后同步在线状态
         syncState()
       },
 
       onStompError: (frame) => {
         console.error('STOMP 错误:', frame.headers['message'])
         wsStore.error = frame.headers['message']
+        wsStore.connecting = false
       },
 
       onWebSocketError: (e) => {
         console.error('WebSocket 连接错误:', e)
         wsStore.error = 'WebSocket 连接失败'
+        wsStore.connecting = false
       },
 
       onDisconnect: () => {
@@ -64,36 +74,34 @@ export function useWebSocket() {
 
   // 订阅所有频道
   function subscribeAll() {
-    // 群聊消息
     stompClient.subscribe('/topic/messages', (msg) => {
       const data = JSON.parse(msg.body)
-      chatStore.addMessage(data)
+      // 群聊撤回通知（后端广播到同一频道，用 type 区分）
+      if (data.type === 'message_recalled') {
+        chatStore.handleMessageRecalled(data)
+      } else {
+        chatStore.addMessage(data)
+      }
     })
 
-    // 在线用户列表
     stompClient.subscribe('/topic/onlineUsers', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.setOnlineUsers(data.onlineUsers || [])
     })
 
-    // 私聊消息
     stompClient.subscribe('/user/queue/private-messages', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.addPrivateMessage(data)
     })
 
-    // 上下线通知
     stompClient.subscribe('/topic/private-notifications', (msg) => {
       const data = JSON.parse(msg.body)
-      chatStore.addNotification({
-        type: 'info',
-        message: data.message
-      })
+      chatStore.addNotification({ type: 'info', message: data.message })
     })
 
-    // 好友申请通知
     stompClient.subscribe('/user/queue/friend-request', (msg) => {
       const data = JSON.parse(msg.body)
+      chatStore.incrementFriendRequestCount()
       chatStore.addNotification({
         type: 'friend_request',
         message: `${data.sender?.name} 请求添加你为好友`,
@@ -101,7 +109,6 @@ export function useWebSocket() {
       })
     })
 
-    // 好友同意通知
     stompClient.subscribe('/user/queue/friend-accepted', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.addNotification({
@@ -111,21 +118,16 @@ export function useWebSocket() {
       })
     })
 
-    // 消息撤回通知
     stompClient.subscribe('/user/queue/message-recalled', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.handleMessageRecalled(data)
     })
 
-    // 发送错误通知（敏感词拦截等）
     stompClient.subscribe('/user/queue/send-error', (msg) => {
       const data = JSON.parse(msg.body)
       console.error('发送失败:', data.message)
       chatStore.setError(data.message)
-      chatStore.addNotification({
-        type: 'error',
-        message: data.message || '发送失败'
-      })
+      chatStore.addNotification({ type: 'error', message: data.message || '发送失败' })
     })
   }
 
@@ -133,12 +135,15 @@ export function useWebSocket() {
   function sendGroupMessage(content) {
     if (!stompClient || !stompClient.connected) {
       chatStore.setError('连接已断开，正在重连...')
+      connect()
       return false
     }
+    const replyToId = chatStore.replyTo?.id || null
     stompClient.publish({
       destination: '/app/space',
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content, replyToId: replyToId ? String(replyToId) : null })
     })
+    chatStore.clearReplyTo()
     return true
   }
 
@@ -146,12 +151,30 @@ export function useWebSocket() {
   function sendPrivateMessage(receiver, content) {
     if (!stompClient || !stompClient.connected) {
       chatStore.setError('连接已断开，正在重连...')
+      connect()
       return false
     }
+    const replyToId = chatStore.replyTo?.id || null
+
+    // 乐观更新：立即在本地显示自己发的消息（不依赖后端回传）
+    const localMsg = {
+      id: -Date.now(),  // 负数临时 ID，不会与数据库 ID 冲突
+      sender: { id: authStore.user?.id, name: authStore.user?.name, avatar: authStore.user?.avatar },
+      receiver: { id: null, name: chatStore.currentChat.name || receiver },
+      content,
+      messageType: 'text',
+      aiReply: false,
+      recalled: false,
+      replyToId: replyToId || null,
+      createdAt: new Date().toISOString()
+    }
+    chatStore.addPrivateMessage(localMsg)
+
     stompClient.publish({
       destination: '/app/private.message',
-      body: JSON.stringify({ receiver, content })
+      body: JSON.stringify({ receiver, content, replyToId: replyToId ? String(replyToId) : null })
     })
+    chatStore.clearReplyTo()
     return true
   }
 
@@ -161,7 +184,7 @@ export function useWebSocket() {
     stompClient.publish({ destination: '/app/heartbeat' })
   }
 
-  // 同步状态（触发服务端广播在线用户列表）
+  // 同步状态
   function syncState() {
     if (!stompClient || !stompClient.connected) return
     stompClient.publish({ destination: '/app/sync-state', body: '{}' })
@@ -171,7 +194,9 @@ export function useWebSocket() {
   function disconnect() {
     if (stompClient) {
       stompClient.deactivate()
+      stompClient = null
       wsStore.connected = false
+      wsStore.connecting = false
     }
   }
 

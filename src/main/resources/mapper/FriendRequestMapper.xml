@@ -76,4 +76,9 @@
         WHERE sender_id = #{senderId} AND receiver_id = #{receiverId} AND status = 0
     </select>
 
+    <!-- 删除申请记录 -->
+    <delete id="deleteById">
+        DELETE FROM friend_request WHERE id = #{id}
+    </delete>
+
 </mapper>

@@ -3,33 +3,44 @@
   <div class="min-h-screen bg-gray-50">
     <AppHeader />
 
-    <div class="max-w-md mx-auto p-8">
-      <h1 class="text-xl font-bold text-gray-900 mb-6">个人中心</h1>
+    <div class="max-w-lg mx-auto p-8">
+      <!-- 返回链接 -->
+      <RouterLink to="/chat" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-6 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        返回聊天
+      </RouterLink>
 
-      <div class="bg-white rounded-lg shadow-sm p-6">
+      <div class="bg-white rounded-lg shadow-sm">
         <!-- 头像区 -->
-        <div class="flex flex-col items-center mb-6">
-          <div class="relative mb-3">
+        <div class="flex flex-col items-center py-8 border-b border-gray-100">
+          <div class="relative cursor-pointer group mb-3" title="点击查看头像"
+               @click="showAvatarPreview = true">
             <UserAvatar :user="authStore.user" size="lg" />
-            <!-- 上传头像按钮 -->
-            <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center cursor-pointer hover:bg-blue-600"
-                   aria-label="更换头像">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-              <input type="file" class="hidden" accept="image/*" @change="handleAvatarUpload" />
-            </label>
+            </div>
           </div>
-          <button v-if="authStore.user?.avatar" @click="handleAvatarDelete"
-                  class="text-xs text-gray-400 hover:text-red-500">
-            删除头像
-          </button>
+          <p class="text-xs text-gray-400">点击头像预览或更换</p>
+
+          <!-- 头像预览模态框 -->
+          <AvatarPreview :visible="showAvatarPreview"
+                         :user="authStore.user"
+                         @close="showAvatarPreview = false"
+                         @change="handleAvatarChange"
+                         @delete="handleAvatarDelete" />
         </div>
 
-        <!-- 信息 -->
-        <div class="space-y-4">
+        <!-- 基本信息 -->
+        <div class="p-6 space-y-4">
+          <h2 class="text-sm font-medium text-gray-900">基本信息</h2>
+
           <div>
             <label class="block text-sm text-gray-600 mb-1">用户名</label>
             <input :value="authStore.user?.username" disabled
@@ -48,30 +59,29 @@
                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-gray-500" />
           </div>
 
-          <!-- 修改昵称 -->
           <button @click="handleSaveProfile"
-                  class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+                  class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition-colors">
             保存昵称
           </button>
         </div>
 
         <!-- 修改密码 -->
-        <div class="mt-8 pt-6 border-t border-gray-100">
-          <h2 class="text-sm font-medium text-gray-900 mb-4">修改密码</h2>
+        <div class="p-6 border-t border-gray-100 space-y-4">
+          <h2 class="text-sm font-medium text-gray-900">修改密码</h2>
           <div class="space-y-3">
             <input v-model="oldPassword" type="password" placeholder="当前密码"
                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
             <input v-model="newPassword" type="password" placeholder="新密码（6-20位，含字母和数字）"
                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
             <button @click="handleChangePassword"
-                    class="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded hover:bg-gray-50">
+                    class="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-50 transition-colors">
               修改密码
             </button>
           </div>
         </div>
 
         <!-- 错误提示 -->
-        <div v-if="error" class="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded">
+        <div v-if="error" class="mx-6 mb-6 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-md">
           {{ error }}
         </div>
       </div>
@@ -86,6 +96,7 @@ import { useAuthStore } from '@/stores/auth'
 import { userApi } from '@/api/user'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
+import AvatarPreview from '@/components/user/AvatarPreview.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -94,6 +105,7 @@ const name = ref('')
 const oldPassword = ref('')
 const newPassword = ref('')
 const error = ref('')
+const showAvatarPreview = ref(false)
 
 const roleName = computed(() => {
   return { ROLE_ADMIN: '管理员', ROLE_GUEST: '游客', ROLE_USER: '普通用户' }[authStore.user?.role] || ''
@@ -107,7 +119,6 @@ async function handleSaveProfile() {
   try {
     const res = await userApi.updateProfile({ name: name.value.trim() })
     if (res.data.code === 200) {
-      // 更新本地用户信息
       authStore.user.name = name.value
       authStore.user = { ...authStore.user }
     } else {
@@ -142,7 +153,7 @@ async function handleChangePassword() {
     if (res.data.code === 200) {
       alert('密码修改成功，请重新登录')
       await authStore.logout()
-      router.push('/login')
+      router.push('/')
     } else {
       error.value = res.data.message
     }
@@ -151,15 +162,11 @@ async function handleChangePassword() {
   }
 }
 
-// 上传头像
-async function handleAvatarUpload(e) {
-  const file = e.target.files[0]
-  if (!file) return
+// 更换头像（从 AvatarPreview 模态框触发）
+async function handleAvatarChange(file) {
   error.value = ''
-
   const formData = new FormData()
   formData.append('file', file)
-
   try {
     const res = await userApi.uploadAvatar(formData)
     if (res.data.code === 200) {
@@ -171,7 +178,6 @@ async function handleAvatarUpload(e) {
   } catch (err) {
     error.value = err.response?.data?.message || '头像上传失败'
   }
-  e.target.value = ''
 }
 
 // 删除头像

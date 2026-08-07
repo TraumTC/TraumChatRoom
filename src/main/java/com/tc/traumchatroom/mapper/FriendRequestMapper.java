@@ -42,4 +42,7 @@ public interface FriendRequestMapper {
     /** 查询是否存在待处理的申请 */
     FriendRequest findPendingBySenderAndReceiver(@Param("senderId") Integer senderId,
                                                   @Param("receiverId") Integer receiverId);
+
+    /** 删除申请记录 */
+    int deleteById(@Param("id") Long id);
 }

@@ -12,6 +12,10 @@
       <div class="text-xs text-gray-400">{{ friend.online ? '在线' : formatTime(friend.lastActiveTime) }}</div>
     </div>
 
+    <!-- 私聊未读红点 -->
+    <span v-if="hasUnread"
+          class="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>
+
     <!-- 更多操作 -->
     <div class="relative shrink-0">
       <button class="p-1.5 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600"
@@ -58,15 +62,22 @@
 <script setup>
 import { ref, computed } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
+import { useChatStore } from '@/stores/chat'
 import { friendApi } from '@/api/friend'
 import { formatTime } from '@/utils/format'
 
 const props = defineProps({ friend: Object })
 const emit = defineEmits(['openChat', 'deleted'])
+const chatStore = useChatStore()
 
 const showMenu = ref(false)
 const showRemark = ref(false)
 const remark = ref('')
+
+// 检查是否有来自该好友的私聊未读
+const hasUnread = computed(() => {
+  return !!chatStore.privateUnreadSenders[props.friend.name]
+})
 
 async function saveRemark() {
   try {

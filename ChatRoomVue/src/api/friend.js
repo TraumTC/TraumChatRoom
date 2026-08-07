@@ -10,6 +10,7 @@ export const friendApi = {
   }),
   getRequests: (params) => api.get('/api/friend/requests', { params }),
   handleRequest: (id, data) => api.put(`/api/friend/requests/${id}`, data),
+  deleteRequest: (id) => api.delete(`/api/friend/requests/${id}`),
   getList: (params) => api.get('/api/friends', { params }),
   updateRemark: (id, data) => api.put(`/api/friends/${id}/remark`, data),
   delete: (id) => api.delete(`/api/friends/${id}`)

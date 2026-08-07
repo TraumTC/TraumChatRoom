@@ -14,6 +14,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,11 +53,17 @@ public class FileController {
 
     /**
      * 下载文件
-     * GET /api/file/download/{fileName}
+     * GET /api/file/download/**  支持子目录如 /api/file/download/avatars/xxx.png
      */
-    @GetMapping("/download/{fileName}")
-    public ResponseEntity<FileSystemResource> download(@PathVariable String fileName) {
+    @GetMapping("/download/**")
+    public ResponseEntity<FileSystemResource> download(HttpServletRequest request,
+                                                        @RequestParam(value = "name", required = false) String displayName) {
         try {
+            // 从 URI 中提取文件路径（去掉 /api/file/download/ 前缀）
+            String uri = request.getRequestURI();
+            String prefix = "/api/file/download/";
+            String fileName = uri.substring(uri.indexOf(prefix) + prefix.length());
+
             String filePath = fileService.getFilePath(fileName);
             File file = new File(filePath);
 
@@ -70,13 +78,21 @@ public class FileController {
                 contentType = "application/octet-stream";
             }
 
+            // 使用原始文件名（如果有），否则用存储文件名
+            String downloadName = (displayName != null && !displayName.isEmpty()) ? displayName : fileName;
+
+            // URL 编码文件名（HTTP 头不能包含非 ASCII 字符）
+            String encodedName = java.net.URLEncoder.encode(downloadName, java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + encodedName)
                     .body(new FileSystemResource(file));
 
         } catch (Exception e) {
-            log.error("文件下载失败: {}", fileName, e);
+            log.error("文件下载失败: {}", request.getRequestURI(), e);
             return ResponseEntity.internalServerError().build();
         }
     }

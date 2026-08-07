@@ -50,7 +50,7 @@ api.interceptors.response.use(
       }
 
       clearToken()
-      router.push('/login')
+      router.push('/')
     }
 
     return Promise.reject(error)

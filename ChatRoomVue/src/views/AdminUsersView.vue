@@ -52,6 +52,8 @@
               </td>
               <td class="px-4 py-3 text-sm text-gray-500">{{ formatTime(user.lastActiveTime) }}</td>
               <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-xs text-blue-500 hover:text-blue-600"
+                        @click="resetPassword(user)">重置密码</button>
                 <button class="text-xs text-gray-400 hover:text-gray-600"
                         @click="toggleStatus(user)">{{ user.status === 1 ? '禁用' : '启用' }}</button>
                 <button class="text-xs text-red-500 hover:text-red-600" @click="deleteUser(user)">删除</button>
@@ -143,6 +145,25 @@ async function deleteUser(user) {
     loadUsers()
   } catch (e) {
     alert(e.response?.data?.message || '删除失败')
+  }
+}
+
+async function resetPassword(user) {
+  const newPassword = prompt(`请输入用户 ${user.name} 的新密码（6-20位，含字母和数字）：`)
+  if (!newPassword) return
+  if (newPassword.length < 6 || newPassword.length > 20) {
+    alert('密码长度需6-20位')
+    return
+  }
+  if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    alert('密码必须同时包含字母和数字')
+    return
+  }
+  try {
+    await adminApi.updateUser(user.id, { password: newPassword })
+    alert('密码重置成功')
+  } catch (e) {
+    alert(e.response?.data?.message || '重置失败')
   }
 }
 

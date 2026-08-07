@@ -124,13 +124,14 @@ public class UserServiceImpl implements UserService {
             deleteFile(user.getAvatar());
         }
 
-        // 5. 生成唯一文件名并保存
+        // 5. 生成唯一文件名并保存到 avatars 子目录
         String newFileName = "avatar_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + "." + extension;
-        String filePath = uploadDir + newFileName;
+        String avatarDir = uploadDir + "avatars/";
+        String filePath = avatarDir + newFileName;
 
         try {
             File dest = new File(filePath);
-            dest.getParentFile().mkdirs();  // 确保目录存在
+            dest.getParentFile().mkdirs();  // 确保 avatars 目录存在
             file.transferTo(dest);
         } catch (IOException e) {
             log.error("头像保存失败", e);
@@ -138,7 +139,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 6. 更新数据库
-        String avatarUrl = "/api/file/download/" + newFileName;
+        String avatarUrl = "/api/file/download/avatars/" + newFileName;
         userMapper.updateAvatar(user.getId(), avatarUrl);
 
         // 7. 失效用户缓存，保证头像更新立即生效
@@ -222,12 +223,13 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 删除文件（根据 avatarUrl 反推文件路径）
+     * avatarUrl 格式: /api/file/download/avatars/xxx.jpg → 文件路径: uploads/avatars/xxx.jpg
      */
     private void deleteFile(String avatarUrl) {
         try {
-            // avatarUrl 格式: /api/file/download/xxx.jpg → 文件路径: uploads/xxx.jpg
-            String fileName = avatarUrl.substring(avatarUrl.lastIndexOf("/") + 1);
-            File file = new File(uploadDir + fileName);
+            // 去掉 /api/file/download/ 前缀，保留子目录路径
+            String relativePath = avatarUrl.replace("/api/file/download/", "");
+            File file = new File(uploadDir + relativePath);
             if (file.exists()) {
                 file.delete();
             }

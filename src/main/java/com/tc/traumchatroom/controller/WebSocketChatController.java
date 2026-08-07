@@ -124,7 +124,16 @@ public class WebSocketChatController {
         message.setIsAiReply(0);
         message.setIsRecalled(0);
 
+        // 引用回复
+        String replyToIdStr = payload.get("replyToId");
+        if (replyToIdStr != null && !replyToIdStr.isEmpty() && !"null".equals(replyToIdStr)) {
+            try {
+                message.setReplyToId(Long.parseLong(replyToIdStr));
+            } catch (NumberFormatException ignored) {}
+        }
+
         // 保存到数据库
+        message.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(message);
 
         // 构造响应对象
@@ -254,7 +263,16 @@ public class WebSocketChatController {
         message.setIsAiReply(0);
         message.setIsRecalled(0);
 
+        // 引用回复
+        String replyToIdStr2 = payload.get("replyToId");
+        if (replyToIdStr2 != null && !replyToIdStr2.isEmpty() && !"null".equals(replyToIdStr2)) {
+            try {
+                message.setReplyToId(Long.parseLong(replyToIdStr2));
+            } catch (NumberFormatException ignored) {}
+        }
+
         // 保存到数据库
+        message.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(message);
 
         // 构造响应对象
@@ -333,14 +351,36 @@ public class WebSocketChatController {
     }
 
     /**
-     * 广播在线用户列表
+     * 广播在线用户列表（返回 {username, name} 对象）
      */
     private void broadcastOnlineUsers() {
-        Set<String> users = onlineUserService.getOnlineUsers();
-        OnlineUserInfo info = new OnlineUserInfo();
-        info.setOnlineUsers(users);
-        info.setCount(users != null ? users.size() : 0);
-        messagingTemplate.convertAndSend("/topic/onlineUsers", info);
+        Set<String> usernames = onlineUserService.getOnlineUsers();
+        java.util.List<java.util.Map<String, String>> users = new java.util.ArrayList<>();
+
+        if (usernames != null) {
+            for (String username : usernames) {
+                users.add(java.util.Map.of("username", username, "name", getDisplayName(username)));
+            }
+        }
+
+        messagingTemplate.convertAndSend("/topic/onlineUsers",
+                (Object) java.util.Map.of("onlineUsers", users, "count", users.size()));
+    }
+
+    /**
+     * 根据用户名获取显示昵称（支持游客）
+     */
+    private String getDisplayName(String username) {
+        // 游客从 Redis 获取
+        if (username.startsWith("guest_")) {
+            String guestKey = "chat:guest:" + username;
+            java.util.Map<Object, Object> guestData = redisTemplate.opsForHash().entries(guestKey);
+            String name = (String) guestData.get("name");
+            return name != null ? name : username;
+        }
+        // 普通用户从数据库获取
+        User user = userMapper.findByUsername(username);
+        return user != null ? user.getName() : username;
     }
 
     /**

@@ -37,10 +37,19 @@
             <div class="text-xs text-gray-400 truncate">{{ item.message || '无附言' }}</div>
           </div>
 
-          <!-- 状态 -->
-          <span v-if="item.status === 'accepted'" class="text-xs text-gray-400">已同意</span>
-          <span v-else-if="item.status === 'rejected'" class="text-xs text-gray-400">已拒绝</span>
-          <span v-else-if="item.status === 'expired'" class="text-xs text-gray-400">已过期</span>
+          <!-- 状态 + 操作 -->
+          <template v-if="item.status === 'accepted'">
+            <span class="text-xs text-gray-400">已同意</span>
+            <button class="text-xs text-gray-300 hover:text-red-500 ml-1" @click="deleteRequest(item.id)" title="删除记录">×</button>
+          </template>
+          <template v-else-if="item.status === 'rejected'">
+            <span class="text-xs text-gray-400">已拒绝</span>
+            <button class="text-xs text-gray-300 hover:text-red-500 ml-1" @click="deleteRequest(item.id)" title="删除记录">×</button>
+          </template>
+          <template v-else-if="item.status === 'expired'">
+            <span class="text-xs text-gray-400">已过期</span>
+            <button class="text-xs text-gray-300 hover:text-red-500 ml-1" @click="deleteRequest(item.id)" title="删除记录">×</button>
+          </template>
 
           <!-- 收到的待处理申请：同意/拒绝 -->
           <template v-else-if="type === 'received'">
@@ -103,6 +112,20 @@ async function handleRequest(id, action) {
     }
   } catch (e) {
     chatStore.addNotification({ type: 'error', message: e.response?.data?.message || '操作失败' })
+  }
+}
+
+async function deleteRequest(id) {
+  try {
+    const res = await friendApi.deleteRequest(id)
+    if (res.data.code === 200) {
+      loadRequests()
+      emit('changed')
+    } else {
+      chatStore.addNotification({ type: 'error', message: res.data.message })
+    }
+  } catch (e) {
+    chatStore.addNotification({ type: 'error', message: e.response?.data?.message || '删除失败' })
   }
 }
 

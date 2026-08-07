@@ -1,5 +1,6 @@
 package com.tc.traumchatroom.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -31,12 +32,13 @@ public class MessageResponse {
     /** 文件大小（文件消息时有值） */
     private Long fileSize;
     /** 是否为AI回复 */
-    private boolean isAiReply;
+    private boolean aiReply;
     /** 是否已撤回 */
-    private boolean isRecalled;
+    private boolean recalled;
     /** 引用回复的消息ID */
     private Long replyToId;
     /** 发送时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     /**

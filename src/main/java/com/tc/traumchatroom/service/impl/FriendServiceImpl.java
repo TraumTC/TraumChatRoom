@@ -289,6 +289,27 @@ public class FriendServiceImpl implements FriendService {
         log.info("用户 {} 删除了好友 {}", username, friendId);
     }
 
+    // ---------- 删除好友申请记录 ----------
+
+    @Override
+    public void deleteRequest(Long requestId, String currentUsername) {
+        User currentUser = userMapper.findByUsername(currentUsername);
+        if (currentUser == null) throw new BusinessException(ErrorCode.UNAUTHORIZED);
+
+        FriendRequest fr = friendRequestMapper.findById(requestId);
+        if (fr == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "申请记录不存在");
+        }
+
+        // 只有申请的发送者或接收者可以删除
+        if (!fr.getSenderId().equals(currentUser.getId()) && !fr.getReceiverId().equals(currentUser.getId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除此记录");
+        }
+
+        friendRequestMapper.deleteById(requestId);
+        log.info("用户 {} 删除了好友申请记录 {}", currentUsername, requestId);
+    }
+
     // ---------- 辅助方法 ----------
 
     private FriendRequestResponse toFriendRequestResponse(FriendRequest fr) {

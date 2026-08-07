@@ -24,7 +24,6 @@ spring:
     multipart:
       max-file-size: 100MB
       max-request-size: 100MB
-
 # MyBatis
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -33,8 +32,8 @@ mybatis:
 
 # 文件存储
 file:
-    upload-dir: uploads/
-    allowed-types: jpg,jpeg,png,gif,bmp,webp,pdf,doc,docx,zip,rar,md
+    upload-dir: D:/Javawork/TraumChatRoom/uploads/
+    allowed-types: jpg,jpeg,png,gif,bmp,webp,pdf,doc,docx,zip,rar,md,mp4,webm,ogg,mov,avi
     max-file-size: 104857600
     # 头像文件 大小max
     avatar-max-size: 5MB

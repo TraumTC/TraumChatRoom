@@ -1,46 +1,65 @@
 <!-- src/views/RegisterView.vue — 注册页 -->
 <template>
-  <div class="min-h-screen bg-white flex items-center justify-center">
-    <div class="w-full max-w-sm px-8">
-      <h1 class="text-2xl font-bold text-gray-900 mb-6 text-center">注册</h1>
+  <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
+      <!-- 标题 -->
+      <div>
+        <h2 class="text-center text-3xl font-extrabold text-gray-900">创建账户</h2>
+        <p class="mt-2 text-center text-sm text-gray-600">加入我们，开始聊天</p>
+      </div>
 
-      <div v-if="error" class="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded">
+      <!-- 错误提示 -->
+      <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
         {{ error }}
       </div>
 
-      <form @submit.prevent="handleRegister" class="space-y-4">
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">用户名（2-20位，字母数字下划线）</label>
-          <input v-model="username" type="text" required
-                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                 placeholder="请输入用户名" />
-          <p v-if="usernameError" class="mt-1 text-xs text-red-500">{{ usernameError }}</p>
-        </div>
+      <!-- 注册表单 -->
+      <form @submit.prevent="handleRegister" class="mt-8 space-y-6">
+        <div class="space-y-4">
+          <!-- 用户名 -->
+          <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名 *</label>
+            <input id="username" v-model="username" type="text" required autofocus maxlength="20"
+                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                   placeholder="请设置用户名（字母数字下划线）" />
+            <p class="mt-1 text-xs text-gray-500">
+              用户名长度：<span :class="username.length >= 20 ? 'text-red-600 font-semibold' : 'text-gray-500'">{{ username.length }}</span>/20 个字符
+            </p>
+            <p v-if="usernameError" class="mt-1 text-xs text-red-500">{{ usernameError }}</p>
+          </div>
 
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">昵称（1-20位）</label>
-          <input v-model="name" type="text" required
-                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                 placeholder="请输入昵称" />
-        </div>
+          <!-- 昵称 -->
+          <div>
+            <label for="displayName" class="block text-sm font-medium text-gray-700 mb-1">昵称 *</label>
+            <input id="displayName" v-model="name" type="text" required maxlength="20"
+                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                   placeholder="请设置您的昵称" />
+            <p class="mt-1 text-xs text-gray-500">
+              昵称长度：<span :class="name.length >= 20 ? 'text-red-600 font-semibold' : 'text-gray-500'">{{ name.length }}</span>/20 个字符
+            </p>
+          </div>
 
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">密码（6-20位，须含字母和数字）</label>
-          <input v-model="password" type="password" required
-                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                 placeholder="请输入密码" />
-          <p v-if="passwordError" class="mt-1 text-xs text-red-500">{{ passwordError }}</p>
+          <!-- 密码 -->
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码 *</label>
+            <input id="password" v-model="password" type="password" required
+                   class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                   placeholder="请设置密码（6-20位，含字母和数字）" />
+            <p v-if="passwordError" class="mt-1 text-xs text-red-500">{{ passwordError }}</p>
+          </div>
         </div>
 
         <button type="submit" :disabled="authStore.loading"
-                class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50">
+                class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50">
           {{ authStore.loading ? '注册中...' : '注册' }}
         </button>
       </form>
 
-      <div class="mt-6 text-center text-sm">
-        <span class="text-gray-400">已有账号？</span>
-        <RouterLink to="/login" class="text-blue-500 hover:text-blue-600">去登录</RouterLink>
+      <!-- 登录链接 -->
+      <div class="text-center">
+        <RouterLink to="/" class="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+          已有帐号？立即登录 →
+        </RouterLink>
       </div>
     </div>
   </div>
@@ -87,7 +106,7 @@ async function handleRegister() {
       password: password.value
     })
     if (res.data.code === 200) {
-      router.push('/login')
+      router.push('/')
     } else {
       error.value = res.data.message
     }

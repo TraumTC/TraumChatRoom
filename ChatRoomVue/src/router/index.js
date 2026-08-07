@@ -5,14 +5,13 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/views/HomeView.vue')
-  },
-  {
-    path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
     meta: { guest: true }  // 已登录用户不能访问
+  },
+  {
+    path: '/login',
+    redirect: '/'  // 兼容旧链接，重定向到首页
   },
   {
     path: '/register',
@@ -58,12 +57,17 @@ const router = createRouter({
 })
 
 // 导航守卫：路由跳转前检查权限
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+
+  // 有 Token 但没有用户信息（页面刷新）→ 先获取用户信息
+  if (authStore.isAuthenticated && !authStore.user) {
+    await authStore.fetchUser()
+  }
 
   // 需要登录但未登录 → 跳转登录页
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
+    next('/')
     return
   }
 
@@ -79,8 +83,8 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 已登录用户不能访问登录/注册页
-  if (to.meta.guest && authStore.isAuthenticated) {
+  // 已登录用户不能访问登录/注册页（游客可以，用于"回到首页"）
+  if (to.meta.guest && authStore.isAuthenticated && !authStore.isGuest) {
     next('/chat')
     return
   }
