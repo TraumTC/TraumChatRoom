@@ -61,6 +61,11 @@ public class FriendServiceImpl implements FriendService {
 
         List<User> users = userMapper.searchUsers(keyword, currentUser.getId(), 20);
 
+        // 过滤掉 AI 用户（小爱），不允许添加 AI 为好友
+        users = users.stream()
+                .filter(u -> !"ai_xiaoai".equals(u.getUsername()) && !"ROLE_AI".equals(u.getRole()))
+                .collect(Collectors.toList());
+
         return users.stream().map(user -> {
             FriendSearchVO vo = new FriendSearchVO();
             vo.setId(user.getId());
@@ -91,6 +96,11 @@ public class FriendServiceImpl implements FriendService {
 
         if (sender == null || receiver == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
+        }
+
+        // 不能添加 AI 用户（小爱）为好友
+        if ("ai_xiaoai".equals(receiver.getUsername()) || "ROLE_AI".equals(receiver.getRole())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "不能添加 AI 为好友");
         }
 
         // 不能添加自己

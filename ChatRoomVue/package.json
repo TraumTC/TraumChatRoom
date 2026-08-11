@@ -16,10 +16,14 @@
     "pinia": "^4.0.2",
     "sockjs-client": "^1.6.1",
     "vue": "^3.5.40",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "vue-virtual-scroller": "^2.0.0-beta.8"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.4.19",
     "vite": "^8.2.0"
   }
 }

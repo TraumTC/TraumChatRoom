@@ -1,30 +1,33 @@
 <!-- src/views/AdminUsersView.vue — 管理员-用户管理（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
+  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
-    <div class="max-w-6xl w-full mx-auto p-6">
+    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-6 flex flex-col">
       <AdminTabs />
       <h1 class="text-lg font-semibold mb-6" style="color: var(--color-ink)">用户管理</h1>
 
       <!-- 工具栏 -->
-      <div class="flex items-center gap-3 mb-4 flex-wrap">
+      <div class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
         <n-input v-model:value="keyword" placeholder="搜索用户名/昵称" clearable style="width: 240px"
                  @keyup.enter="loadUsers">
           <template #prefix><AppIcon name="search" :size="14" /></template>
         </n-input>
         <n-checkbox v-model:checked="includeDeleted" @update:checked="loadUsers">包含已删除</n-checkbox>
         <n-button type="primary" @click="loadUsers">搜索</n-button>
+        <n-button @click="handleReset">重置</n-button>
       </div>
 
       <!-- 表格 -->
-      <n-data-table :columns="columns" :data="users" :loading="loading"
-                    :bordered="true" size="small" :scroll-x="800" />
+      <div class="flex-1 min-h-0 overflow-y-auto">
+        <n-data-table :columns="columns" :data="users" :loading="loading"
+                      :bordered="true" size="small" :scroll-x="800" />
+      </div>
 
       <!-- 分页 -->
-      <div class="flex items-center justify-between py-3">
+      <div class="flex items-center justify-between py-3 shrink-0">
         <span class="text-sm" style="color: var(--color-ink-soft)">共 {{ total }} 条</span>
         <n-pagination v-model:page="page" :page-size="size" :item-count="total"
-                      @update:page="loadUsers" />
+                      @update:page="loadUsers" class="pagination-plain" />
       </div>
     </div>
   </div>
@@ -59,10 +62,10 @@ function statusRender(row) {
 }
 
 function actionsRender(row) {
-  return h('div', { style: 'display:flex;gap:8px;justify-content:flex-end' }, [
-    h('a', { style: 'color:var(--color-signal);font-size:12px;cursor:pointer', onClick: () => resetPassword(row) }, '重置密码'),
-    h('a', { style: 'color:var(--color-ink-soft);font-size:12px;cursor:pointer', onClick: () => toggleStatus(row) }, row.status === 1 ? '禁用' : '启用'),
-    h('a', { style: 'color:var(--color-alarm);font-size:12px;cursor:pointer', onClick: () => deleteUser(row) }, '删除')
+  return h('div', { style: 'display:flex;gap:12px;justify-content:flex-end' }, [
+    h('a', { class: 'action-link', style: 'color:var(--color-signal)', onClick: () => resetPassword(row) }, '重置密码'),
+    h('a', { class: 'action-link', style: 'color:var(--color-ink-soft)', onClick: () => toggleStatus(row) }, row.status === 1 ? '禁用' : '启用'),
+    h('a', { class: 'action-link', style: 'color:var(--color-alarm)', onClick: () => deleteUser(row) }, '删除')
   ])
 }
 
@@ -100,6 +103,14 @@ async function loadUsers() {
     }
   } catch (e) { /* 忽略 */ }
   finally { loading.value = false }
+}
+
+// 重置筛选条件
+function handleReset() {
+  keyword.value = ''
+  includeDeleted.value = false
+  page.value = 1
+  loadUsers()
 }
 
 function roleName(role) {

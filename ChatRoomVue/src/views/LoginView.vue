@@ -1,7 +1,7 @@
-<!-- src/views/LoginView.vue — 登录页（对齐参考站 traums.cn/login） -->
+<!-- src/views/LoginView.vue — 登录页（含前端表单校验） -->
 <template>
   <div class="min-h-screen flex items-center justify-center px-4 py-12" style="background: var(--color-bg)">
-    <div class="w-full max-w-md space-y-8 rounded-lg p-8 shadow-md"
+    <div class="w-full max-w-md space-y-8 rounded-xl p-8 auth-card"
          style="background: var(--color-card)">
       <!-- 标题 -->
       <div>
@@ -18,22 +18,19 @@
         登录失败次数过多，请在 {{ lockDisplay }} 后重试
       </n-alert>
 
-      <!-- 登录表单 -->
-      <n-form @submit.prevent="handleLogin">
-        <div class="space-y-4">
-          <div>
-            <label for="username" class="block text-sm font-medium mb-1" style="color: var(--color-ink)">用户名</label>
-            <n-input id="username" v-model:value="username" type="text" placeholder="请输入用户名"
-                     autocomplete="username" @keyup.enter="handleLogin" />
-          </div>
-          <div>
-            <label for="password" class="block text-sm font-medium mb-1" style="color: var(--color-ink)">密码</label>
-            <n-input id="password" v-model:value="password" type="password" placeholder="请输入密码"
-                     autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin" />
-          </div>
-        </div>
+      <!-- 登录表单（含前端校验） -->
+      <n-form ref="formRef" :model="loginForm" :rules="rules" @submit.prevent="handleLogin"
+              show-label require-mark-placement="right-hanging" :label-width="64">
+        <n-form-item path="username" label="用户名">
+          <n-input v-model:value="loginForm.username" type="text" placeholder="请输入用户名"
+                   autocomplete="username" @keyup.enter="handleLogin" />
+        </n-form-item>
+        <n-form-item path="password" label="密码">
+          <n-input v-model:value="loginForm.password" type="password" placeholder="请输入密码"
+                   autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin" />
+        </n-form-item>
 
-        <n-button type="primary" size="large" block class="mt-6" :loading="authStore.loading" attr-type="submit">
+        <n-button type="primary" size="large" block class="mt-4" :loading="authStore.loading" attr-type="submit">
           登录
         </n-button>
       </n-form>
@@ -68,15 +65,32 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const username = ref('')
-const password = ref('')
+
+// 表单数据
+const loginForm = reactive({
+  username: '',
+  password: ''
+})
+
+// 表单引用 + 校验规则
+const formRef = ref(null)
+const rules = {
+  username: [
+    { required: true, message: '用户名不能为空', trigger: ['blur', 'change'] },
+    { min: 2, max: 20, message: '用户名长度需 2-20 字符', trigger: ['blur', 'change'] }
+  ],
+  password: [
+    { required: true, message: '密码不能为空', trigger: ['blur', 'change'] }
+  ]
+}
+
 const error = ref('')
 const lockRemain = ref(0)
 const guestLoading = ref(false)
@@ -101,7 +115,20 @@ function startCountdown(seconds) {
 
 async function handleLogin() {
   error.value = ''
-  const success = await authStore.login(username.value, password.value)
+
+  // 前端校验：只取首个错误
+  try {
+    await formRef.value?.validate()
+  } catch (e) {
+    // Naive UI validate 失败时抛出 { errors: [{ message }] } 或数组
+    const errs = Array.isArray(e) ? e : e?.errors
+    if (errs && errs.length) {
+      error.value = errs[0].message || errs[0]?.[0]?.message || '表单校验失败'
+    }
+    return
+  }
+
+  const success = await authStore.login(loginForm.username, loginForm.password)
   if (success) {
     router.push('/chat')
   } else {
@@ -139,8 +166,14 @@ onUnmounted(() => {
   color: #b45309 !important;
   border: 2px dashed #f59e0b !important;
   background: #fffbeb !important;
+  transition: all 0.2s ease !important;
 }
 .guest-btn:hover {
   background: #fef3c7 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+}
+.guest-btn:active {
+  transform: translateY(0);
 }
 </style>

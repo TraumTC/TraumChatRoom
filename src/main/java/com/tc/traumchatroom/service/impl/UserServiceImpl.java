@@ -18,10 +18,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.imageio.ImageIO;
 
 @Slf4j
 @Service
@@ -93,6 +96,20 @@ public class UserServiceImpl implements UserService {
 
     // ---------- 上传头像 ----------
 
+    /** 头像允许的图片扩展名 */
+    private static final Set<String> AVATAR_ALLOWED_EXTENSIONS =
+            Set.of("jpg", "jpeg", "png", "gif", "bmp", "webp");
+
+    /** 头像允许的 MIME 类型 */
+    private static final Set<String> AVATAR_ALLOWED_MIME_TYPES =
+            Set.of("image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp");
+
+    /** 头像压缩目标尺寸 */
+    private static final int AVATAR_TARGET_SIZE = 256;
+
+    /** 头像最小尺寸（防止恶意极小图片） */
+    private static final int AVATAR_MIN_DIMENSION = 64;
+
     @Override
     public String uploadAvatar(String username, MultipartFile file) {
         User user = userMapper.findByUsername(username);
@@ -105,12 +122,16 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "文件不能为空");
         }
 
-        // 2. 校验文件类型
+        // 2. 双重校验文件类型：扩展名 + MIME type
         String originalName = file.getOriginalFilename();
         String extension = getFileExtension(originalName);
-        String allowedTypes = fileStorageConfig.getAllowedTypes();
-        if (!Arrays.asList(allowedTypes.split(",")).contains(extension.toLowerCase())) {
-            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOWED);
+        String mimeType = file.getContentType();
+
+        if (!AVATAR_ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOWED, "不支持的图片格式");
+        }
+        if (mimeType == null || !AVATAR_ALLOWED_MIME_TYPES.contains(mimeType.toLowerCase())) {
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOWED, "文件类型不合法");
         }
 
         // 3. 校验文件大小（头像最大 5MB）
@@ -119,34 +140,75 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE, "头像大小不能超过 " + fileStorageConfig.getAvatarMaxSize());
         }
 
-        // 4. 删除旧头像文件（如果有）
+        // 4. 读取图片并校验尺寸
+        BufferedImage sourceImage;
+        try {
+            sourceImage = ImageIO.read(file.getInputStream());
+        } catch (IOException e) {
+            log.error("头像图片读取失败", e);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "无法读取图片，文件可能已损坏");
+        }
+        if (sourceImage == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "无法解析图片，文件可能不是有效图片");
+        }
+        if (sourceImage.getWidth() < AVATAR_MIN_DIMENSION || sourceImage.getHeight() < AVATAR_MIN_DIMENSION) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "图片尺寸不能小于 " + AVATAR_MIN_DIMENSION + "x" + AVATAR_MIN_DIMENSION);
+        }
+
+        // 5. 删除旧头像文件（如果有）
         if (StringUtils.hasText(user.getAvatar())) {
             deleteFile(user.getAvatar());
         }
 
-        // 5. 生成唯一文件名并保存到 avatars 子目录
-        String newFileName = "avatar_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + "." + extension;
+        // 6. 生成文件名（带 userId 前缀，方便运维排查）
+        String newFileName = "avatar_" + user.getId() + "_" + System.currentTimeMillis() +
+                "_" + UUID.randomUUID().toString().substring(0, 8) + ".jpg";
         String avatarDir = uploadDir + "avatars/";
         String filePath = avatarDir + newFileName;
 
+        // 7. 服务端压缩：居中裁剪为 256x256 JPEG
         try {
             File dest = new File(filePath);
-            dest.getParentFile().mkdirs();  // 确保 avatars 目录存在
-            file.transferTo(dest);
+            dest.getParentFile().mkdirs();
+            compressAndSaveAvatar(sourceImage, dest);
         } catch (IOException e) {
-            log.error("头像保存失败", e);
+            log.error("头像压缩保存失败", e);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "头像保存失败");
         }
 
-        // 6. 更新数据库
+        // 8. 更新数据库
         String avatarUrl = "/api/file/download/avatars/" + newFileName;
         userMapper.updateAvatar(user.getId(), avatarUrl);
 
-        // 7. 失效用户缓存，保证头像更新立即生效
+        // 9. 失效用户缓存，保证头像更新立即生效
         cacheService.evictUser(user.getId());
 
         log.info("用户 {} 上传头像成功: {}", username, newFileName);
         return avatarUrl;
+    }
+
+    /**
+     * 服务端头像压缩：居中正方形裁剪 → 256x256 JPEG
+     */
+    private void compressAndSaveAvatar(BufferedImage source, File dest) throws IOException {
+        int srcW = source.getWidth();
+        int srcH = source.getHeight();
+        int minDim = Math.min(srcW, srcH);
+        int sx = (srcW - minDim) / 2;
+        int sy = (srcH - minDim) / 2;
+
+        BufferedImage output = new BufferedImage(AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = output.createGraphics();
+        // 白色背景（防止透明 PNG 转 JPEG 后变黑）
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE);
+        // 居中裁剪并绘制
+        g.drawImage(source, 0, 0, AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE,
+                sx, sy, sx + minDim, sy + minDim, null);
+        g.dispose();
+
+        ImageIO.write(output, "jpg", dest);
     }
 
     // ---------- 删除头像 ----------
@@ -177,6 +239,11 @@ public class UserServiceImpl implements UserService {
     public List<MentionableUserResponse> getMentionableUsers(String currentUsername) {
         // 搜索所有用户（排除自己，最多50条）
         List<User> users = userMapper.searchUsers("", getUserIdByUsername(currentUsername), 50);
+
+        // 过滤掉与 AI 同名的真实用户，避免 @列表出现重复
+        users = users.stream()
+                .filter(u -> !"小爱".equals(u.getName()))
+                .collect(Collectors.toList());
 
         List<MentionableUserResponse> result = users.stream()
                 .map(u -> new MentionableUserResponse(u.getUsername(), u.getName(), u.getAvatar(), false))

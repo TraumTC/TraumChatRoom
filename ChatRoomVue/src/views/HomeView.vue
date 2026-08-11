@@ -2,13 +2,13 @@
 <template>
   <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <!-- 顶部品牌条 -->
-    <header class="flex items-center justify-between px-6 h-14 shrink-0"
-            style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
+    <header class="flex items-center justify-between px-6 h-14 shrink-0 header-glass"
+            style="border-bottom: 1px solid var(--color-border)">
       <div class="text-base font-semibold" style="color: var(--color-ink)">
         Traum<span style="color: var(--color-signal)">Space</span>
       </div>
       <div class="flex items-center gap-2">
-        <n-button type="primary" size="small" @click="router.push('/login')">
+        <n-button type="primary" size="small" @click="goLogin">
           <template #icon><AppIcon name="log-in" :size="15" /></template>
           登录
         </n-button>
@@ -28,8 +28,8 @@
 
         <!-- 功能亮点 -->
         <div class="grid gap-3 mb-10" style="display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr))">
-          <div v-for="f in features" :key="f.title" class="rounded-xl p-4"
-               style="background: var(--color-card); border: 1px solid var(--color-border)">
+          <div v-for="f in features" :key="f.title" class="feature-card rounded-xl p-4"
+               style="background: var(--color-card)">
             <AppIcon :name="f.icon" :size="20" class="mb-2" style="color: var(--color-signal)" />
             <div class="text-sm font-semibold mb-1" style="color: var(--color-ink)">{{ f.title }}</div>
             <div class="text-xs" style="color: var(--color-ink-soft)">{{ f.desc }}</div>
@@ -38,7 +38,7 @@
 
         <!-- 单个入口 -->
         <div class="max-w-sm mx-auto">
-          <n-button type="primary" size="large" block @click="router.push('/login')">
+          <n-button type="primary" size="large" block @click="goLogin">
             <template #icon><AppIcon name="log-in" :size="16" /></template>
             登录
           </n-button>
@@ -51,8 +51,19 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+// 已登录直接进聊天室，未登录进登录页
+function goLogin() {
+  if (authStore.isAuthenticated) {
+    router.push('/chat')
+  } else {
+    router.push('/login')
+  }
+}
 
 const features = [
   { icon: 'messages-square', title: '群聊', desc: '实时文本、图片、文件消息' },

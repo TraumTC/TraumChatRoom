@@ -23,7 +23,7 @@ public class SensitiveWordTrie {
     /**
      * 添加敏感词
      * @param word 敏感词
-     * @param level 处理级别：1替换 2拦截 3警告
+     * @param level 处理级别：1替换 2拦截
      */
     public void addWord(String word, int level) {
         if (word == null || word.isEmpty()) return;
@@ -92,7 +92,7 @@ public class SensitiveWordTrie {
         private boolean isEnd;
         /** 敏感词（仅在结尾节点有值） */
         private String word;
-        /** 处理级别：1替换 2拦截 3警告 */
+        /** 处理级别：1替换 2拦截 */
         private int level;
     }
 }

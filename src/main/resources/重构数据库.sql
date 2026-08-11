@@ -83,7 +83,7 @@ CREATE TABLE `ai_conversation_context` (
 CREATE TABLE `sensitive_word` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `word` VARCHAR(50) NOT NULL UNIQUE COMMENT '敏感词',
-    `level` TINYINT NOT NULL DEFAULT 1 COMMENT '1替换为*** 2拦截拒绝发送 3仅记录警告',
+    `level` TINYINT NOT NULL DEFAULT 1 COMMENT '1替换为*** 2拦截拒绝发送',
     `category` VARCHAR(20) DEFAULT NULL COMMENT '分类: insult(辱骂)/ad(广告)/spam(垃圾)/politics(政治)',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_level` (`level`)

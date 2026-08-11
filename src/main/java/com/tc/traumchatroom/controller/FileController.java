@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.annotation.Idempotent;
+import com.tc.traumchatroom.annotation.LogOperation;
 import com.tc.traumchatroom.annotation.RateLimit;
 import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.service.FileService;
@@ -40,6 +41,7 @@ public class FileController {
      */
     @Idempotent(key = "file-upload", timeout = 5)
     @RateLimit(key = "upload", maxRequests = 5, windowMillis = 60000)
+    @LogOperation(action = "UPLOAD_FILE", targetType = "file")
     @PostMapping("/upload")
     public Result<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,

@@ -131,7 +131,16 @@ export function useWebSocket() {
       const data = JSON.parse(msg.body)
       console.error('发送失败:', data.message)
       chatStore.setError(data.message)
-      chatStore.addNotification({ type: 'error', message: data.message || '发送失败' })
+      if (data.subtype === 'blocked') {
+        // 违禁词拦截：弹窗提醒
+        window.$dialog?.warning({
+          title: '消息被拦截',
+          content: data.message || '消息包含违规内容，已被拦截',
+          positiveText: '我知道了',
+        })
+      } else {
+        chatStore.addNotification({ type: 'error', message: data.message || '发送失败' })
+      }
     })
   }
 

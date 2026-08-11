@@ -80,6 +80,7 @@ public class AdminController {
      * 添加敏感词
      * POST /api/admin/sensitive-words
      */
+    @LogOperation(action = "ADD_SENSITIVE_WORD", targetType = "sensitive_word")
     @PostMapping("/sensitive-words")
     public Result<Map<String, Object>> addSensitiveWord(@RequestBody Map<String, Object> body) {
         String word = (String) body.get("word");
@@ -149,6 +150,7 @@ public class AdminController {
      * 删除敏感词
      * DELETE /api/admin/sensitive-words/{id}
      */
+    @LogOperation(action = "DELETE_SENSITIVE_WORD", targetType = "sensitive_word")
     @DeleteMapping("/sensitive-words/{id}")
     public Result<Void> deleteSensitiveWord(@PathVariable Integer id) {
         SensitiveWord word = sensitiveWordMapper.findById(id);
@@ -183,19 +185,22 @@ public class AdminController {
 
     /**
      * 查询操作日志（分页）
-     * GET /api/admin/logs?action=LOGIN&page=1&size=20&startDate=2026-07-01&endDate=2026-07-21
+     * GET /api/admin/logs?action=LOGIN&targetType=user&username=张三&success=true&page=1&size=20&startDate=2026-07-01&endDate=2026-07-21
      */
     @GetMapping("/logs")
     public Result<Map<String, Object>> getLogs(
             @RequestParam(required = false) String action,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Boolean success,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
 
         int offset = (page - 1) * size;
-        List<OperationLog> logs = operationLogMapper.findByConditions(action, startDate, endDate, offset, size);
-        int total = operationLogMapper.countByConditions(action, startDate, endDate);
+        List<OperationLog> logs = operationLogMapper.findByConditions(action, targetType, username, success, startDate, endDate, offset, size);
+        int total = operationLogMapper.countByConditions(action, targetType, username, success, startDate, endDate);
 
         Map<String, Object> data = new HashMap<>();
         data.put("items", logs);

@@ -45,6 +45,7 @@
       <!-- 图片消息 -->
       <div v-else-if="message.messageType === 'image'">
         <img :src="message.filePath" :alt="message.fileName"
+             loading="lazy" decoding="async"
              class="max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
              @click="showPreview = true" />
       </div>
@@ -52,7 +53,7 @@
       <!-- 视频消息 -->
       <div v-else-if="message.messageType === 'file' && isVideo(message.fileName)"
            class="rounded-lg overflow-hidden max-w-[400px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
-        <video controls preload="metadata" class="w-full rounded-t-lg max-h-[300px]">
+        <video controls preload="none" class="w-full rounded-t-lg max-h-[300px]">
           <source :src="message.filePath" />
           您的浏览器不支持视频播放
         </video>
@@ -90,10 +91,8 @@
       <div class="fixed rounded-lg overflow-hidden z-50 shadow-lg" :style="menuStyle"
            style="background: var(--color-card); border: 1px solid var(--color-border); min-width: 132px; padding: 4px">
         <button v-for="item in menuItems" :key="item.key"
-                class="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors"
+                class="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md ctx-menu-item"
                 :style="item.key === 'recall' ? 'color: var(--color-alarm)' : 'color: var(--color-ink)'"
-                @mouseenter="$event.target.style.background='var(--color-hover)'"
-                @mouseleave="$event.target.style.background='transparent'"
                 @click="handleMenu(item.key)">
           <AppIcon :name="item.icon" :size="15" />
           {{ item.label }}
@@ -232,11 +231,11 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
-// @提及高亮：自己气泡为蓝底白字（高亮用白/加粗保证可见），他人气泡用品牌蓝
+// @提及高亮：自己气泡为绿底深字（高亮用深绿加粗保证可见），他人气泡用品牌蓝
 function highlightMentions(content, self) {
   if (!content) return ''
   const escaped = escapeHtml(content)
-  const highlightColor = self ? '#FFFFFF' : 'var(--color-signal)'
+  const highlightColor = self ? '#0A7A2F' : 'var(--color-signal)'
   return escaped.replace(/@([^<>\s]+)/g, (match, name) => {
     return `<span style="color: ${highlightColor}; font-weight: 600">@${escapeHtml(name)}</span>`
   })
@@ -251,12 +250,14 @@ function isVideo(fileName) {
 
 <style scoped>
 .bubble-self {
-  background: var(--color-signal);
-  color: #FFFFFF;
+  background: #95EC69;
+  color: #1F2328;
+  box-shadow: 0 1px 3px rgba(22, 119, 25, 0.12);
 }
 .bubble-other {
   background: var(--color-card);
   color: var(--color-ink);
   border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 </style>

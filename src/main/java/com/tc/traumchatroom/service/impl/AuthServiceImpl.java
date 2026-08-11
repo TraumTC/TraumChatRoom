@@ -53,6 +53,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserResponse register(RegisterRequest request) {
+        // 0. 禁止占用 AI 用户保留名称（用户名 ai_xiaoai / 昵称 小爱）
+        if ("ai_xiaoai".equalsIgnoreCase(request.getUsername())) {
+            throw new BusinessException(ErrorCode.USER_EXISTS);
+        }
+        if ("小爱".equals(request.getName())) {
+            throw new BusinessException(ErrorCode.NAME_EXISTS);
+        }
+
         // 1. 检查用户名是否已存在
         if (userMapper.findByUsername(request.getUsername()) != null) {
             throw new BusinessException(ErrorCode.USER_EXISTS);

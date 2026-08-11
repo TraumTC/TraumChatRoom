@@ -10,8 +10,7 @@
         <span class="text-xs font-medium" style="color: var(--color-signal)">{{ chatStore.replyTo.senderName }}</span>
         <span class="text-xs ml-1 truncate" style="color: var(--color-ink-soft)">{{ chatStore.replyTo.content }}</span>
       </div>
-      <button @click="chatStore.clearReplyTo()"
-              class="shrink-0 p-0.5 transition-colors" style="color: var(--color-ink-faint)" @mouseenter="$event.target.style.color='var(--color-ink)'" @mouseleave="$event.target.style.color='var(--color-ink-faint)'">
+      <button @click="chatStore.clearReplyTo()" class="close-btn-inline">
         <AppIcon name="x" :size="14" />
       </button>
     </div>
@@ -26,10 +25,21 @@
                     @close="showMention = false" />
 
       <!-- 文件上传 -->
-      <label class="cursor-pointer shrink-0 transition-colors p-1" style="color: var(--color-ink-soft)">
+      <label class="cursor-pointer shrink-0 transition-colors p-1.5 rounded-lg" style="color: var(--color-ink-soft)" title="上传文件">
         <AppIcon name="paperclip" :size="18" />
         <input type="file" class="hidden" :accept="acceptTypes" @change="handleFileUpload" />
       </label>
+
+      <!-- 表情包 -->
+      <div class="relative shrink-0">
+        <button @click="showEmoji = !showEmoji"
+                class="transition-colors p-1.5 rounded-lg"
+                :style="{ color: showEmoji ? 'var(--color-signal)' : 'var(--color-ink-soft)' }"
+                title="表情">
+          <AppIcon name="smile" :size="18" />
+        </button>
+        <EmojiPicker v-if="showEmoji" @select="handleEmojiSelect" />
+      </div>
 
       <!-- 输入框 -->
       <textarea
@@ -42,7 +52,7 @@
         maxlength="2000"
         rows="1"
         ref="inputRef"
-        class="flex-1 resize-none rounded-lg px-3 py-2 text-sm max-h-40 focus:outline-none"
+        class="flex-1 resize-none rounded-lg px-3 py-2 text-sm max-h-40 focus:outline-none transition-all"
         style="background: var(--color-hover); color: var(--color-ink); border: 1px solid var(--color-border)"
       />
 
@@ -62,6 +72,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import MentionPopup from './MentionPopup.vue'
+import EmojiPicker from './EmojiPicker.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useAuthStore } from '@/stores/auth'
@@ -75,6 +86,7 @@ const chatStore = useChatStore()
 const inputText = ref('')
 const inputRef = ref(null)
 const showMention = ref(false)
+const showEmoji = ref(false)
 const mentionKeyword = ref('')
 const isComposing = ref(false)
 const mentionPopupRef = ref(null)
@@ -137,6 +149,7 @@ function sendMessage() {
 
   inputText.value = ''
   showMention.value = false
+  showEmoji.value = false
 }
 
 function handleInput() {
@@ -175,5 +188,21 @@ function handleFileUpload(e) {
   if (!file) return
   emit('fileUpload', file)
   e.target.value = ''
+}
+
+// 表情选择：在光标位置插入 emoji
+function handleEmojiSelect(emoji) {
+  const textarea = inputRef.value
+  if (textarea) {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    inputText.value = inputText.value.substring(0, start) + emoji + inputText.value.substring(end)
+    nextTick(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
+    })
+  } else {
+    inputText.value += emoji
+  }
 }
 </script>

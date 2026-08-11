@@ -66,6 +66,7 @@ public class AuthController {
      * 登出
      * POST /api/auth/logout
      */
+    @LogOperation(action = "LOGOUT", targetType = "user")
     @PostMapping("/logout")
     public Result<Void> logout(@RequestBody(required = false) RefreshRequest request) {
         if (request != null && request.getRefreshToken() != null) {
@@ -90,6 +91,7 @@ public class AuthController {
      * 游客登录
      * POST /api/auth/guest
      */
+    @LogOperation(action = "GUEST_LOGIN", targetType = "user")
     @PostMapping("/guest")
     public Result<LoginResponse> guest(HttpServletRequest request) {
         String userAgent = request.getHeader("User-Agent");

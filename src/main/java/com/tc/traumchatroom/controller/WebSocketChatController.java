@@ -153,7 +153,7 @@ public class WebSocketChatController {
             messagingTemplate.convertAndSendToUser(
                     username,
                     "/queue/send-error",
-                    Map.of("type", "send_error", "message", filterResult.getMessage())
+                    Map.of("type", "send_error", "subtype", "blocked", "message", filterResult.getMessage())
             );
             return;
         }
@@ -330,7 +330,7 @@ public class WebSocketChatController {
             messagingTemplate.convertAndSendToUser(
                     senderUsername,
                     "/queue/send-error",
-                    Map.of("type", "send_error", "message", filterResult.getMessage())
+                    Map.of("type", "send_error", "subtype", "blocked", "message", filterResult.getMessage())
             );
             return;
         }

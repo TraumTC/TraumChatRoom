@@ -3,10 +3,10 @@
   <div class="min-h-screen flex items-center justify-center px-4"
        style="background: var(--color-bg)">
     <div class="fixed inset-0 pointer-events-none"
-         style="background: radial-gradient(ellipse at 50% 120%, rgba(59,130,246,0.10), transparent 60%)"></div>
+         style="background: radial-gradient(ellipse at 50% 120%, rgba(59,130,246,0.08), transparent 60%)"></div>
 
-    <div class="relative w-full max-w-md space-y-6 rounded-xl p-8"
-         style="background: var(--color-card); border: 1px solid var(--color-border)">
+    <div class="relative w-full max-w-md space-y-6 rounded-xl p-8 auth-card"
+         style="background: var(--color-card)">
       <div class="text-center">
         <h2 class="text-xl font-semibold" style="color: var(--color-ink)">创建账户</h2>
         <p class="mt-1 text-sm" style="color: var(--color-ink-soft)">加入我们，开始你的对话</p>
@@ -18,22 +18,37 @@
 
       <n-form @submit.prevent="handleRegister">
         <div class="space-y-4">
-          <n-input v-model:value="username" type="text" placeholder="用户名（字母数字下划线，2-20位）"
-                   maxlength="20" autofocus :status="usernameError ? 'error' : undefined" @keyup.enter="handleRegister">
-            <template #prefix><AppIcon name="user" :size="16" /></template>
-          </n-input>
-          <div v-if="usernameError" class="text-xs -mt-3" style="color: var(--color-alarm)">{{ usernameError }}</div>
+          <div>
+            <n-input v-model:value="username" type="text" placeholder="用户名（字母数字下划线，2-20位）"
+                     maxlength="20" autofocus :status="usernameError ? 'error' : undefined" @keyup.enter="handleRegister">
+              <template #prefix><AppIcon name="user" :size="16" /></template>
+            </n-input>
+            <div class="flex justify-between items-center mt-1">
+              <div v-if="usernameError" class="text-xs" style="color: var(--color-alarm)">{{ usernameError }}</div>
+              <div class="ml-auto text-xs" :style="countStyle(username, 20)">{{ username.length }} / 20</div>
+            </div>
+          </div>
 
-          <n-input v-model:value="name" type="text" placeholder="昵称（1-20位）"
-                   maxlength="20" @keyup.enter="handleRegister">
-            <template #prefix><AppIcon name="badge-check" :size="16" /></template>
-          </n-input>
+          <div>
+            <n-input v-model:value="name" type="text" placeholder="昵称（1-20位）"
+                     maxlength="20" @keyup.enter="handleRegister">
+              <template #prefix><AppIcon name="badge-check" :size="16" /></template>
+            </n-input>
+            <div class="flex justify-end mt-1">
+              <div class="text-xs" :style="countStyle(name, 20)">{{ name.length }} / 20</div>
+            </div>
+          </div>
 
-          <n-input v-model:value="password" type="password" placeholder="密码（6-20位，含字母和数字）"
-                   show-password-on="click" :status="passwordError ? 'error' : undefined" @keyup.enter="handleRegister">
-            <template #prefix><AppIcon name="lock" :size="16" /></template>
-          </n-input>
-          <div v-if="passwordError" class="text-xs -mt-3" style="color: var(--color-alarm)">{{ passwordError }}</div>
+          <div>
+            <n-input v-model:value="password" type="password" placeholder="密码（6-20位，含字母和数字）"
+                     maxlength="20" show-password-on="click" :status="passwordError ? 'error' : undefined" @keyup.enter="handleRegister">
+              <template #prefix><AppIcon name="lock" :size="16" /></template>
+            </n-input>
+            <div class="flex justify-between items-center mt-1">
+              <div v-if="passwordError" class="text-xs" style="color: var(--color-alarm)">{{ passwordError }}</div>
+              <div class="ml-auto text-xs" :style="countStyle(password, 20)">{{ password.length }} / 20</div>
+            </div>
+          </div>
         </div>
 
         <n-button type="primary" size="large" block class="mt-5" :loading="authStore.loading" attr-type="submit">
@@ -42,7 +57,7 @@
       </n-form>
 
       <div class="text-center">
-        <RouterLink to="/" class="text-sm font-medium transition-opacity hover:opacity-80" style="color: var(--color-signal)">
+        <RouterLink to="/login" class="text-sm font-medium transition-opacity hover:opacity-80" style="color: var(--color-signal)">
           已有账号？立即登录 →
         </RouterLink>
       </div>
@@ -65,6 +80,13 @@ const password = ref('')
 const error = ref('')
 const usernameError = ref('')
 const passwordError = ref('')
+
+// 字符计数颜色：接近上限变红
+function countStyle(value, max) {
+  return {
+    color: value.length >= max ? 'var(--color-alarm)' : 'var(--color-ink-faint)'
+  }
+}
 
 async function handleRegister() {
   usernameError.value = ''

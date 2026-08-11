@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.annotation.Idempotent;
+import com.tc.traumchatroom.annotation.LogOperation;
 import com.tc.traumchatroom.dto.request.FriendApplyRequest;
 import com.tc.traumchatroom.dto.request.FriendHandleRequest;
 import com.tc.traumchatroom.dto.response.FriendRequestResponse;
@@ -45,6 +46,7 @@ public class FriendController {
      * 幂等：防重复点击导致重复申请（配合 X-Request-Id header）
      */
     @Idempotent(key = "friend-apply", timeout = 5)
+    @LogOperation(action = "ADD_FRIEND", targetType = "friend")
     @PostMapping("/api/friend/request")
     public Result<Void> apply(@Valid @RequestBody FriendApplyRequest request) {
         String username = getCurrentUsername();
@@ -118,6 +120,7 @@ public class FriendController {
      * 删除好友
      * DELETE /api/friends/{friendId}
      */
+    @LogOperation(action = "DELETE_FRIEND", targetType = "friend")
     @DeleteMapping("/api/friends/{friendId}")
     public Result<Void> deleteFriend(@PathVariable Integer friendId) {
         String username = getCurrentUsername();

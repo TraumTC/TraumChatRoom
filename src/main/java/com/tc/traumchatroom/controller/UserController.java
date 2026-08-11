@@ -1,5 +1,6 @@
 package com.tc.traumchatroom.controller;
 
+import com.tc.traumchatroom.annotation.LogOperation;
 import com.tc.traumchatroom.dto.request.UpdatePasswordRequest;
 import com.tc.traumchatroom.dto.request.UpdateProfileRequest;
 import com.tc.traumchatroom.dto.response.MentionableUserResponse;
@@ -43,6 +44,7 @@ public class UserController {
      * 修改密码
      * PUT /api/user/password
      */
+    @LogOperation(action = "CHANGE_PASSWORD", targetType = "user")
     @PutMapping("/password")
     public Result<Void> updatePassword(@Valid @RequestBody UpdatePasswordRequest request) {
         String username = getCurrentUsername();

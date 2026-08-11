@@ -1,6 +1,6 @@
 <!-- src/components/friend/FriendItem.vue — 单个好友项（亮色） -->
 <template>
-  <div class="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors hover:bg-white/5"
+  <div class="flex items-center gap-3 px-3 py-2 cursor-pointer user-item"
        @click="$emit('openChat', friend)">
     <div class="relative shrink-0">
       <UserAvatar :user="friend" size="md" />

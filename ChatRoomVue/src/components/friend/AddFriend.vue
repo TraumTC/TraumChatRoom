@@ -13,7 +13,7 @@
       </div>
 
       <div v-for="user in results" :key="user.id"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-white/5">
+           class="flex items-center gap-3 px-3 py-2 rounded-lg user-item">
         <UserAvatar :user="user" size="md" />
         <div class="flex-1 min-w-0">
           <div class="text-sm truncate" style="color: var(--color-ink)">{{ user.name }}</div>

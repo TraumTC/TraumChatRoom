@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
@@ -26,10 +25,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<?> handleValidation (MethodArgumentNotValidException e) {
+        // 只返回首个校验错误，避免多个字段错误拼接过长
         String msg = e.getBindingResult().getFieldErrors().stream()
-                .map(f -> f.getField() + ": " + f.getDefaultMessage())
-                .collect(Collectors.joining("; "));
-        return new Result<>(400,msg,null);
+                .findFirst()
+                .map(f -> f.getDefaultMessage())
+                .orElse("参数校验失败");
+        return new Result<>(400, msg, null);
     }
 
     /** 参数类型不匹配 / 缺少参数 / JSON 解析失败 / 绑定失败 → 400（而非 500） */

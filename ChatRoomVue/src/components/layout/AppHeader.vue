@@ -1,7 +1,7 @@
 <!-- src/components/layout/AppHeader.vue — 顶部导航栏（亮色） -->
 <template>
-  <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-10"
-          style="background: var(--color-card); border-bottom: 1px solid var(--color-border)">
+  <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-10 header-glass"
+          style="border-bottom: 1px solid var(--color-border)">
     <!-- 左侧：品牌 -->
     <RouterLink :to="authStore.isGuest ? '/' : '/chat'"
                 class="text-base font-semibold tracking-wide transition-opacity hover:opacity-80"
@@ -14,8 +14,7 @@
       <template v-if="authStore.isAuthenticated">
         <!-- 管理员入口（文字 + 胶囊样式） -->
         <RouterLink v-if="authStore.isAdmin" to="/admin/users"
-                    class="text-xs px-3 py-1 rounded-full font-medium transition-colors"
-                    style="color: var(--color-signal); background: var(--color-signal-ghost); border: 1px solid var(--color-border)">
+                    class="capsule-tag text-xs px-3 py-1 rounded-full font-medium">
           管理
         </RouterLink>
 
@@ -30,7 +29,8 @@
         <UserAvatar v-if="authStore.isGuest" :user="authStore.user" size="sm" />
 
         <!-- 头像预览 -->
-        <AvatarPreview :visible="showAvatarPreview"
+        <AvatarPreview ref="avatarPreviewRef"
+                       :visible="showAvatarPreview"
                        :user="authStore.user"
                        @close="showAvatarPreview = false"
                        @change="handleAvatarChange"
@@ -69,18 +69,25 @@ import AvatarPreview from '@/components/user/AvatarPreview.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 const showAvatarPreview = ref(false)
+const avatarPreviewRef = ref(null)
 
-async function handleAvatarChange(file) {
+async function handleAvatarChange(blob) {
   try {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', blob, 'avatar.jpg')
     const res = await userApi.uploadAvatar(formData)
     if (res.data.code === 200) {
-      authStore.user.avatar = res.data.data.avatarUrl
+      // 缓存破坏：追加时间戳参数，强制浏览器重新加载
+      authStore.user.avatar = res.data.data.avatarUrl + '?t=' + Date.now()
       authStore.user = { ...authStore.user }
+      avatarPreviewRef.value?.uploadDone()
+      window.$message?.success('头像更换成功')
+    } else {
+      avatarPreviewRef.value?.uploadFailed(res.data.message)
     }
   } catch (err) {
     console.error('头像上传失败', err)
+    avatarPreviewRef.value?.uploadFailed(err.response?.data?.message || '头像上传失败')
   }
 }
 
@@ -90,9 +97,11 @@ async function handleAvatarDelete() {
     if (res.data.code === 200) {
       authStore.user.avatar = null
       authStore.user = { ...authStore.user }
+      window.$message?.success('已恢复默认头像')
     }
   } catch (err) {
     console.error('删除头像失败', err)
+    window.$message?.error('删除头像失败')
   }
 }
 

@@ -19,7 +19,7 @@
             </div>
           </div>
           <p class="text-xs" style="color: var(--color-ink-faint)">点击头像预览或更换</p>
-          <AvatarPreview :visible="showAvatarPreview" :user="authStore.user"
+          <AvatarPreview ref="avatarPreviewRef" :visible="showAvatarPreview" :user="authStore.user"
                          @close="showAvatarPreview = false"
                          @change="handleAvatarChange" @delete="handleAvatarDelete" />
         </div>
@@ -83,6 +83,7 @@ const oldPassword = ref('')
 const newPassword = ref('')
 const error = ref('')
 const showAvatarPreview = ref(false)
+const avatarPreviewRef = ref(null)
 
 const roleName = computed(() => {
   return { ROLE_ADMIN: '管理员', ROLE_GUEST: '游客', ROLE_USER: '普通用户' }[authStore.user?.role] || ''
@@ -134,20 +135,24 @@ async function handleChangePassword() {
   }
 }
 
-async function handleAvatarChange(file) {
+async function handleAvatarChange(blob) {
   error.value = ''
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', blob, 'avatar.jpg')
   try {
     const res = await userApi.uploadAvatar(formData)
     if (res.data.code === 200) {
-      authStore.user.avatar = res.data.data.avatarUrl
+      // 缓存破坏：追加时间戳参数，强制浏览器重新加载
+      authStore.user.avatar = res.data.data.avatarUrl + '?t=' + Date.now()
       authStore.user = { ...authStore.user }
+      avatarPreviewRef.value?.uploadDone()
+      window.$message?.success('头像更换成功')
     } else {
-      error.value = res.data.message
+      avatarPreviewRef.value?.uploadFailed(res.data.message)
     }
   } catch (err) {
-    error.value = err.response?.data?.message || '头像上传失败'
+    const msg = err.response?.data?.message || '头像上传失败'
+    avatarPreviewRef.value?.uploadFailed(msg)
   }
 }
 
@@ -157,6 +162,7 @@ async function handleAvatarDelete() {
     if (res.data.code === 200) {
       authStore.user.avatar = null
       authStore.user = { ...authStore.user }
+      window.$message?.success('已恢复默认头像')
     }
   } catch (e) {
     error.value = e.response?.data?.message || '删除失败'

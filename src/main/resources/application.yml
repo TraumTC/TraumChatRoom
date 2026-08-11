@@ -50,9 +50,9 @@ ai:
     max-tokens: 1024
     temperature: 0.7
     timeout: 30000
-    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在30字以内。"
+    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在80字以内。"
   rate-limit:
-    max-per-minute: 3
+    max-per-minute: 10
 
 # JWT 配置（密钥必须通过环境变量注入，禁止硬编码默认值）
 jwt:
@@ -63,4 +63,9 @@ jwt:
 # CORS 配置
 cors:
   allowed-origins: http://localhost:5173,http://localhost:3000
+
+# 日志配置（详细配置见 logback-spring.xml）
+logging:
+  file:
+    path: ./logs
 

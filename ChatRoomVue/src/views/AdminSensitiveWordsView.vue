@@ -1,10 +1,10 @@
 <!-- src/views/AdminSensitiveWordsView.vue — 管理员-敏感词管理（亮色） -->
 <template>
-  <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
+  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
-    <div class="max-w-4xl w-full mx-auto p-6">
+    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-6 flex flex-col">
       <AdminTabs />
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 shrink-0">
         <h1 class="text-lg font-semibold" style="color: var(--color-ink)">敏感词管理</h1>
         <n-button type="primary" @click="openAdd">
           <template #icon><AppIcon name="plus" :size="15" /></template>
@@ -13,18 +13,21 @@
       </div>
 
       <!-- 过滤 -->
-      <div class="flex items-center gap-3 mb-4 flex-wrap">
+      <div class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
         <n-select v-model:value="levelFilter" :options="levelOptions" placeholder="全部级别" clearable style="width: 120px"
                   @update:value="loadWords" />
         <n-select v-model:value="categoryFilter" :options="categoryOptions" placeholder="全部分类" clearable style="width: 120px"
                   @update:value="loadWords" />
         <n-button @click="refreshWords">刷新词库</n-button>
+        <n-button @click="handleReset">重置</n-button>
       </div>
 
       <!-- 列表 -->
-      <n-data-table :columns="columns" :data="words" :bordered="true" size="small" :scroll-x="600" />
-      <div v-if="words.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
-        暂无敏感词
+      <div class="flex-1 min-h-0 overflow-y-auto">
+        <n-data-table :columns="columns" :data="words" :bordered="true" size="small" :scroll-x="600" />
+        <div v-if="words.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
+          暂无敏感词
+        </div>
       </div>
 
       <!-- 添加/修改弹窗 -->
@@ -61,8 +64,7 @@ const newCategory = ref('insult')
 
 const levelOptions = [
   { label: '替换（***）', value: 1 },
-  { label: '拦截（拒绝发送）', value: 2 },
-  { label: '警告（仅记录）', value: 3 }
+  { label: '拦截（拒绝发送）', value: 2 }
 ]
 const categoryOptions = [
   { label: '辱骂', value: 'insult' },
@@ -71,14 +73,14 @@ const categoryOptions = [
 ]
 
 function levelName(level) {
-  return { 1: '替换', 2: '拦截', 3: '警告' }[level] || '未知'
+  return { 1: '替换', 2: '拦截' }[level] || '未知'
 }
 function categoryName(cat) {
   return { insult: '辱骂', ad: '广告', spam: '垃圾' }[cat] || '其他'
 }
 
 function levelRender(row) {
-  const color = { 1: 'var(--color-warn)', 2: 'var(--color-alarm)', 3: 'var(--color-ink-soft)' }[row.level] || 'var(--color-ink-soft)'
+  const color = { 1: 'var(--color-warn)', 2: 'var(--color-alarm)' }[row.level] || 'var(--color-ink-soft)'
   return h('span', { style: `color:${color}` }, levelName(row.level))
 }
 
@@ -90,8 +92,8 @@ const columns = [
   {
     title: '操作', key: 'actions', align: 'right',
     render: (row) => h('div', { style: 'display:flex;gap:12px;justify-content:flex-end' }, [
-      h('a', { style: 'color:var(--color-signal);font-size:12px;cursor:pointer', onClick: () => openEdit(row) }, '修改'),
-      h('a', { style: 'color:var(--color-alarm);font-size:12px;cursor:pointer', onClick: () => deleteWord(row) }, '删除')
+      h('a', { class: 'action-link', style: 'color:var(--color-signal)', onClick: () => openEdit(row) }, '修改'),
+      h('a', { class: 'action-link', style: 'color:var(--color-alarm)', onClick: () => deleteWord(row) }, '删除')
     ])
   }
 ]
@@ -107,6 +109,13 @@ async function loadWords() {
       words.value = res.data.data.items
     }
   } catch (e) { /* 忽略 */ }
+}
+
+// 重置筛选条件
+function handleReset() {
+  levelFilter.value = null
+  categoryFilter.value = null
+  loadWords()
 }
 
 function openAdd() {
