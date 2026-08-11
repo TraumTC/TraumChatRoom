@@ -13,8 +13,11 @@ public interface OperationLogMapper {
     /** 插入操作日志 */
     int insert(OperationLog log);
 
-    /** 查询操作日志（分页，支持按操作类型和时间范围筛选） */
+    /** 查询操作日志（分页，支持按操作类型/目标类型/结果状态/用户名/时间范围筛选） */
     List<OperationLog> findByConditions(@Param("action") String action,
+                                        @Param("targetType") String targetType,
+                                        @Param("username") String username,
+                                        @Param("success") Boolean success,
                                         @Param("startDate") String startDate,
                                         @Param("endDate") String endDate,
                                         @Param("offset") int offset,
@@ -22,6 +25,9 @@ public interface OperationLogMapper {
 
     /** 查询操作日志总数 */
     int countByConditions(@Param("action") String action,
+                          @Param("targetType") String targetType,
+                          @Param("username") String username,
+                          @Param("success") Boolean success,
                           @Param("startDate") String startDate,
                           @Param("endDate") String endDate);
 
