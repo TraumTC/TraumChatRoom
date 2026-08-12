@@ -8,6 +8,7 @@ import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.exception.BusinessException;
 import com.tc.traumchatroom.exception.ErrorCode;
 import com.tc.traumchatroom.mapper.UserMapper;
+import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.service.UserService;
 import com.tc.traumchatroom.service.CacheService;
 import jakarta.annotation.Resource;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +36,9 @@ public class UserServiceImpl implements UserService {
     private UserMapper userMapper;
 
     @Resource
+    private MessageMapper messageMapper;
+
+    @Resource
     private PasswordEncoder passwordEncoder;
 
     @Resource
@@ -48,6 +53,7 @@ public class UserServiceImpl implements UserService {
     // ---------- 修改个人资料 ----------
 
     @Override
+    @Transactional
     public void updateProfile(String username, UpdateProfileRequest request) {
         User user = userMapper.findByUsername(username);
         if (user == null) {
@@ -62,13 +68,25 @@ public class UserServiceImpl implements UserService {
         // 如果修改了昵称，检查唯一性
         if (StringUtils.hasText(request.getName()) && !request.getName().equals(user.getName())) {
             User existing = userMapper.findByName(request.getName());
-            if (existing != null) {
+            // 排除当前用户自己：MySQL 默认 collation 不区分大小写，查重会命中自身的旧昵称
+            //（如 Alice → alice），需要允许这种仅大小写变化的修改
+            if (existing != null && !existing.getId().equals(user.getId())) {
                 throw new BusinessException(ErrorCode.NAME_EXISTS);
             }
-            user.setName(request.getName());
+            String oldName = user.getName();
+            String newName = request.getName();
+            user.setName(newName);
+
+            userMapper.updateProfile(user);
+
+            // 同步更新 message 表中该用户发送的消息的冗余昵称字段
+            // （receiver_name 存的是 username 不受影响，只需更新 sender_name）
+            int updated = messageMapper.updateSenderName(user.getId(), oldName, newName);
+            log.info("用户 {} 改昵称: {} -> {}，同步更新 {} 条消息的 sender_name", username, oldName, newName, updated);
+        } else {
+            userMapper.updateProfile(user);
         }
 
-        userMapper.updateProfile(user);
         // 失效用户缓存，保证下次读取拿到最新昵称
         cacheService.evictUser(user.getId());
         log.info("用户 {} 修改资料成功", username);

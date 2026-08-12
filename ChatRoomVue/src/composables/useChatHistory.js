@@ -87,7 +87,12 @@ export function useChatHistory(chatStore, authStore) {
       try {
         const res = await messageApi.getPrivateHistory(username, { size: pageSize })
         if (res.data.code === 200) {
-          chatStore.setPrivateMessages(username, [...res.data.data.items].reverse())
+          const msgs = [...res.data.data.items].reverse()
+          chatStore.setPrivateMessages(username, msgs)
+          // 等待 DOM 更新 + scroller 重新测量，再滚到底部
+          await nextTick()
+          await nextTick()
+          scrollToBottom()
         }
       } catch (e) {
         chatStore.setError('加载私聊历史失败')
@@ -98,6 +103,8 @@ export function useChatHistory(chatStore, authStore) {
     }
     isNearBottom.value = true
     showNewMessageHint.value = false
+    // 初始进入新会话时也尝试滚动
+    await nextTick()
     scrollToBottom()
   }
 

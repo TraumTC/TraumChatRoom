@@ -5,9 +5,7 @@
       <NDialogProvider>
         <NNotificationProvider>
           <GlobalHooks />
-          <router-view v-slot="{ Component }">
-            <component :is="Component" :key="$route.path" />
-          </router-view>
+          <router-view />
         </NNotificationProvider>
       </NDialogProvider>
     </NMessageProvider>

@@ -1,7 +1,8 @@
-<!-- src/components/friend/AddFriend.vue — 添加好友弹窗（亮色） -->
+<!-- src/components/friend/AddFriend.vue — 添加好友弹窗（v-if 挂载模式） -->
 <template>
-  <n-modal v-model:show="visible" preset="card" title="添加好友" class="max-w-md" :style="{ width: '90%', maxWidth: '28rem' }"
-           @close="$emit('close')">
+  <n-modal v-model:show="visible" preset="card" title="添加好友" class="max-w-md"
+           :style="{ width: '90%', maxWidth: '28rem' }"
+           @after-leave="onAfterLeave">
     <n-input v-model:value="keyword" placeholder="输入用户名或昵称搜索" clearable @input="debouncedSearch">
       <template #prefix><AppIcon name="search" :size="14" /></template>
     </n-input>
@@ -43,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { friendApi } from '@/api/friend'
@@ -51,14 +52,19 @@ import { clearRequestId } from '@/utils/request-id'
 import { useChatStore } from '@/stores/chat'
 
 const emit = defineEmits(['close', 'added'])
+
 const chatStore = useChatStore()
 
-const visible = ref(true)
+const visible = ref(false)
 const keyword = ref('')
 const results = ref([])
 const searching = ref(false)
 const applyTarget = ref(null)
 const applyMessage = ref('')
+
+function onAfterLeave() {
+  emit('close')
+}
 
 let timer = null
 function debouncedSearch() {
@@ -96,6 +102,7 @@ async function sendApply() {
     if (res.data.code === 200) {
       clearRequestId('friend-request')
       chatStore.addNotification({ type: 'success', message: '申请已发送' })
+      chatStore.incrementFriendListVersion()
       applyTarget.value = null
       search()
     } else {
@@ -124,4 +131,9 @@ async function handleAccept(user) {
     window.$message?.error(e.response?.data?.message || '操作失败')
   }
 }
+
+onMounted(async () => {
+  await nextTick()
+  visible.value = true
+})
 </script>

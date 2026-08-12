@@ -7,6 +7,7 @@
         <id property="id" column="id"/>
         <result property="senderId" column="sender_id"/>
         <result property="senderName" column="sender_name"/>
+        <result property="senderUsername" column="sender_username"/>
         <result property="receiverId" column="receiver_id"/>
         <result property="receiverName" column="receiver_name"/>
         <result property="content" column="content"/>
@@ -39,29 +40,39 @@
                 #{isAiReply}, #{replyToId}, #{senderIp})
     </insert>
 
-    <!-- 群聊历史（游标分页） -->
+    <!-- 群聊历史（游标分页）：
+         注意：JOIN user 表实时取昵称和用户名，用户改名后历史消息显示新昵称 -->
     <select id="selectGroupHistory" resultMap="MessageResultMap">
-        SELECT * FROM message
-        WHERE receiver_id IS NULL AND deleted_at IS NULL
+        SELECT m.*,
+               su.username AS sender_username,
+               COALESCE(su.name, m.sender_name) AS sender_name
+        FROM message m
+        LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
+        WHERE m.receiver_id IS NULL AND m.deleted_at IS NULL
         <if test="cursor != null">
-            AND id &lt; #{cursor}
+            AND m.id &lt; #{cursor}
         </if>
-        ORDER BY id DESC
+        ORDER BY m.id DESC
         LIMIT #{size}
     </select>
 
-    <!-- 私聊历史（游标分页） -->
+    <!-- 私聊历史（游标分页）：
+         注意：JOIN user 表实时取昵称和用户名，用户改名后历史消息显示新昵称 -->
     <select id="selectPrivateHistory" resultMap="MessageResultMap">
-        SELECT * FROM message
-        WHERE deleted_at IS NULL
+        SELECT m.*,
+               su.username AS sender_username,
+               COALESCE(su.name, m.sender_name) AS sender_name
+        FROM message m
+        LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
+        WHERE m.deleted_at IS NULL
         AND (
-            (sender_id = #{userId} AND receiver_name = #{targetName})
-            OR (sender_id = #{targetUserId} AND receiver_name = #{senderName})
+            (m.sender_id = #{userId} AND m.receiver_name = #{targetName})
+            OR (m.sender_id = #{targetUserId} AND m.receiver_name = #{senderName})
         )
         <if test="cursor != null">
-            AND id &lt; #{cursor}
+            AND m.id &lt; #{cursor}
         </if>
-        ORDER BY id DESC
+        ORDER BY m.id DESC
         LIMIT #{size}
     </select>
 
@@ -78,6 +89,13 @@
     <!-- 软删除消息 -->
     <update id="softDelete">
         UPDATE message SET deleted_at = NOW() WHERE id = #{id}
+    </update>
+
+    <!-- 同步更新发送者昵称（按 sender_id 精确定位，避免重名用户误伤） -->
+    <update id="updateSenderName">
+        UPDATE message
+        SET sender_name = #{newName}
+        WHERE sender_id = #{senderId} AND sender_name = #{oldName} AND deleted_at IS NULL
     </update>
 
     <!-- 查询最近的群聊消息 -->

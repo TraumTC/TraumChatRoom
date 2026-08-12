@@ -1,10 +1,10 @@
 <!-- src/views/AdminLogsView.vue — 管理员-操作日志 -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
+  <div class="app-h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
-    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-6 flex flex-col">
+    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col">
       <AdminTabs />
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between gap-2 flex-wrap mb-6">
         <h1 class="text-lg font-semibold" style="color: var(--color-ink)">操作日志</h1>
         <div class="flex items-center gap-2">
           <n-button size="small" quaternary @click="handleRefresh" :loading="loading">
@@ -17,20 +17,20 @@
       <!-- 筛选 -->
       <div class="flex items-center gap-3 mb-4 flex-wrap">
         <n-select v-model:value="filters.action" :options="actionOptions" placeholder="全部操作"
-                  clearable style="width: 140px" />
+                  clearable class="w-full sm:w-[140px]" />
         <n-select v-model:value="filters.targetType" :options="targetTypeOptions" placeholder="全部类型"
-                  clearable style="width: 130px" />
+                  clearable class="w-full sm:w-[130px]" />
         <n-select v-model:value="successFilter" :options="successOptions" placeholder="全部结果"
-                  clearable style="width: 130px" />
+                  clearable class="w-full sm:w-[130px]" />
         <n-input v-model:value="filters.username" placeholder="操作者用户名" clearable
-                 @keydown.enter="handleQuery" style="width: 180px">
+                 @keydown.enter="handleQuery" class="w-full sm:w-[180px]">
           <template #prefix><AppIcon name="search" :size="14" /></template>
         </n-input>
         <n-date-picker v-model:value="filters.startDate" type="date" placeholder="开始日期"
-                       style="width: 150px" />
+                       class="w-full sm:w-[150px]" />
         <span style="color: var(--color-ink-faint)">至</span>
         <n-date-picker v-model:value="filters.endDate" type="date" placeholder="结束日期"
-                       style="width: 150px" />
+                       class="w-full sm:w-[150px]" />
         <n-button type="primary" @click="handleQuery">查询</n-button>
         <n-button @click="handleReset">重置</n-button>
       </div>
@@ -46,7 +46,7 @@
       </div>
 
       <!-- 分页 -->
-      <div class="flex items-center justify-between py-3 shrink-0">
+      <div class="flex items-center justify-between gap-2 flex-wrap py-3 shrink-0">
         <span class="text-sm" style="color: var(--color-ink-soft)">共 {{ total }} 条</span>
         <n-pagination v-model:page="page" :page-size="size" :item-count="total" @update:page="onPageChange"
                       class="pagination-plain" />

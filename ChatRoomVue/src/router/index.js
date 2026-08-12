@@ -62,21 +62,24 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // 有 Token 但没有用户信息（页面刷新）→ 先获取用户信息
+  // 有 Token 但没有用户信息（例如直接刷新 /admin）→ 先获取用户信息
   if (authStore.isAuthenticated && !authStore.user) {
     await authStore.fetchUser()
   }
 
-  // 需要登录但未登录 → 跳转登录页
+  // 需要登录但未登录 → 跳转首页
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/')
     return
   }
 
-  // 需要管理员但不是管理员 → 返回首页
-  if (to.meta.requiresAdmin && authStore.user?.role !== 'ROLE_ADMIN') {
-    next('/')
-    return
+  // 需要管理员权限 → 必须是 ROLE_ADMIN
+  if (to.meta.requiresAdmin) {
+    // 同步判断（user 已从 localStorage 恢复或已 fetch）
+    if (!authStore.isAdmin) {
+      next('/')
+      return
+    }
   }
 
   // 游客禁止访问个人中心

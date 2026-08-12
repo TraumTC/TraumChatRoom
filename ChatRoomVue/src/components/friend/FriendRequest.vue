@@ -1,8 +1,9 @@
-<!-- src/components/friend/FriendRequest.vue — 好友申请列表弹窗（亮色） -->
+<!-- src/components/friend/FriendRequest.vue — 好友申请列表弹窗（v-if 挂载模式） -->
 <template>
   <n-modal v-model:show="visible" preset="card" title="好友申请"
-           class="max-w-md" :style="{ width: '90%', maxWidth: '28rem' }" @close="$emit('close')">
-    <!-- 分类切换（NTabs line，与私聊页签/管理页一致） -->
+           class="max-w-md" :style="{ width: '90%', maxWidth: '28rem' }"
+           @after-leave="onAfterLeave">
+    <!-- 分类切换 -->
     <n-tabs v-model:value="type" type="line" size="small" :animated="false" class="mb-3"
             @update:value="loadRequests">
       <n-tab name="received">收到的申请</n-tab>
@@ -57,17 +58,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { friendApi } from '@/api/friend'
+import { useChatStore } from '@/stores/chat'
 
 const emit = defineEmits(['close', 'changed'])
 
-const visible = ref(true)
+const chatStore = useChatStore()
+
+const visible = ref(false)
 const type = ref('received')
 const items = ref([])
 const loading = ref(false)
+
+// 弹窗完全关闭后（遮罩点击/ESC/X），通知父组件卸载
+function onAfterLeave() {
+  emit('close')
+}
 
 async function loadRequests() {
   loading.value = true
@@ -81,11 +90,6 @@ async function loadRequests() {
   }
 }
 
-function switchType(t) {
-  type.value = t
-  loadRequests()
-}
-
 async function handleRequest(id, action) {
   try {
     const res = await friendApi.handleRequest(id, { action })
@@ -93,6 +97,7 @@ async function handleRequest(id, action) {
       window.$message?.success(action === 'accept' ? '已同意' : '已拒绝')
       loadRequests()
       emit('changed')
+      chatStore.incrementFriendListVersion()
     } else {
       window.$message?.error(res.data.message)
     }
@@ -115,11 +120,10 @@ async function deleteRequest(id) {
   }
 }
 
-onMounted(loadRequests)
+// 组件挂载后，先渲染 modal（show=false），再切为 true 触发显示动画
+onMounted(async () => {
+  await nextTick()
+  visible.value = true
+  loadRequests()
+})
 </script>
-
-<style scoped>
-.is-active {
-  border-bottom: 2px solid var(--color-signal);
-}
-</style>

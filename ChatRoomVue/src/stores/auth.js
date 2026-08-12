@@ -1,12 +1,12 @@
 // src/stores/auth.js — 认证状态
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getToken, setToken, clearToken } from '@/utils/token'
+import { getToken, setToken, clearToken, getCachedUser, setCachedUser, clearCachedUser } from '@/utils/token'
 import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
-  const user = ref(null)
+  const user = ref(getCachedUser())  // 从 localStorage 恢复（含 role）
   const accessToken = ref(getToken())  // 从 localStorage 恢复
   const loading = ref(false)
   const error = ref(null)
@@ -17,6 +17,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isGuest = computed(() => user.value?.role === 'ROLE_GUEST')
   const displayName = computed(() => user.value?.name || '未登录')
 
+  function setUser(newUser) {
+    user.value = newUser
+    if (newUser) {
+      setCachedUser(newUser)
+    } else {
+      clearCachedUser()
+    }
+  }
+
   // 登录
   async function login(username, password) {
     loading.value = true
@@ -26,8 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (res.data.code === 200) {
         const { accessToken: token, refreshToken: refresh, user: userData } = res.data.data
         accessToken.value = token
-        user.value = userData
         setToken(token, refresh)
+        setUser(userData)
         return true
       }
       error.value = res.data.message
@@ -48,8 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (res.data.code === 200) {
         const { accessToken: token, refreshToken: refresh, user: userData } = res.data.data
         accessToken.value = token
-        user.value = userData
         setToken(token, refresh)
+        setUser(userData)
         return true
       }
       return false
@@ -70,6 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
       if (res.data.code === 200) {
         accessToken.value = res.data.data.accessToken
         setToken(res.data.data.accessToken, refresh)
+        if (res.data.data.user) {
+          setUser(res.data.data.user)
+        }
         return true
       }
     } catch (e) {
@@ -78,27 +90,39 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
-  // 登出
+  // 登出（本地状态清理 + 可选后端注销）
   async function logout() {
-    try {
-      await authApi.logout({ refreshToken: localStorage.getItem('refreshToken') })
-    } catch (e) { /* 忽略错误 */ }
+    // 先保存 refreshToken（clearToken 会删除它）
+    const refresh = localStorage.getItem('refreshToken')
+
+    // 清理本地状态（防止导航守卫误判）
     accessToken.value = null
-    user.value = null
+    setUser(null)
     clearToken()
+    clearCachedUser()
+
+    // 异步通知后端（忽略错误，因为本地已清理）
+    if (refresh) {
+      authApi.logout({ refreshToken: refresh }).catch(() => {})
+    }
   }
 
-  // 获取当前用户信息
-  async function fetchUser() {
+  // 获取当前用户信息（可强制刷新，同步更新缓存）
+  async function fetchUser(force = false) {
+    if (!force && user.value) return user.value
     try {
       const res = await authApi.me()
       if (res.data.code === 200) {
-        user.value = res.data.data
+        setUser(res.data.data)
+        return user.value
       }
-    } catch (e) { /* 忽略 */ }
+    } catch (e) {
+      console.warn('获取用户信息失败', e)
+    }
+    return null
   }
 
   return { user, accessToken, loading, error,
            isAuthenticated, isAdmin, isGuest, displayName,
-           login, loginAsGuest, refresh, logout, fetchUser }
+           login, loginAsGuest, refresh, logout, fetchUser, setUser }
 })

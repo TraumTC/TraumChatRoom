@@ -49,6 +49,8 @@ public class MessageResponse {
     @NoArgsConstructor
     public static class SenderInfo {
         private Integer id;
+        /** 用户名（唯一，前端用于会话区分） */
+        private String username;
         private String name;
         private String avatar;
     }
@@ -61,6 +63,8 @@ public class MessageResponse {
     @NoArgsConstructor
     public static class ReceiverInfo {
         private Integer id;
+        /** 用户名（唯一，前端用于会话区分） */
+        private String username;
         private String name;
     }
 }

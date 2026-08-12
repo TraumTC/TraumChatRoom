@@ -200,9 +200,10 @@ public class ChatServiceImpl implements ChatService {
         response.setReplyToId(msg.getReplyToId());
         response.setCreatedAt(msg.getCreatedAt());
 
-        // 构造发送者信息
+        // 构造发送者信息（username/name 来自 JOIN user 表，改昵称后实时生效）
         MessageResponse.SenderInfo senderInfo = new MessageResponse.SenderInfo();
         senderInfo.setId(msg.getSenderId());
+        senderInfo.setUsername(msg.getSenderUsername());
         senderInfo.setName(msg.getSenderName());
         // 查询发送者头像（走缓存，未命中回源数据库并回填）
         if (msg.getSenderId() != null) {
@@ -213,10 +214,11 @@ public class ChatServiceImpl implements ChatService {
         }
         response.setSender(senderInfo);
 
-        // 构造接收者信息（私聊时）
+        // 构造接收者信息（私聊时，receiver_name 语义为 username）
         if (msg.getReceiverId() != null) {
             MessageResponse.ReceiverInfo receiverInfo = new MessageResponse.ReceiverInfo();
             receiverInfo.setId(msg.getReceiverId());
+            receiverInfo.setUsername(msg.getReceiverName());
             receiverInfo.setName(msg.getReceiverName());
             response.setReceiver(receiverInfo);
         }

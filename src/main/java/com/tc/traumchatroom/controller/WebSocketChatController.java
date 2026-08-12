@@ -266,8 +266,12 @@ public class WebSocketChatController {
         String senderUsername = principal.getName();
         String clientId = payload.get("clientId");
 
+        log.info("私聊消息请求: sender={}, receiver={}, clientId={}, content长度={}",
+                senderUsername, receiverUsername, clientId, content != null ? content.length() : 0);
+
         // 发送频率限流（每用户每分钟 30 条）
         if (!allowSend(senderUsername)) {
+            log.warn("私聊被限流: sender={}", senderUsername);
             messagingTemplate.convertAndSendToUser(
                     senderUsername, "/queue/send-error",
                     Map.of("type", "send_error", "message", "消息发送过于频繁，请稍后再试")
@@ -277,6 +281,7 @@ public class WebSocketChatController {
 
         // 消息长度校验
         if (content == null || content.isBlank()) {
+            log.warn("私聊内容为空: sender={}", senderUsername);
             messagingTemplate.convertAndSendToUser(
                     senderUsername, "/queue/send-error",
                     Map.of("type", "send_error", "message", "消息不能为空")
@@ -284,6 +289,7 @@ public class WebSocketChatController {
             return;
         }
         if (content.length() > MAX_MESSAGE_LENGTH) {
+            log.warn("私聊内容超长: sender={}, length={}", senderUsername, content.length());
             messagingTemplate.convertAndSendToUser(
                     senderUsername, "/queue/send-error",
                     Map.of("type", "send_error", "message", "消息长度不能超过 " + MAX_MESSAGE_LENGTH + " 字")
@@ -294,7 +300,7 @@ public class WebSocketChatController {
         // 查询发送者（支持游客）
         User sender = userMapper.findByUsername(senderUsername);
         if (sender == null && senderUsername.startsWith("guest_")) {
-            // 游客不能发私聊
+            log.warn("私聊被拒-游客: sender={}", senderUsername);
             messagingTemplate.convertAndSendToUser(
                     senderUsername,
                     "/queue/send-error",
@@ -306,23 +312,28 @@ public class WebSocketChatController {
         // 查询接收者
         User receiver = userMapper.findByUsername(receiverUsername);
         if (sender == null || receiver == null) {
+            log.warn("私聊被拒-用户不存在: sender={}, receiver={}, senderFound={}, receiverFound={}",
+                    senderUsername, receiverUsername, sender != null, receiver != null);
             messagingTemplate.convertAndSendToUser(
-                    senderUsername,
-                    "/queue/send-error",
+                    senderUsername, "/queue/send-error",
                     Map.of("type", "send_error", "message", "接收者不存在")
             );
             return;
         }
 
-        // 私聊仅限好友关系（防止任意用户骚扰他人）
-        if (!friendMapper.exists(sender.getId(), receiver.getId())) {
+        // 私聊权限：登录用户间任意可发，非好友仅在线时可发
+        // 游客已在上方拦截，此处 sender 必为登录用户
+        boolean receiverOnline = onlineUserService.isOnline(receiverUsername);
+        if (!receiverOnline && !friendMapper.exists(sender.getId(), receiver.getId())) {
+            // 接收者离线且非好友 → 拒绝（无法离线投递）
+            log.warn("私聊被拒-对方离线且非好友: sender={}, receiver={}", senderUsername, receiverUsername);
             messagingTemplate.convertAndSendToUser(
-                    senderUsername,
-                    "/queue/send-error",
-                    Map.of("type", "send_error", "message", "只能向好友发送私聊消息")
+                    senderUsername, "/queue/send-error",
+                    Map.of("type", "send_error", "message", "对方不在线，添加好友后才能发送离线消息")
             );
             return;
         }
+        // 在线或好友 → 放行
 
         // 敏感词过滤
         FilterResult filterResult = sensitiveWordFilter.filter(content);
@@ -340,6 +351,7 @@ public class WebSocketChatController {
 
         // 消息幂等：同一 clientId 只处理一次，防重连/双击重复发送（校验通过后占用）
         if (!acquireMessageIdempotent(senderUsername, clientId)) {
+            log.warn("私聊被拒-幂等重复: sender={}, clientId={}", senderUsername, clientId);
             return;
         }
 
@@ -365,7 +377,17 @@ public class WebSocketChatController {
 
         // 保存到数据库
         message.setCreatedAt(LocalDateTime.now());
-        messageMapper.insert(message);
+        try {
+            messageMapper.insert(message);
+            log.info("私聊消息已保存: id={}, sender={}, receiver={}", message.getId(), senderUsername, receiverUsername);
+        } catch (Exception e) {
+            log.error("私聊消息保存失败: sender={}, receiver={}", senderUsername, receiverUsername, e);
+            messagingTemplate.convertAndSendToUser(
+                    senderUsername, "/queue/send-error",
+                    Map.of("type", "send_error", "message", "消息保存失败")
+            );
+            return;
+        }
 
         // 构造响应对象
         MessageResponse response = toMessageResponse(message, sender);
@@ -520,14 +542,16 @@ public class WebSocketChatController {
         // 发送者信息
         MessageResponse.SenderInfo senderInfo = new MessageResponse.SenderInfo();
         senderInfo.setId(sender.getId());
+        senderInfo.setUsername(sender.getUsername());
         senderInfo.setName(sender.getName());
         senderInfo.setAvatar(sender.getAvatar());
         response.setSender(senderInfo);
 
-        // 接收者信息（私聊时）
+        // 接收者信息（私聊时，receiver_name 语义为 username）
         if (msg.getReceiverId() != null) {
             MessageResponse.ReceiverInfo receiverInfo = new MessageResponse.ReceiverInfo();
             receiverInfo.setId(msg.getReceiverId());
+            receiverInfo.setUsername(msg.getReceiverName());
             receiverInfo.setName(msg.getReceiverName());
             response.setReceiver(receiverInfo);
         }

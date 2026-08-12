@@ -1,10 +1,10 @@
 <!-- src/views/AdminSensitiveWordsView.vue — 管理员-敏感词管理（亮色） -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
+  <div class="app-h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
-    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-6 flex flex-col">
+    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col">
       <AdminTabs />
-      <div class="flex items-center justify-between mb-6 shrink-0">
+      <div class="flex items-center justify-between gap-2 flex-wrap mb-6 shrink-0">
         <h1 class="text-lg font-semibold" style="color: var(--color-ink)">敏感词管理</h1>
         <n-button type="primary" @click="openAdd">
           <template #icon><AppIcon name="plus" :size="15" /></template>
@@ -14,9 +14,9 @@
 
       <!-- 过滤 -->
       <div class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
-        <n-select v-model:value="levelFilter" :options="levelOptions" placeholder="全部级别" clearable style="width: 120px"
+        <n-select v-model:value="levelFilter" :options="levelOptions" placeholder="全部级别" clearable class="w-full sm:w-[120px]"
                   @update:value="loadWords" />
-        <n-select v-model:value="categoryFilter" :options="categoryOptions" placeholder="全部分类" clearable style="width: 120px"
+        <n-select v-model:value="categoryFilter" :options="categoryOptions" placeholder="全部分类" clearable class="w-full sm:w-[120px]"
                   @update:value="loadWords" />
         <n-button @click="refreshWords">刷新词库</n-button>
         <n-button @click="handleReset">重置</n-button>

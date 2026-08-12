@@ -36,6 +36,11 @@ public interface MessageMapper {
     /** 软删除消息 */
     int softDelete(@Param("id") Long id);
 
+    /** 同步更新消息表中的发送者昵称（用户改昵称时调用，按 sender_id 精确定位避免重名误伤） */
+    int updateSenderName(@Param("senderId") Integer senderId,
+                         @Param("oldName") String oldName,
+                         @Param("newName") String newName);
+
     /** 查询最近的群聊消息（用于缓存） */
     List<Message> findRecentGroupMessages(@Param("limit") int limit);
 }

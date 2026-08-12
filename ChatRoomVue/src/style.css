@@ -72,6 +72,19 @@ button:not(.n-button):not([class*="n-"]):focus-visible {
   }
 }
 
+/* 全屏页面容器高度：桌面端保持 100vh 不变；
+   移动端（<1024px）用 100dvh 动态视口，避免地址栏伸缩时高度跳动 */
+.app-h-screen {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  @media (max-width: 1023px) {
+    .app-h-screen {
+      height: 100dvh;
+    }
+  }
+}
+
 /* ============================================================
    自定义组件层（Tailwind @layer components）
    ============================================================ */
@@ -198,6 +211,80 @@ button:not(.n-button):not([class*="n-"]):focus-visible {
   }
   .user-item:hover {
     background: var(--color-hover);
+  }
+
+  /* 输入区图标按钮（文件上传、表情等） */
+  .input-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+    flex-shrink: 0;
+  }
+  .input-icon-btn:hover {
+    background: var(--color-hover);
+    color: var(--color-ink) !important;
+  }
+  .input-icon-btn:active {
+    transform: scale(0.92);
+  }
+
+  /* 发送按钮 */
+  button.send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+    color: #fff !important;
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%) !important;
+    border: none !important;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  }
+  button.send-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%) !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    transform: translateY(-1px);
+  }
+  button.send-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+  }
+  button.send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  .send-btn-text {
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* 消息气泡长文本换行 */
+  .break-words {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* 强制换行（用于无空格长字符串，如 URL / 文件名） */
+  .break-all {
+    word-break: break-all;
   }
 
   /* 链接悬浮下划线 */

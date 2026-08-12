@@ -1,14 +1,14 @@
 <!-- src/views/AdminUsersView.vue — 管理员-用户管理（亮色） -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
+  <div class="app-h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
     <AppHeader />
-    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-6 flex flex-col">
+    <div class="flex-1 min-h-0 max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col">
       <AdminTabs />
       <h1 class="text-lg font-semibold mb-6" style="color: var(--color-ink)">用户管理</h1>
 
       <!-- 工具栏 -->
       <div class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
-        <n-input v-model:value="keyword" placeholder="搜索用户名/昵称" clearable style="width: 240px"
+        <n-input v-model:value="keyword" placeholder="搜索用户名/昵称" clearable class="w-full sm:w-60"
                  @keyup.enter="loadUsers">
           <template #prefix><AppIcon name="search" :size="14" /></template>
         </n-input>
@@ -24,7 +24,7 @@
       </div>
 
       <!-- 分页 -->
-      <div class="flex items-center justify-between py-3 shrink-0">
+      <div class="flex items-center justify-between gap-2 flex-wrap py-3 shrink-0">
         <span class="text-sm" style="color: var(--color-ink-soft)">共 {{ total }} 条</span>
         <n-pagination v-model:page="page" :page-size="size" :item-count="total"
                       @update:page="loadUsers" class="pagination-plain" />
@@ -35,6 +35,7 @@
 
 <script setup>
 import { ref, h, onMounted } from 'vue'
+import { NInput } from 'naive-ui'
 import { adminApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { formatTime } from '@/utils/format'
@@ -183,19 +184,48 @@ async function deleteUser(user) {
   }
 }
 
-async function resetPassword(user) {
+function resetPassword(user) {
   const dialog = window.$dialog
-  if (dialog) {
-    dialog.warning({
-      title: '重置密码',
-      content: () => h('div', null, [
-        h('p', { style: 'margin-bottom:8px;color:var(--color-ink-soft)' }, `为 ${user.name} 设置新密码（6-20位，含字母和数字）：`),
-        h('n-input', { type: 'password', placeholder: '新密码' })
-      ]),
-      positiveText: '重置',
-      negativeText: '取消'
-    })
-  }
+  if (!dialog) return
+  let newPassword = ''
+  dialog.warning({
+    title: '重置密码',
+    content: () => h('div', null, [
+      h('p', { style: 'margin-bottom:8px;color:var(--color-ink-soft)' }, `为 ${user.name} 设置新密码（6-20位，含字母和数字）：`),
+      h(NInput, {
+        type: 'password',
+        placeholder: '输入新密码',
+        showPasswordOn: 'click',
+        onUpdateValue: (v) => { newPassword = v }
+      })
+    ]),
+    positiveText: '重置',
+    negativeText: '取消',
+    // 返回 false / Promise<false> 时阻止弹窗关闭
+    onPositiveClick: async () => {
+      const pwd = (newPassword || '').trim()
+      if (!pwd) {
+        window.$message?.error('请输入新密码')
+        return false
+      }
+      if (pwd.length < 6 || pwd.length > 20) {
+        window.$message?.error('密码长度需6-20位')
+        return false
+      }
+      if (!/[a-zA-Z]/.test(pwd) || !/[0-9]/.test(pwd)) {
+        window.$message?.error('密码必须同时包含字母和数字')
+        return false
+      }
+      try {
+        await adminApi.updateUser(user.id, { password: pwd })
+        window.$message?.success('密码已重置')
+        return true
+      } catch (e) {
+        window.$message?.error(e.response?.data?.message || '重置失败')
+        return false
+      }
+    }
+  })
 }
 
 onMounted(loadUsers)

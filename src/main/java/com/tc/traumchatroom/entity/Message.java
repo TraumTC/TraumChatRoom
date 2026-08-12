@@ -12,8 +12,10 @@ public class Message {
     private Long id;
     /** 发送者ID，用户删除时置NULL */
     private Integer senderId;
-    /** 发送者昵称（冗余字段，避免JOIN） */
+    /** 发送者昵称（冗余字段，历史查询时 JOIN user 表取实时值） */
     private String senderName;
+    /** 发送者用户名（非表列，查询时 JOIN user 表实时获取，用于前端区分会话） */
+    private String senderUsername;
     /** 接收者ID，群聊时为NULL */
     private Integer receiverId;
     /** 接收者昵称（冗余字段） */

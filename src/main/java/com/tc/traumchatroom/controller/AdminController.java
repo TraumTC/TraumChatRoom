@@ -300,11 +300,14 @@ public class AdminController {
             user.setStatus(status);
         }
 
-        // 重置密码
+        // 重置密码（与注册规则一致：6-20位，含字母和数字）
         String password = (String) body.get("password");
         if (password != null && !password.isBlank()) {
             if (password.length() < 6 || password.length() > 20) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "密码长度需6-20位");
+            }
+            if (!password.matches(".*[a-zA-Z].*") || !password.matches(".*[0-9].*")) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "密码必须同时包含字母和数字");
             }
             userMapper.updatePassword(id, passwordEncoder.encode(password));
         }

@@ -8,8 +8,9 @@
   </div>
 
   <!-- 正常消息（纯 flex 行，避免组件包裹破坏布局） -->
-  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter" :class="isSelf ? 'flex-row-reverse' : ''"
-       @contextmenu.prevent="openMenu">
+  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter msg-touchable" :class="isSelf ? 'flex-row-reverse' : ''"
+       @contextmenu.prevent="openMenu"
+       @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchCancel">
     <!-- 头像 -->
     <UserAvatar :user="message.sender" size="md" class="mt-1" />
 
@@ -24,21 +25,21 @@
       </div>
 
       <!-- 引用摘要 -->
-      <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs truncate max-w-[400px]"
+      <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs truncate max-w-[75vw] sm:max-w-[400px]"
            style="background: var(--color-card); border-left: 2px solid var(--color-signal); color: var(--color-ink-soft)">
         <span style="color: var(--color-signal)">{{ quotedMsg.senderName }}：</span>{{ quotedMsg.content }}
       </div>
 
       <!-- AI 消息（信号签名竖线） -->
       <div v-if="message.aiReply"
-           class="ai-bubble rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+           class="ai-bubble rounded-lg px-3 py-2 break-words text-sm max-w-[75vw] sm:max-w-[480px]"
            style="background: var(--color-signal-ghost); color: var(--color-signal); border-left: 2px solid var(--color-signal)">
         {{ message.content }}
       </div>
 
       <!-- 文本消息 -->
       <div v-else-if="message.messageType === 'text'"
-           class="rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+           class="rounded-lg px-3 py-2 break-words text-sm max-w-[75vw] sm:max-w-[480px]"
            :class="isSelf ? 'bubble-self' : 'bubble-other'"
            v-html="safeContent"></div>
 
@@ -46,34 +47,35 @@
       <div v-else-if="message.messageType === 'image'">
         <img :src="message.filePath" :alt="message.fileName"
              loading="lazy" decoding="async"
-             class="max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-             @click="showPreview = true" />
+             class="max-w-[60vw] sm:max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+             @click="onImageClick" />
       </div>
 
       <!-- 视频消息 -->
       <div v-else-if="message.messageType === 'file' && isVideo(message.fileName)"
-           class="rounded-lg overflow-hidden max-w-[400px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
+           class="rounded-lg overflow-hidden max-w-[75vw] sm:max-w-[400px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
         <video controls preload="none" class="w-full rounded-t-lg max-h-[300px]">
           <source :src="message.filePath" />
           您的浏览器不支持视频播放
         </video>
-        <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5" style="color: var(--color-ink-soft); border-top: 1px solid var(--color-border)">
-          <AppIcon name="video" :size="13" />{{ message.fileName }}
+        <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5 min-w-0" style="color: var(--color-ink-soft); border-top: 1px solid var(--color-border)">
+          <AppIcon name="video" :size="13" class="shrink-0" />
+          <span class="truncate">{{ message.fileName }}</span>
         </div>
       </div>
 
       <!-- 文件消息 -->
       <div v-else-if="message.messageType === 'file'"
-           class="rounded-lg px-3 py-2 max-w-[480px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
-        <div class="flex items-center gap-2 text-sm" style="color: var(--color-ink)">
-          <AppIcon name="file-text" :size="15" style="color: var(--color-signal)" />
-          <span class="truncate">{{ message.fileName }}</span>
-          <span class="text-xs tabular" style="color: var(--color-ink-faint)">{{ formatFileSize(message.fileSize) }}</span>
+           class="rounded-lg px-3 py-2 max-w-[75vw] sm:max-w-[480px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
+        <div class="flex items-center gap-2 text-sm min-w-0" style="color: var(--color-ink)">
+          <AppIcon name="file-text" :size="15" style="color: var(--color-signal)" class="shrink-0" />
+          <span class="truncate min-w-0 break-all">{{ message.fileName }}</span>
+          <span class="text-xs tabular shrink-0" style="color: var(--color-ink-faint)">{{ formatFileSize(message.fileSize) }}</span>
         </div>
       </div>
 
       <!-- 兜底 -->
-      <div v-else class="rounded-lg px-3 py-2 break-words text-sm max-w-[480px]"
+      <div v-else class="rounded-lg px-3 py-2 break-words text-sm max-w-[75vw] sm:max-w-[480px]"
            :class="isSelf ? 'bubble-self' : 'bubble-other'">
         {{ message.content }}
       </div>
@@ -103,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import ImagePreview from '@/components/common/ImagePreview.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -183,6 +185,59 @@ function openMenu(e) {
   menuVisible.value = true
 }
 
+// ---------- 移动端长按呼出菜单（触屏无 contextmenu 事件） ----------
+let longPressTimer = null
+let touchStartPos = null
+let suppressImageClick = false
+
+function onTouchStart(e) {
+  if (e.touches.length !== 1) return
+  const t = e.touches[0]
+  touchStartPos = { x: t.clientX, y: t.clientY }
+  longPressTimer = setTimeout(() => {
+    if (!touchStartPos) return
+    menuX.value = touchStartPos.x
+    menuY.value = touchStartPos.y
+    menuVisible.value = true
+    longPressTimer = null
+    // 长按后屏蔽一次随后的 click（如图片预览），避免误触
+    suppressImageClick = true
+    setTimeout(() => { suppressImageClick = false }, 400)
+  }, 500)
+}
+
+function onTouchMove(e) {
+  if (!touchStartPos) return
+  const t = e.touches[0]
+  const dx = t.clientX - touchStartPos.x
+  const dy = t.clientY - touchStartPos.y
+  // 位移超过阈值视为滚动，取消长按
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearLongPress()
+}
+
+function onTouchEnd() {
+  clearLongPress()
+}
+
+function onTouchCancel() {
+  clearLongPress()
+}
+
+function clearLongPress() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  touchStartPos = null
+}
+
+function onImageClick() {
+  if (suppressImageClick) return
+  showPreview.value = true
+}
+
+onUnmounted(clearLongPress)
+
 function closeMenu() {
   menuVisible.value = false
 }
@@ -249,6 +304,10 @@ function isVideo(fileName) {
 </script>
 
 <style scoped>
+/* 移动端长按消息行时禁用 iOS 系统 callout（复制/保存等），保证自定义菜单正常呼出 */
+.msg-touchable {
+  -webkit-touch-callout: none;
+}
 .bubble-self {
   background: #95EC69;
   color: #1F2328;

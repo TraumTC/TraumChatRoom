@@ -3,7 +3,7 @@
   <div class="min-h-screen flex flex-col" style="background: var(--color-bg)">
     <AppHeader />
 
-    <div class="max-w-lg w-full mx-auto p-8">
+    <div class="max-w-lg w-full mx-auto p-4 sm:p-8">
       <RouterLink to="/chat" class="inline-flex items-center gap-1 text-sm mb-6 transition-colors hover:opacity-80"
                   style="color: var(--color-ink-soft)">
         <AppIcon name="chevron-left" :size="16" />返回聊天
@@ -69,6 +69,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
 import { userApi } from '@/api/user'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -77,6 +78,7 @@ import AvatarPreview from '@/components/user/AvatarPreview.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 
 const name = ref('')
 const oldPassword = ref('')
@@ -97,6 +99,8 @@ async function handleSaveProfile() {
     if (res.data.code === 200) {
       authStore.user.name = name.value.trim()
       authStore.user = { ...authStore.user }
+      // 清除消息缓存，强制重拉历史以显示新昵称
+      chatStore.clearMessages()
       window.$message?.success('昵称已更新')
     } else {
       error.value = res.data.message

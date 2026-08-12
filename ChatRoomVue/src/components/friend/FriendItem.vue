@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <span v-if="hasUnread" class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--color-alarm)"></span>
+    <span v-if="hasUnread" class="rounded-full shrink-0" style="width:5px;height:5px;background:#FF3B30"></span>
 
     <div class="relative shrink-0">
       <n-button quaternary circle size="small" @click.stop="showMenu = !showMenu" aria-label="更多操作">

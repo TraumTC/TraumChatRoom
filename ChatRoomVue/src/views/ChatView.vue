@@ -1,7 +1,7 @@
 <!-- src/views/ChatView.vue — 聊天室主页面（亮色） -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
-    <AppHeader />
+  <div class="app-h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
+    <AppHeader :show-sidebar-toggle="isMobile" @toggle-sidebar="sidebarOpen = true" />
 
     <div class="flex flex-1 min-h-0">
       <!-- 移动端遮罩 -->
@@ -13,7 +13,7 @@
                                  : { background: 'var(--color-ghost)', borderRight: '1px solid var(--color-border)', boxShadow: '1px 0 8px rgba(0,0,0,0.03)' }">
         <!-- 好友列表（游客隐藏） -->
         <div v-if="!authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-border)">
-          <FriendList @openChat="startPrivateChat" @addFriend="showAddFriend = true" />
+          <FriendList @openChat="startPrivateChat" @addFriend="showAddFriend = true" @openRequests="showFriendRequests = true" />
         </div>
 
         <!-- 在线用户 -->
@@ -44,18 +44,15 @@
       </aside>
 
       <!-- 添加好友弹窗 -->
-      <AddFriend v-if="showAddFriend" @close="showAddFriend = false" />
+      <AddFriend v-if="showAddFriend" @close="showAddFriend = false" @added="onFriendAdded" />
+
+      <!-- 好友申请弹窗 -->
+      <FriendRequest v-if="showFriendRequests" @close="showFriendRequests = false" @changed="onFriendRequestChanged" />
 
       <!-- 右侧 -->
       <main class="flex-1 flex flex-col min-w-0">
         <!-- 私聊标签条 -->
         <PrivateChatTab v-if="!authStore.isGuest" @open-group="chatStore.openGroupChat" />
-
-        <!-- 移动端折叠开关 -->
-        <button v-if="isMobile" @click="sidebarOpen = true"
-                class="px-3 py-1.5 text-xs self-start" style="color: var(--color-ink-soft)">
-          <AppIcon name="panel-left" :size="14" />
-        </button>
 
         <!-- 连接状态提示 -->
         <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"
@@ -139,6 +136,7 @@
             :items="displayMessages"
             :min-item-size="60"
             key-field="id"
+            :key="scrollerKey"
             class="flex-1 scroll-thin"
             @scroll="handleScroll"
           >
@@ -190,6 +188,7 @@ import MessageInput from '@/components/chat/MessageInput.vue'
 import PrivateChatTab from '@/components/chat/PrivateChatTab.vue'
 import FriendList from '@/components/friend/FriendList.vue'
 import AddFriend from '@/components/friend/AddFriend.vue'
+import FriendRequest from '@/components/friend/FriendRequest.vue'
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -208,11 +207,21 @@ const { handleFileUpload } = useFileUpload(chatStore)
 
 // 视图级 UI 状态
 const showAddFriend = ref(false)
+const showFriendRequests = ref(false)
 const sidebarOpen = ref(false)
 const isMobile = ref(window.innerWidth < 1024)
 
 const onlineUsers = computed(() => chatStore.onlineUsers)
 const onlineCount = computed(() => onlineUsers.value.length)
+
+// 当会话切换时，强制 DynamicScroller 重挂载（避免虚拟列表缓存旧状态）
+// 注意：不包含消息数量，否则每条新消息都会触发重挂载
+const scrollerKey = computed(() => {
+  if (isPrivateMode.value) {
+    return `private-${currentChat.value.username || ''}`
+  }
+  return 'group'
+})
 
 function isPrivateActive(username) {
   return isPrivateMode.value && currentChat.value.username === username
@@ -224,6 +233,14 @@ function getUnread(username) {
 
 function hasPrivateUnread(username) {
   return getUnread(username) > 0
+}
+
+function onFriendAdded() {
+  chatStore.incrementFriendListVersion()
+}
+
+function onFriendRequestChanged() {
+  chatStore.incrementFriendListVersion()
 }
 
 function handleResize() {

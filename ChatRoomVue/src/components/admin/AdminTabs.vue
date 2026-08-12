@@ -1,7 +1,7 @@
 <!-- src/components/admin/AdminTabs.vue — 管理后台 tab 导航（亮色） -->
 <template>
-  <div class="flex items-center justify-between mb-5" style="border-bottom: 1px solid var(--color-border)">
-    <div class="flex items-center gap-1">
+  <div class="flex flex-wrap items-center justify-between gap-y-2 mb-5" style="border-bottom: 1px solid var(--color-border)">
+    <div class="flex items-center gap-1 overflow-x-auto max-w-full">
       <div v-for="t in tabs" :key="t.path"
            class="px-4 py-2 text-sm cursor-pointer select-none"
            :style="{ color: isActive(t.path) ? 'var(--color-signal)' : 'var(--color-ink-soft)',
@@ -15,7 +15,7 @@
     </div>
 
     <!-- 返回群聊按钮 -->
-    <n-button size="small" quaternary @click="router.push('/chat')" class="mb-1">
+    <n-button size="small" quaternary @click="router.push('/chat')" class="mb-1 shrink-0">
       <template #icon><AppIcon name="arrow-left" :size="14" /></template>
       返回群聊
     </n-button>

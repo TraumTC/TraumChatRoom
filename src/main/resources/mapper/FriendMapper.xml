@@ -24,10 +24,11 @@
            OR (user_id = #{friendId} AND friend_id = #{userId})
     </delete>
 
-    <!-- 查询是否存在好友关系 -->
+    <!-- 查询是否存在好友关系（双向检查，friend 表可能只存了一个方向） -->
     <select id="exists" resultType="boolean">
         SELECT COUNT(*) > 0 FROM friend
-        WHERE user_id = #{userId} AND friend_id = #{friendId}
+        WHERE (user_id = #{userId} AND friend_id = #{friendId})
+           OR (user_id = #{friendId} AND friend_id = #{userId})
     </select>
 
     <!-- 查询用户的好友列表（分页） -->

@@ -1,9 +1,9 @@
 <!-- src/components/chat/MessageInput.vue — 消息输入区（亮色） -->
 <template>
-  <div class="relative" style="background: var(--color-card); border-top: 1px solid var(--color-border)">
+  <div ref="inputContainerRef" class="relative" style="background: var(--color-card); border-top: 1px solid var(--color-border)">
     <!-- 引用预览条 -->
     <div v-if="chatStore.replyTo"
-         class="flex items-center gap-2 px-3 py-2"
+         class="flex items-center gap-2 px-2 sm:px-3 py-1dot5 sm:py-2"
          style="background: var(--color-hover); border-bottom: 1px solid var(--color-border)">
       <div class="w-0.5 h-4 rounded-full shrink-0" style="background: var(--color-signal)"></div>
       <div class="flex-1 min-w-0">
@@ -16,7 +16,7 @@
     </div>
 
     <!-- 输入区 -->
-    <div class="p-3 flex items-end gap-2 relative">
+    <div class="p-2 sm:p-3 flex items-end gap-2 relative">
       <!-- @提及弹窗 -->
       <MentionPopup v-if="showMention"
                     ref="mentionPopupRef"
@@ -25,18 +25,18 @@
                     @close="showMention = false" />
 
       <!-- 文件上传 -->
-      <label class="cursor-pointer shrink-0 transition-colors p-1.5 rounded-lg" style="color: var(--color-ink-soft)" title="上传文件">
-        <AppIcon name="paperclip" :size="18" />
+      <label class="input-icon-btn cursor-pointer shrink-0" style="color: var(--color-ink-soft)" title="上传文件">
+        <AppIcon name="paperclip" :size="20" />
         <input type="file" class="hidden" :accept="acceptTypes" @change="handleFileUpload" />
       </label>
 
       <!-- 表情包 -->
       <div class="relative shrink-0">
         <button @click="showEmoji = !showEmoji"
-                class="transition-colors p-1.5 rounded-lg"
+                class="input-icon-btn"
                 :style="{ color: showEmoji ? 'var(--color-signal)' : 'var(--color-ink-soft)' }"
                 title="表情">
-          <AppIcon name="smile" :size="18" />
+          <AppIcon name="smile" :size="20" />
         </button>
         <EmojiPicker v-if="showEmoji" @select="handleEmojiSelect" />
       </div>
@@ -48,11 +48,13 @@
         @input="handleInput"
         @compositionstart="isComposing = true"
         @compositionend="handleCompositionEnd"
-        placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
+        @focus="onInputFocus"
+        @blur="onInputBlur"
+        :placeholder="placeholderText"
         maxlength="2000"
         rows="1"
         ref="inputRef"
-        class="flex-1 resize-none rounded-lg px-3 py-2 text-sm max-h-40 focus:outline-none transition-all"
+        class="flex-1 resize-none rounded-lg px-3 py-2 text-base sm:text-sm max-h-40 min-h-[40px] sm:min-h-0 focus:outline-none transition-all"
         style="background: var(--color-hover); color: var(--color-ink); border: 1px solid var(--color-border)"
       />
 
@@ -62,9 +64,10 @@
       </div>
 
       <!-- 发送按钮 -->
-      <n-button type="primary" :disabled="!inputText.trim()" @click="sendMessage">
-        发送
-      </n-button>
+      <button class="send-btn shrink-0" :disabled="!inputText.trim()" @click="sendMessage">
+        <AppIcon name="send" :size="20" />
+        <span class="send-btn-text hidden sm:inline">发送</span>
+      </button>
     </div>
   </div>
 </template>
@@ -85,11 +88,37 @@ const chatStore = useChatStore()
 
 const inputText = ref('')
 const inputRef = ref(null)
+const inputContainerRef = ref(null)
 const showMention = ref(false)
 const showEmoji = ref(false)
 const mentionKeyword = ref('')
 const isComposing = ref(false)
 const mentionPopupRef = ref(null)
+const isMobile = ref(window.innerWidth < 640)
+
+const placeholderText = computed(() =>
+  isMobile.value ? '输入消息...' : '输入消息...（Enter 发送，Shift+Enter 换行）'
+)
+
+function handleResize() {
+  isMobile.value = window.innerWidth < 640
+}
+
+function onInputFocus() {
+  nextTick(() => {
+    if (inputContainerRef.value) {
+      inputContainerRef.value.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  })
+}
+
+function onInputBlur() {
+  // 失焦时不做特殊处理，键盘收起后布局自动恢复
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', handleResize)
+}
 
 const props = defineProps({
   chatType: { type: String, default: 'group' },

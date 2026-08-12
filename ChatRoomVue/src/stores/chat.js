@@ -16,6 +16,7 @@ export const useChatStore = defineStore('chat', () => {
   const notifications = ref([])         // 通知队列（Toast）
   const replyTo = ref(null)             // 引用消息 { id, senderName, content }
   const friendRequestCount = ref(0)     // 未处理的好友申请数量
+  const friendListVersion = ref(0)      // 好友列表刷新版本号（监听变化自动刷新）
   const privateUnreadSenders = ref({})  // 有未读私聊消息的发送者 { username: { name, username } }
   const isPageHidden = ref(false)       // 页面是否隐藏（用于标题闪烁）
   const originalTitle = document.title
@@ -25,6 +26,9 @@ export const useChatStore = defineStore('chat', () => {
     return currentChat.value.type === 'private' ? currentChat.value : null
   })
   const totalUnread = computed(() => {
+    return Object.values(unreadCounts.value).reduce((sum, n) => sum + n, 0)
+  })
+  const totalPrivateUnread = computed(() => {
     return Object.values(unreadCounts.value).reduce((sum, n) => sum + n, 0)
   })
 
@@ -48,10 +52,10 @@ export const useChatStore = defineStore('chat', () => {
   // 添加私聊消息（以 username 为 key 去重）
   function addPrivateMessage(msg) {
     const isMyMsg = isMyMessage(msg)
-    // 对方 username：我发的 → receiver.username；别人发的 → sender.username
+    // 对方 username：优先取后端返回的 username 字段（name 是昵称，可能与 username 不同）
     const otherUsername = isMyMsg
-      ? (msg.receiver?.name || 'unknown')   // 后端回显 receiver_name 即对方 username
-      : (msg.sender?.name || 'unknown')
+      ? (msg.receiver?.username || msg.receiver?.name || 'unknown')
+      : (msg.sender?.username || msg.sender?.name || 'unknown')
     const otherName = isMyMsg
       ? (msg.receiver?.name || otherUsername)
       : (msg.sender?.name || otherUsername)
@@ -71,8 +75,13 @@ export const useChatStore = defineStore('chat', () => {
 
     // 后端回传的真实消息（正 ID）替换对应的临时消息（负 ID）
     if (msg.id > 0 && isMyMsg) {
+      // 查找最近 5 秒内创建的临时消息，按时间倒序替换（支持敏感词替换导致 content 变化）
+      const now = Date.now()
       const tempIdx = arr.findIndex(m =>
-        m.id < 0 && m.content === msg.content && m.sender?.name === msg.sender?.name
+        m.id < 0 &&
+        m.sender?.name === msg.sender?.name &&
+        m.receiver?.username === msg.receiver?.username &&
+        m._tempCreatedAt && (now - m._tempCreatedAt) < 5000
       )
       if (tempIdx >= 0) {
         arr.splice(tempIdx, 1, msg)  // 替换临时消息
@@ -122,6 +131,11 @@ export const useChatStore = defineStore('chat', () => {
   }
   function incrementFriendRequestCount() {
     friendRequestCount.value++
+  }
+
+  // 好友列表刷新版本号
+  function incrementFriendListVersion() {
+    friendListVersion.value++
   }
 
   // 更新消息（撤回、敏感词替换等）
@@ -174,6 +188,14 @@ export const useChatStore = defineStore('chat', () => {
     privateMessages.value[username] = msgs
   }
 
+  // 清除所有消息缓存（个人资料变更后调用，强制下次重新拉取以显示最新昵称）
+  function clearMessages() {
+    messages.value = []
+    privateMessages.value = {}
+    unreadCounts.value = {}
+    privateUnreadSenders.value = {}
+  }
+
   // 添加通知（Toast）
   function addNotification(notification) {
     const id = Date.now() + Math.random()
@@ -210,13 +232,13 @@ export const useChatStore = defineStore('chat', () => {
 
   return { messages, onlineUsers, privateMessages, privateTabs,
            currentChat, currentPrivateChat, unreadCounts, privateUnreadSenders,
-           totalUnread, loading, error, notifications, replyTo, friendRequestCount,
+           totalUnread, totalPrivateUnread, loading, error, notifications, replyTo, friendRequestCount, friendListVersion,
            addMessage, addPrivateMessage, updateMessage,
            handleMessageRecalled, setOnlineUsers,
            openGroupChat, openPrivateChat, closePrivateTab,
-           setPrivateMessages, addNotification,
+           setPrivateMessages, clearMessages, addNotification,
            setLoading, setError, setPageHidden,
            setReplyTo, clearReplyTo,
-           setFriendRequestCount, incrementFriendRequestCount,
+           setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,
            startTitleFlash, stopTitleFlash }
 })

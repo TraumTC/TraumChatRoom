@@ -96,6 +96,20 @@ export function useWebSocket() {
     stompClient.subscribe('/user/queue/private-messages', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.addPrivateMessage(data)
+      // 非当前活跃会话时弹 Toast 通知
+      const isMyMsg = data.sender?.id && String(data.sender.id) === localStorage.getItem('myId')
+      if (!isMyMsg) {
+        const otherUsername = data.sender?.username || data.sender?.name || '未知用户'
+        const isCurrent = chatStore.currentChat.type === 'private'
+          && chatStore.currentChat.username === otherUsername
+        if (!isCurrent) {
+          chatStore.addNotification({
+            type: 'private_message',
+            message: `${data.sender?.name || otherUsername} 发来一条私聊消息`,
+            data
+          })
+        }
+      }
     })
 
     stompClient.subscribe('/topic/private-notifications', (msg) => {
@@ -106,6 +120,7 @@ export function useWebSocket() {
     stompClient.subscribe('/user/queue/friend-request', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.incrementFriendRequestCount()
+      chatStore.incrementFriendListVersion()
       chatStore.addNotification({
         type: 'friend_request',
         message: `${data.sender?.name} 请求添加你为好友`,
@@ -115,6 +130,7 @@ export function useWebSocket() {
 
     stompClient.subscribe('/user/queue/friend-accepted', (msg) => {
       const data = JSON.parse(msg.body)
+      chatStore.incrementFriendListVersion()
       chatStore.addNotification({
         type: 'friend_accepted',
         message: `${data.friend?.name} 通过了你的好友申请`,
@@ -131,16 +147,13 @@ export function useWebSocket() {
       const data = JSON.parse(msg.body)
       console.error('发送失败:', data.message)
       chatStore.setError(data.message)
-      if (data.subtype === 'blocked') {
-        // 违禁词拦截：弹窗提醒
-        window.$dialog?.warning({
-          title: '消息被拦截',
-          content: data.message || '消息包含违规内容，已被拦截',
-          positiveText: '我知道了',
-        })
-      } else {
-        chatStore.addNotification({ type: 'error', message: data.message || '发送失败' })
-      }
+      // 所有发送错误都弹窗提醒（Toast 容易被忽略）
+      const isBlocked = data.subtype === 'blocked'
+      window.$dialog?.warning({
+        title: isBlocked ? '消息被拦截' : '发送失败',
+        content: data.message || '发送失败，请稍后重试',
+        positiveText: '我知道了',
+      })
     })
   }
 
@@ -174,14 +187,15 @@ export function useWebSocket() {
     // 乐观更新：立即在本地显示自己发的消息（不依赖后端回传）
     const localMsg = {
       id: -Date.now(),  // 负数临时 ID，不会与数据库 ID 冲突
-      sender: { id: authStore.user?.id, name: authStore.user?.name, avatar: authStore.user?.avatar },
-      receiver: { id: null, name: receiver },
+      sender: { id: authStore.user?.id, username: authStore.user?.username, name: authStore.user?.name, avatar: authStore.user?.avatar },
+      receiver: { id: null, username: receiver, name: receiver },
       content,
       messageType: 'text',
       aiReply: false,
       recalled: false,
       replyToId: replyToId || null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      _tempCreatedAt: Date.now()  // 临时创建时间戳，用于后端回传时匹配替换
     }
     chatStore.addPrivateMessage(localMsg)
 
