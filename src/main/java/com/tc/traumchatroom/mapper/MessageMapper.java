@@ -43,4 +43,16 @@ public interface MessageMapper {
 
     /** 查询最近的群聊消息（用于缓存） */
     List<Message> findRecentGroupMessages(@Param("limit") int limit);
+
+    /** 查询当前用户所有私聊发送者ID（作为接收者的 sender 去重，用于离线未读统计） */
+    List<Integer> selectPrivateConversationPeers(@Param("userId") Integer userId);
+
+    /** 查询双方会话的最新消息ID（双向，用于初始化/推进已读游标） */
+    Long selectConversationLatestId(@Param("userId") Integer userId,
+                                    @Param("peerId") Integer peerId);
+
+    /** 查询某会话中 id 大于已读游标的未读消息统计（数量 + 最新消息ID） */
+    com.tc.traumchatroom.dto.vo.UnreadStatsVO selectUnreadStats(@Param("userId") Integer userId,
+                                                                 @Param("peerId") Integer peerId,
+                                                                 @Param("lastReadId") Long lastReadId);
 }

@@ -63,9 +63,9 @@
         已达 2000 字上限
       </div>
 
-      <!-- 发送按钮 -->
+      <!-- 发送按钮：移动端仅图标，桌面端仅文字 -->
       <button class="send-btn shrink-0" :disabled="!inputText.trim()" @click="sendMessage">
-        <AppIcon name="send" :size="20" />
+        <AppIcon name="send" :size="20" class="sm:hidden" />
         <span class="send-btn-text hidden sm:inline">发送</span>
       </button>
     </div>

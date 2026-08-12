@@ -3,9 +3,12 @@ import { ref, computed, nextTick, watch } from 'vue'
 import { messageApi } from '@/api/message'
 
 export function useChatHistory(chatStore, authStore) {
-  const scrollerRef = ref(null)
+  // 群聊/私聊各自独立的滚动容器（双容器方案：群聊常驻保持滚动位置，私聊按会话重挂载）
+  const groupScrollerRef = ref(null)
+  const privateScrollerRef = ref(null)
   const pageSize = 50
   const hasMore = ref(true)
+  const privateHasMore = ref({})        // 各私聊会话是否还有更早历史 { username: boolean }
   const isNearBottom = ref(true)
   const showNewMessageHint = ref(false)
   let suppressScrollWatch = false
@@ -14,16 +17,24 @@ export function useChatHistory(chatStore, authStore) {
   const currentChat = computed(() => chatStore.currentChat)
   const isPrivateMode = computed(() => currentChat.value.type === 'private')
 
-  // 当前显示的消息（群聊或私聊）
-  const displayMessages = computed(() => {
-    if (!isPrivateMode.value) return chatStore.messages
-    const username = currentChat.value.username
-    return chatStore.privateMessages[username] || []
+  // 群聊消息（群聊容器常驻）
+  const groupMessages = computed(() => chatStore.messages)
+  // 当前私聊会话的消息数组
+  const privateMessages = computed(() => {
+    if (!isPrivateMode.value) return []
+    return chatStore.privateMessages[currentChat.value.username] || []
   })
+  // 当前会话消息（顶部状态栏/骨架屏/空状态判断用）
+  const displayMessages = computed(() => isPrivateMode.value ? privateMessages.value : groupMessages.value)
+
+  // 当前会话对应的滚动器
+  function currentScroller() {
+    return isPrivateMode.value ? privateScrollerRef.value : groupScrollerRef.value
+  }
 
   function scrollToBottom() {
     nextTick(() => {
-      scrollerRef.value?.scrollToBottom()
+      currentScroller()?.scrollToBottom()
     })
   }
 
@@ -46,8 +57,8 @@ export function useChatHistory(chatStore, authStore) {
         const loadedCount = data.items.length
         chatStore.messages = [...data.items, ...chatStore.messages]
         await nextTick()
-        if (scrollerRef.value) {
-          scrollerRef.value.scrollToItem(loadedCount)
+        if (groupScrollerRef.value) {
+          groupScrollerRef.value.scrollToItem(loadedCount)
         }
         hasMore.value = data.hasMore
       }
@@ -59,9 +70,9 @@ export function useChatHistory(chatStore, authStore) {
     }
   }
 
-  // 滚动事件处理：检测底部位置 + 顶部加载历史
-  function handleScroll() {
-    const el = scrollerRef.value?.$el
+  // 群聊容器滚动事件：检测底部位置 + 顶部加载更早历史
+  function handleGroupScroll() {
+    const el = groupScrollerRef.value?.$el
     if (!el) return
     const threshold = 100
     const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
@@ -74,33 +85,96 @@ export function useChatHistory(chatStore, authStore) {
     }
   }
 
-  // 打开私聊并加载历史
+  // 私聊容器滚动事件：检测底部位置 + 顶部加载更早历史
+  function handlePrivateScroll() {
+    const el = privateScrollerRef.value?.$el
+    if (!el) return
+    const threshold = 100
+    const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+    isNearBottom.value = isBottom
+    if (isBottom) {
+      showNewMessageHint.value = false
+    }
+    if (el.scrollTop < 50) {
+      loadPrivateHistoryMore()
+    }
+  }
+
+  // 私聊历史加载序号：快速切换会话时用递增序号丢弃过期响应，只保留最后一次
+  let historyLoadSeq = 0
+
+  // 加载指定私聊会话的最新历史（无条件覆盖本地，保证历史完整）
+  async function loadPrivateHistory(username) {
+    if (!username) return
+    const seq = ++historyLoadSeq
+    chatStore.setLoading(true)
+    try {
+      const res = await messageApi.getPrivateHistory(username, { size: pageSize })
+      if (seq !== historyLoadSeq) return  // 已切换到其他会话，丢弃过期响应
+      if (res.data.code === 200) {
+        const data = res.data.data
+        const msgs = [...data.items].reverse()
+        chatStore.setPrivateMessages(username, msgs)
+        privateHasMore.value[username] = data.hasMore
+        // 等待 DOM 更新 + scroller 重新测量，再滚到底部
+        await nextTick()
+        await nextTick()
+        scrollToBottom()
+      }
+    } catch (e) {
+      if (seq === historyLoadSeq) {
+        chatStore.setError('加载私聊历史失败')
+        window.$message?.error('加载私聊历史失败')
+      }
+    } finally {
+      if (seq === historyLoadSeq) chatStore.setLoading(false)
+    }
+  }
+
+  // 私聊历史滚动加载更早（游标分页，前插到数组头部并保持滚动位置）
+  async function loadPrivateHistoryMore() {
+    if (chatStore.loading) return
+    const username = currentChat.value.username
+    if (!username || !privateHasMore.value[username]) return
+    const arr = chatStore.privateMessages[username] || []
+    if (arr.length === 0) return
+    // 游标 = 当前最早一条真实消息 id（跳过负数临时消息）
+    const cursor = arr.find(m => m.id > 0)?.id
+    if (!cursor) return
+    suppressScrollWatch = true  // 前插导致 length 增加，不误报"新消息"
+    chatStore.setLoading(true)
+    try {
+      const res = await messageApi.getPrivateHistory(username, { cursor, size: pageSize })
+      if (res.data.code === 200) {
+        const data = res.data.data
+        const more = [...data.items].reverse()
+        if (more.length === 0) {
+          privateHasMore.value[username] = false
+          return
+        }
+        chatStore.setPrivateMessages(username, [...more, ...arr])
+        privateHasMore.value[username] = data.hasMore
+        // 前插 more 条后，原第一条位置变为索引 more.length，保持滚动位置不跳回
+        await nextTick()
+        if (privateScrollerRef.value) {
+          privateScrollerRef.value.scrollToItem(more.length)
+        }
+      }
+    } catch (e) {
+      chatStore.setError('加载历史消息失败')
+    } finally {
+      chatStore.setLoading(false)
+      nextTick(() => { suppressScrollWatch = false })
+    }
+  }
+
+  // 打开私聊（切换会话 + 重置滚动；历史由下方 watch(currentChat) 统一加载）
   async function startPrivateChat(user) {
     if (authStore.isGuest) {
       window.$message?.error('游客不能发送私聊消息')
       return
     }
     chatStore.openPrivateChat(user)
-    const username = user.username || user.name
-    if (!chatStore.privateMessages[username] || chatStore.privateMessages[username].length === 0) {
-      chatStore.setLoading(true)
-      try {
-        const res = await messageApi.getPrivateHistory(username, { size: pageSize })
-        if (res.data.code === 200) {
-          const msgs = [...res.data.data.items].reverse()
-          chatStore.setPrivateMessages(username, msgs)
-          // 等待 DOM 更新 + scroller 重新测量，再滚到底部
-          await nextTick()
-          await nextTick()
-          scrollToBottom()
-        }
-      } catch (e) {
-        chatStore.setError('加载私聊历史失败')
-        window.$message?.error('加载私聊历史失败')
-      } finally {
-        chatStore.setLoading(false)
-      }
-    }
     isNearBottom.value = true
     showNewMessageHint.value = false
     // 初始进入新会话时也尝试滚动
@@ -126,9 +200,9 @@ export function useChatHistory(chatStore, authStore) {
     }
   }
 
-  // 监听消息数量变化 → 智能滚动
-  watch(() => displayMessages.value.length, (newLen, oldLen) => {
-    if (suppressScrollWatch) return
+  // 群聊新消息（同会话 push 追加；私聊模式不处理）
+  watch(() => groupMessages.value.length, (newLen, oldLen) => {
+    if (suppressScrollWatch || isPrivateMode.value) return
     if (newLen > oldLen) {
       if (isNearBottom.value) {
         scrollToBottom()
@@ -138,17 +212,57 @@ export function useChatHistory(chatStore, authStore) {
     }
   })
 
+  // 私聊新消息（当前会话 push 追加；会话切换的长度变化跳过，避免误报）
+  let lastPrivateChatKey = null
+  watch(() => privateMessages.value.length, (newLen, oldLen) => {
+    if (suppressScrollWatch) return
+    const key = isPrivateMode.value ? currentChat.value.username : null
+    if (key !== lastPrivateChatKey) {
+      lastPrivateChatKey = key  // 会话切换：更新 key 并跳过本次变化
+      return
+    }
+    if (newLen > oldLen) {
+      if (isNearBottom.value) {
+        scrollToBottom()
+      } else {
+        showNewMessageHint.value = true
+      }
+    }
+  })
+
+  // 监听私聊会话切换 → 无条件加载该会话最新历史（覆盖所有打开入口）
+  watch(
+    () => (currentChat.value.type === 'private' ? currentChat.value.username : null),
+    (username) => {
+      if (username) loadPrivateHistory(username)
+    },
+    { immediate: true }  // immediate：刷新后若恢复了私聊会话，立即加载其历史
+  )
+
   // 监听会话切换 → 重置滚动状态
-  watch(isPrivateMode, () => {
-    isNearBottom.value = true
+  // 进入私聊：滚到底部；切回群聊：按群聊容器实际位置校准 isNearBottom（避免从顶部跳到底部的闪烁）
+  watch(isPrivateMode, (val) => {
     showNewMessageHint.value = false
-    scrollToBottom()
+    if (val) {
+      isNearBottom.value = true
+      scrollToBottom()
+    } else {
+      nextTick(() => {
+        const el = groupScrollerRef.value?.$el
+        if (el) {
+          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+          isNearBottom.value = atBottom
+          if (atBottom) scrollToBottom()  // 切走时在看底部 → 滚到最新（无跳变）
+        }
+      })
+    }
   })
 
   return {
-    scrollerRef, hasMore, isNearBottom, showNewMessageHint,
-    messages, currentChat, isPrivateMode, displayMessages,
+    groupScrollerRef, privateScrollerRef, hasMore, isNearBottom, showNewMessageHint,
+    messages, currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
     scrollToBottom, scrollToBottomAndHideHint,
-    loadHistory, handleScroll, startPrivateChat, loadInitialHistory,
+    loadHistory, handleGroupScroll, handlePrivateScroll,
+    startPrivateChat, loadInitialHistory,
   }
 }

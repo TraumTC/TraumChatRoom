@@ -2,6 +2,8 @@ package com.tc.traumchatroom.service.impl;
 
 import com.tc.traumchatroom.dto.response.MessageResponse;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.UnreadStatsVO;
+import com.tc.traumchatroom.dto.vo.UnreadSummaryVO;
 import com.tc.traumchatroom.entity.Message;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.exception.BusinessException;
@@ -16,7 +18,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -46,6 +51,11 @@ public class ChatServiceImpl implements ChatService {
     /** 撤回时间窗（秒），可配置，默认 120 秒 */
     @org.springframework.beans.factory.annotation.Value("${chat.recall-window-seconds:120}")
     private long recallWindowSeconds;
+
+    /** 私聊已读游标 Redis Hash 前缀：chat:read:{username} → {peerUsername: lastMessageId} */
+    private static final String READ_KEY_PREFIX = "chat:read:";
+    /** 已读游标 TTL：90 天（活跃时刷新，长期不活跃自动清理，避免无效数据残留） */
+    private static final long READ_TTL_DAYS = 90;
 
     // ---------- 群聊历史 ----------
 
@@ -183,6 +193,88 @@ public class ChatServiceImpl implements ChatService {
         }
 
         log.info("用户 {} 撤回消息 {}", currentUsername, messageId);
+    }
+
+    // ---------- 私聊离线未读（Redis 会话级已读游标） ----------
+
+    @Override
+    public List<UnreadSummaryVO> getUnreadSummary(String username) {
+        User currentUser = userMapper.findByUsername(username);
+        if (currentUser == null) throw new BusinessException(ErrorCode.UNAUTHORIZED);
+
+        List<UnreadSummaryVO> result = new ArrayList<>();
+        try {
+            List<Integer> peerIds = messageMapper.selectPrivateConversationPeers(currentUser.getId());
+            if (peerIds.isEmpty()) return result;
+
+            Map<Integer, User> userMap = userMapper.findByIds(peerIds).stream()
+                    .collect(Collectors.toMap(User::getId, u -> u));
+            String key = READ_KEY_PREFIX + username;
+            Map<Object, Object> readMap = redisTemplate.opsForHash().entries(key);
+
+            for (Integer peerId : peerIds) {
+                User peer = userMap.get(peerId);
+                if (peer == null) continue;
+
+                Long lastReadId = parseReadId(readMap.get(peer.getUsername()));
+                if (lastReadId == null) {
+                    // 无游标（首次使用/已过期）：惰性初始化为当前最新消息ID，避免历史消息刷屏
+                    Long latestId = messageMapper.selectConversationLatestId(currentUser.getId(), peerId);
+                    if (latestId != null) {
+                        redisTemplate.opsForHash().put(key, peer.getUsername(), String.valueOf(latestId));
+                        redisTemplate.expire(key, Duration.ofDays(READ_TTL_DAYS));
+                    }
+                    continue;
+                }
+
+                UnreadStatsVO stats = messageMapper.selectUnreadStats(currentUser.getId(), peerId, lastReadId);
+                if (stats != null && stats.getUnreadCount() != null && stats.getUnreadCount() > 0) {
+                    UnreadSummaryVO vo = new UnreadSummaryVO();
+                    vo.setSenderId(peer.getId());
+                    vo.setSenderUsername(peer.getUsername());
+                    vo.setSenderName(peer.getName());
+                    vo.setUnreadCount(stats.getUnreadCount());
+                    vo.setLastMessageId(stats.getLastMessageId());
+                    result.add(vo);
+                }
+            }
+
+            // 未读会话按最新消息ID倒序（新的在前）
+            result.sort(Comparator.comparing(UnreadSummaryVO::getLastMessageId,
+                    Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
+        } catch (Exception e) {
+            // Redis 异常降级：返回空，不阻塞聊天
+            log.warn("获取私聊未读汇总失败: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    public void markConversationRead(String username, String targetUsername) {
+        User currentUser = userMapper.findByUsername(username);
+        User targetUser = userMapper.findByUsername(targetUsername);
+        if (currentUser == null || targetUser == null) return;
+
+        try {
+            Long latestId = messageMapper.selectConversationLatestId(currentUser.getId(), targetUser.getId());
+            if (latestId == null) return;
+            String key = READ_KEY_PREFIX + username;
+            redisTemplate.opsForHash().put(key, targetUsername, String.valueOf(latestId));
+            redisTemplate.expire(key, Duration.ofDays(READ_TTL_DAYS));
+        } catch (Exception e) {
+            // Redis 异常忽略：仅影响下次上线的未读游标，不阻塞打开会话
+            log.warn("标记会话已读失败: username={}, target={}", username, targetUsername);
+        }
+    }
+
+    /** 解析 Redis 游标值（null/空/非法 → null） */
+    private Long parseReadId(Object value) {
+        if (value == null) return null;
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     // ---------- 辅助方法：实体 → 响应 DTO ----------

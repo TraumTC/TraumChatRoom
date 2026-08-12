@@ -31,6 +31,7 @@ import { computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
+const emit = defineEmits(['openChat', 'openGroup'])
 
 const privateTabs = computed(() => chatStore.privateTabs || [])
 
@@ -44,9 +45,10 @@ function getUnread(username) {
   return chatStore.unreadCounts[username] || 0
 }
 
+// 切换标签 → 交由 ChatView 统一走 startPrivateChat（加载历史 + 标记已读），而非仅本地切换
 function onTabChange(username) {
   const tab = privateTabs.value.find(t => t.username === username)
-  if (tab) chatStore.openPrivateChat(tab)
+  if (tab) emit('openChat', tab)
 }
 
 function closeTab(tab) {

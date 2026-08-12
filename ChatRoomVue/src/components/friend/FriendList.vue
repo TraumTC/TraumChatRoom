@@ -8,10 +8,6 @@
           <n-button quaternary circle size="small" @click="$emit('openRequests')" aria-label="好友申请">
             <template #icon><AppIcon name="bell" :size="15" /></template>
           </n-button>
-          <!-- 私聊未读红点：5px，#FF3B30，绝对定位右上角 -->
-          <span v-if="hasPrivateUnread"
-                class="absolute"
-                style="width:5px;height:5px;background:#FF3B30;border-radius:50%;top:2px;right:2px;font-size:0;line-height:0;box-shadow:0 0 0 1px var(--color-card)"></span>
           <span v-if="pendingCount > 0"
                 class="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-medium text-white flex items-center justify-center"
                 style="background: var(--color-alarm)">{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
@@ -62,8 +58,6 @@ const loading = ref(false)
 
 const pendingCount = computed(() => chatStore.friendRequestCount)
 
-const hasPrivateUnread = computed(() => Object.keys(chatStore.privateUnreadSenders).length > 0)
-
 // 合并 API 数据与 WebSocket 实时在线状态
 const friendsWithOnline = computed(() => {
   const onlineUsernames = new Set(
@@ -71,7 +65,7 @@ const friendsWithOnline = computed(() => {
   )
   return friends.value.map(f => ({
     ...f,
-    online: onlineUsernames.has(f.username)
+    online: onlineUsernames.has(f.username) || f.online
   }))
 })
 

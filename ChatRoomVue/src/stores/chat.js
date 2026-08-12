@@ -1,6 +1,7 @@
 // src/stores/chat.js — 聊天状态
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { messageApi } from '@/api/message'
 
 // 私聊数据一律以 username 为 key（name 可重复，username 唯一），防止重名串消息
 export const useChatStore = defineStore('chat', () => {
@@ -18,6 +19,7 @@ export const useChatStore = defineStore('chat', () => {
   const friendRequestCount = ref(0)     // 未处理的好友申请数量
   const friendListVersion = ref(0)      // 好友列表刷新版本号（监听变化自动刷新）
   const privateUnreadSenders = ref({})  // 有未读私聊消息的发送者 { username: { name, username } }
+  const unreadBaseIds = ref({})         // 未读汇总已统计的最大消息 id { username: maxId }，防止 WebSocket 推送重复计数
   const isPageHidden = ref(false)       // 页面是否隐藏（用于标题闪烁）
   const originalTitle = document.title
 
@@ -31,6 +33,58 @@ export const useChatStore = defineStore('chat', () => {
   const totalPrivateUnread = computed(() => {
     return Object.values(unreadCounts.value).reduce((sum, n) => sum + n, 0)
   })
+
+  // ---------- 会话持久化（刷新后自动恢复私聊会话与页签） ----------
+  const TABS_KEY = 'chat:private_tabs'
+  const CHAT_KEY = 'chat:current_chat'
+
+  function clearPersistedSession() {
+    try {
+      localStorage.removeItem(TABS_KEY)
+      localStorage.removeItem(CHAT_KEY)
+    } catch (e) { /* 忽略 */ }
+  }
+
+  // store 初始化时从 localStorage 恢复（仅恢复私聊会话；校验结构避免损坏数据）
+  try {
+    const tabsRaw = localStorage.getItem(TABS_KEY)
+    if (tabsRaw) {
+      const tabs = JSON.parse(tabsRaw)
+      if (Array.isArray(tabs)) privateTabs.value = tabs.filter(t => t && t.username)
+    }
+    const chatRaw = localStorage.getItem(CHAT_KEY)
+    if (chatRaw) {
+      const c = JSON.parse(chatRaw)
+      if (c && c.type === 'private' && c.username) currentChat.value = c
+    }
+  } catch (e) { /* 忽略损坏数据 */ }
+
+  // 变更时持久化（不在初始化时触发，避免把初始状态写回）
+  watch(privateTabs, (val) => {
+    try { localStorage.setItem(TABS_KEY, JSON.stringify(val || [])) } catch (e) { /* 忽略 */ }
+  }, { deep: true })
+  watch(currentChat, (val) => {
+    try { localStorage.setItem(CHAT_KEY, JSON.stringify(val)) } catch (e) { /* 忽略 */ }
+  }, { deep: true })
+
+  // 游客强制回到群聊并清除已持久化的会话状态（游客不恢复私聊会话）
+  function resetSessionState() {
+    currentChat.value = { type: 'group' }
+    privateTabs.value = []
+    clearPersistedSession()
+  }
+
+  // 刷新恢复私聊会话后，若该会话有未读则视为已读（本地清零 + 有未读时推进后端游标），避免红点残留
+  function clearCurrentUnread() {
+    const c = currentChat.value
+    if (!c || c.type !== 'private' || !c.username) return
+    const hadUnread = (unreadCounts.value[c.username] || 0) > 0 || !!privateUnreadSenders.value[c.username]
+    unreadCounts.value[c.username] = 0
+    delete privateUnreadSenders.value[c.username]
+    if (hadUnread) {
+      messageApi.markRead(c.username).catch(() => {})
+    }
+  }
 
   // 添加群聊消息（去重）
   function addMessage(msg) {
@@ -91,9 +145,18 @@ export const useChatStore = defineStore('chat', () => {
 
     arr.push(msg)
 
+    // 当前会话收到对方消息 → 防抖推进已读游标（用户正在查看，刷新后不再误报未读）
+    if (isCurrent && !isMyMsg) {
+      scheduleReadPush(otherUsername)
+    }
+
     // 不是当前聊天对象时增加未读计数（仅他人消息）
+    // 防重：id 已包含在未读汇总（unreadBaseIds）中的消息不再重复计数
     if (!isCurrent && !isMyMsg) {
-      unreadCounts.value[otherUsername] = (unreadCounts.value[otherUsername] || 0) + 1
+      const baseId = unreadBaseIds.value[otherUsername] || 0
+      if (msg.id > baseId) {
+        unreadCounts.value[otherUsername] = (unreadCounts.value[otherUsername] || 0) + 1
+      }
       privateUnreadSenders.value[otherUsername] = {
         name: otherName,
         username: otherUsername
@@ -165,9 +228,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 打开私聊（入参统一 { username, name, id }）
+  // 打开会话即视为已读：清除本地未读；若该会话此前有未读，则异步推进后端已读游标
   function openPrivateChat(user) {
     const username = user.username || user.name
     const name = user.name || username
+    // 在清除本地未读之前记录是否有未读，决定是否推进后端游标（小优化：无未读不发请求）
+    const hadUnread = !!username && ((unreadCounts.value[username] || 0) > 0 || !!privateUnreadSenders.value[username])
     currentChat.value = { type: 'private', username, name, id: user.id }
     if (username) {
       if (!privateTabs.value.some(t => t.username === username)) {
@@ -175,12 +241,60 @@ export const useChatStore = defineStore('chat', () => {
       }
       unreadCounts.value[username] = 0  // 清除未读
       delete privateUnreadSenders.value[username]  // 清除红点
+      if (hadUnread) {
+        messageApi.markRead(username).catch(() => {})
+      }
     }
   }
 
   // 关闭私聊标签
   function closePrivateTab(username) {
     privateTabs.value = privateTabs.value.filter(t => t.username !== username)
+  }
+
+  // 合并后端未读汇总到本地状态（上线时调用一次，覆盖式权威同步）
+  // items: [{ senderUsername, senderName, unreadCount, lastMessageId }]
+  function mergeUnreadSummary(items) {
+    if (!Array.isArray(items)) return
+    items.forEach(it => {
+      const username = it.senderUsername
+      if (!username) return
+      unreadCounts.value[username] = it.unreadCount || 0
+      privateUnreadSenders.value[username] = {
+        name: it.senderName || username,
+        username
+      }
+      if (it.lastMessageId) {
+        unreadBaseIds.value[username] = it.lastMessageId
+      }
+    })
+  }
+
+  // 防抖推进当前会话的已读游标（合并连续消息，避免频繁请求）
+  // 用于「当前会话收到对方消息」时实时标记已读，使刷新后不会将已看过的消息误报为未读
+  let readPushTimer = null
+  let readPushUsername = null
+  function scheduleReadPush(username) {
+    if (!username) return
+    readPushUsername = username
+    clearTimeout(readPushTimer)
+    readPushTimer = setTimeout(() => {
+      const target = readPushUsername
+      readPushUsername = null
+      if (target) messageApi.markRead(target).catch(() => {})
+    }, 800)
+  }
+
+  // 移除发送失败的本地乐观更新临时消息（负数 id，由 send-error 携带 clientId 精确定位）
+  function removePendingMessage(clientId) {
+    if (!clientId) return
+    for (const chat of Object.values(privateMessages.value)) {
+      const idx = chat.findIndex(m => m.id < 0 && m._clientId === clientId)
+      if (idx >= 0) {
+        chat.splice(idx, 1)
+        return
+      }
+    }
   }
 
   // 加载私聊历史到 store（key = username）
@@ -194,6 +308,7 @@ export const useChatStore = defineStore('chat', () => {
     privateMessages.value = {}
     unreadCounts.value = {}
     privateUnreadSenders.value = {}
+    clearPersistedSession()
   }
 
   // 添加通知（Toast）
@@ -240,5 +355,7 @@ export const useChatStore = defineStore('chat', () => {
            setLoading, setError, setPageHidden,
            setReplyTo, clearReplyTo,
            setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,
+           mergeUnreadSummary, removePendingMessage,
+           clearCurrentUnread, resetSessionState,
            startTitleFlash, stopTitleFlash }
 })

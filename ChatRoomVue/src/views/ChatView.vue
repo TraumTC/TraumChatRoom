@@ -52,7 +52,7 @@
       <!-- 右侧 -->
       <main class="flex-1 flex flex-col min-w-0">
         <!-- 私聊标签条 -->
-        <PrivateChatTab v-if="!authStore.isGuest" @open-group="chatStore.openGroupChat" />
+        <PrivateChatTab v-if="!authStore.isGuest" @openChat="startPrivateChat" @open-group="chatStore.openGroupChat" />
 
         <!-- 连接状态提示 -->
         <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"
@@ -130,27 +130,56 @@
             {{ isPrivateMode ? '开始私聊吧' : '还没有消息，来打个招呼吧' }}
           </div>
 
-          <!-- 虚拟滚动消息列表 -->
-          <DynamicScroller v-else
-            ref="scrollerRef"
-            :items="displayMessages"
-            :min-item-size="60"
-            key-field="id"
-            :key="scrollerKey"
-            class="flex-1 scroll-thin"
-            @scroll="handleScroll"
-          >
-            <template #default="{ item, index, active }">
-              <DynamicScrollerItem
-                :item="item"
-                :active="active"
-                :data-index="index"
-                :size-dependencies="[item.content, item.messageType, item.recalled]"
-              >
-                <MessageItem :message="item" />
-              </DynamicScrollerItem>
-            </template>
-          </DynamicScroller>
+          <!-- 群聊消息区（常驻挂载，v-show 切换显示，保持滚动位置避免切回闪烁） -->
+          <div v-show="!isPrivateMode && displayMessages.length > 0" class="flex-1 min-h-0 relative flex flex-col">
+            <DynamicScroller
+              ref="groupScrollerRef"
+              :items="groupMessages"
+              :min-item-size="52"
+              :prerender="15"
+              :buffer="600"
+              key-field="id"
+              class="flex-1 scroll-thin"
+              @scroll="handleGroupScroll"
+            >
+              <template #default="{ item, index, active }">
+                <DynamicScrollerItem
+                  :item="item"
+                  :active="active"
+                  :data-index="index"
+                  :size-dependencies="[item.content, item.messageType, item.recalled]"
+                >
+                  <MessageItem :message="item" />
+                </DynamicScrollerItem>
+              </template>
+            </DynamicScroller>
+          </div>
+
+          <!-- 私聊消息区（会话切换时按 scrollerKey 重挂载） -->
+          <div v-show="isPrivateMode && displayMessages.length > 0" class="flex-1 min-h-0 relative flex flex-col">
+            <DynamicScroller
+              ref="privateScrollerRef"
+              :items="privateMessages"
+              :min-item-size="52"
+              :prerender="15"
+              :buffer="600"
+              key-field="id"
+              :key="scrollerKey"
+              class="flex-1 scroll-thin"
+              @scroll="handlePrivateScroll"
+            >
+              <template #default="{ item, index, active }">
+                <DynamicScrollerItem
+                  :item="item"
+                  :active="active"
+                  :data-index="index"
+                  :size-dependencies="[item.content, item.messageType, item.recalled]"
+                >
+                  <MessageItem :message="item" />
+                </DynamicScrollerItem>
+              </template>
+            </DynamicScroller>
+          </div>
 
           <!-- 新消息提示按钮 -->
           <Transition name="slide-up">
@@ -180,6 +209,7 @@ import { useWebSocketStore } from '@/stores/websocket'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChatHistory } from '@/composables/useChatHistory'
 import { useFileUpload } from '@/composables/useFileUpload'
+import { messageApi } from '@/api/message'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -195,11 +225,12 @@ const authStore = useAuthStore()
 const wsStore = useWebSocketStore()
 const { connect, disconnect } = useWebSocket()
 
-// 历史消息加载、分页、智能滚动逻辑
+// 历史消息加载、分页、智能滚动逻辑（群聊/私聊双容器）
 const {
-  scrollerRef, hasMore, isNearBottom, showNewMessageHint,
-  currentChat, isPrivateMode, displayMessages,
-  scrollToBottomAndHideHint, handleScroll, startPrivateChat, loadInitialHistory,
+  groupScrollerRef, privateScrollerRef, hasMore, isNearBottom, showNewMessageHint,
+  currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
+  scrollToBottomAndHideHint, handleGroupScroll, handlePrivateScroll,
+  startPrivateChat, loadInitialHistory,
 } = useChatHistory(chatStore, authStore)
 
 // 文件上传逻辑
@@ -214,7 +245,7 @@ const isMobile = ref(window.innerWidth < 1024)
 const onlineUsers = computed(() => chatStore.onlineUsers)
 const onlineCount = computed(() => onlineUsers.value.length)
 
-// 当会话切换时，强制 DynamicScroller 重挂载（避免虚拟列表缓存旧状态）
+// 私聊会话切换时强制私聊 DynamicScroller 重挂载（重置滚动与缓存；群聊容器常驻不重挂载）
 // 注意：不包含消息数量，否则每条新消息都会触发重挂载
 const scrollerKey = computed(() => {
   if (isPrivateMode.value) {
@@ -260,7 +291,24 @@ onMounted(async () => {
     localStorage.setItem('myName', authStore.user.name)
   }
 
+  // 游客：强制回到群聊并清除已持久化的私聊会话（游客不恢复私聊）
+  if (authStore.isGuest) {
+    chatStore.resetSessionState()
+  }
+
   await loadInitialHistory()
+  // 拉取离线期间的未读汇总（游客无私聊，跳过），合并进本地未读状态
+  if (!authStore.isGuest) {
+    messageApi.getUnreadSummary()
+      .then(res => {
+        if (res.data.code === 200) {
+          chatStore.mergeUnreadSummary(res.data.data)
+          // 刷新恢复的当前私聊会话视为已读（本地清零 + 有未读则推进后端游标）
+          chatStore.clearCurrentUnread()
+        }
+      })
+      .catch(() => { /* 离线未读拉取失败不阻塞聊天 */ })
+  }
   connect()
   window.addEventListener('resize', handleResize)
   document.addEventListener('visibilitychange', handleVisibility)

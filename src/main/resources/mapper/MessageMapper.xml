@@ -106,4 +106,29 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 当前用户所有私聊发送者ID（去重，离线未读统计用） -->
+    <select id="selectPrivateConversationPeers" resultType="int">
+        SELECT DISTINCT sender_id
+        FROM message
+        WHERE receiver_id = #{userId} AND sender_id IS NOT NULL AND deleted_at IS NULL
+    </select>
+
+    <!-- 双方会话最新消息ID（双向） -->
+    <select id="selectConversationLatestId" resultType="long">
+        SELECT MAX(id) FROM message
+        WHERE deleted_at IS NULL
+          AND ((sender_id = #{userId} AND receiver_id = #{peerId})
+            OR (sender_id = #{peerId} AND receiver_id = #{userId}))
+    </select>
+
+    <!-- 某会话 id 大于已读游标的未读统计 -->
+    <select id="selectUnreadStats" resultType="com.tc.traumchatroom.dto.vo.UnreadStatsVO">
+        SELECT COUNT(*) AS unread_count,
+               MAX(id)   AS last_message_id
+        FROM message
+        WHERE receiver_id = #{userId} AND sender_id = #{peerId}
+          AND deleted_at IS NULL
+          AND id &gt; #{lastReadId}
+    </select>
+
 </mapper>

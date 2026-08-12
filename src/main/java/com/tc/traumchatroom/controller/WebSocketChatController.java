@@ -272,28 +272,19 @@ public class WebSocketChatController {
         // 发送频率限流（每用户每分钟 30 条）
         if (!allowSend(senderUsername)) {
             log.warn("私聊被限流: sender={}", senderUsername);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "消息发送过于频繁，请稍后再试")
-            );
+            sendError(senderUsername, clientId, "消息发送过于频繁，请稍后再试", null);
             return;
         }
 
         // 消息长度校验
         if (content == null || content.isBlank()) {
             log.warn("私聊内容为空: sender={}", senderUsername);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "消息不能为空")
-            );
+            sendError(senderUsername, clientId, "消息不能为空", null);
             return;
         }
         if (content.length() > MAX_MESSAGE_LENGTH) {
             log.warn("私聊内容超长: sender={}, length={}", senderUsername, content.length());
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "消息长度不能超过 " + MAX_MESSAGE_LENGTH + " 字")
-            );
+            sendError(senderUsername, clientId, "消息长度不能超过 " + MAX_MESSAGE_LENGTH + " 字", null);
             return;
         }
 
@@ -301,11 +292,7 @@ public class WebSocketChatController {
         User sender = userMapper.findByUsername(senderUsername);
         if (sender == null && senderUsername.startsWith("guest_")) {
             log.warn("私聊被拒-游客: sender={}", senderUsername);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername,
-                    "/queue/send-error",
-                    Map.of("type", "send_error", "message", "游客不能发送私聊消息")
-            );
+            sendError(senderUsername, clientId, "游客不能发送私聊消息", null);
             return;
         }
 
@@ -314,10 +301,7 @@ public class WebSocketChatController {
         if (sender == null || receiver == null) {
             log.warn("私聊被拒-用户不存在: sender={}, receiver={}, senderFound={}, receiverFound={}",
                     senderUsername, receiverUsername, sender != null, receiver != null);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "接收者不存在")
-            );
+            sendError(senderUsername, clientId, "接收者不存在", null);
             return;
         }
 
@@ -327,10 +311,7 @@ public class WebSocketChatController {
         if (!receiverOnline && !friendMapper.exists(sender.getId(), receiver.getId())) {
             // 接收者离线且非好友 → 拒绝（无法离线投递）
             log.warn("私聊被拒-对方离线且非好友: sender={}, receiver={}", senderUsername, receiverUsername);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "对方不在线，添加好友后才能发送离线消息")
-            );
+            sendError(senderUsername, clientId, "对方不在线，添加好友后才能发送离线消息", null);
             return;
         }
         // 在线或好友 → 放行
@@ -338,11 +319,7 @@ public class WebSocketChatController {
         // 敏感词过滤
         FilterResult filterResult = sensitiveWordFilter.filter(content);
         if (filterResult.isBlocked()) {
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername,
-                    "/queue/send-error",
-                    Map.of("type", "send_error", "subtype", "blocked", "message", filterResult.getMessage())
-            );
+            sendError(senderUsername, clientId, filterResult.getMessage(), "blocked");
             return;
         }
         if (filterResult.isReplaced()) {
@@ -382,10 +359,7 @@ public class WebSocketChatController {
             log.info("私聊消息已保存: id={}, sender={}, receiver={}", message.getId(), senderUsername, receiverUsername);
         } catch (Exception e) {
             log.error("私聊消息保存失败: sender={}, receiver={}", senderUsername, receiverUsername, e);
-            messagingTemplate.convertAndSendToUser(
-                    senderUsername, "/queue/send-error",
-                    Map.of("type", "send_error", "message", "消息保存失败")
-            );
+            sendError(senderUsername, clientId, "消息保存失败", null);
             return;
         }
 
@@ -495,6 +469,19 @@ public class WebSocketChatController {
         // 普通用户从数据库获取
         User user = userMapper.findByUsername(username);
         return user != null ? user.getName() : username;
+    }
+
+    /**
+     * 向发送者推送发送错误（/queue/send-error）
+     * clientId 可选：携带后前端可精确移除本地乐观更新的临时消息（防空闲残留）
+     */
+    private void sendError(String username, String clientId, String message, String subtype) {
+        java.util.HashMap<String, String> payload = new java.util.HashMap<>();
+        payload.put("type", "send_error");
+        payload.put("message", message);
+        if (subtype != null) payload.put("subtype", subtype);
+        if (clientId != null) payload.put("clientId", clientId);
+        messagingTemplate.convertAndSendToUser(username, "/queue/send-error", payload);
     }
 
     /**

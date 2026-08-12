@@ -2,6 +2,9 @@ package com.tc.traumchatroom.service;
 
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
 import com.tc.traumchatroom.dto.response.MessageResponse;
+import com.tc.traumchatroom.dto.vo.UnreadSummaryVO;
+
+import java.util.List;
 
 /**
  * 聊天服务接口
@@ -33,4 +36,19 @@ public interface ChatService {
      * @param currentRole 当前用户角色
      */
     void recallMessage(Long messageId, String currentUsername, String currentRole);
+
+    /**
+     * 获取私聊未读汇总（离线/未打开会话的消息，按发送者分组）
+     * 未读 = id 大于该会话"已读游标"的消息；无游标的会话不返回（惰性初始化避免历史刷屏）
+     * @param username 当前用户名
+     * @return 未读汇总列表（仅含未读数 > 0 的会话）
+     */
+    List<UnreadSummaryVO> getUnreadSummary(String username);
+
+    /**
+     * 标记某私聊会话已读：将该会话双方最新消息ID写入 Redis 已读游标（TTL 90 天，活跃时刷新）
+     * @param username 当前用户名
+     * @param targetUsername 会话对象用户名
+     */
+    void markConversationRead(String username, String targetUsername);
 }

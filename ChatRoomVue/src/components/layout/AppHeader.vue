@@ -4,10 +4,16 @@
           style="border-bottom: 1px solid var(--color-border)">
     <!-- 左侧：移动端侧边栏开关 + 品牌 -->
     <div class="flex items-center gap-2 sm:gap-3">
-      <n-button v-if="showSidebarToggle" quaternary circle size="small" @click="$emit('toggle-sidebar')"
-                 aria-label="打开侧边栏">
-        <template #icon><AppIcon name="menu" :size="18" /></template>
-      </n-button>
+      <div v-if="showSidebarToggle" class="relative">
+        <n-button quaternary circle size="small" @click="$emit('toggle-sidebar')"
+                   aria-label="打开侧边栏">
+          <template #icon><AppIcon name="menu" :size="18" /></template>
+        </n-button>
+        <!-- 侧边栏收起时的未读红点（私聊未读或好友申请） -->
+        <span v-if="hasSidebarBadge"
+              class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+              style="background:#FF3B30;box-shadow:0 0 0 2px var(--color-card)"></span>
+      </div>
 
       <RouterLink :to="authStore.isGuest ? '/' : '/chat'"
                   class="text-base font-semibold tracking-wide transition-opacity hover:opacity-80"
@@ -25,18 +31,8 @@
           管理
         </RouterLink>
 
-        <!-- 全局通知入口 -->
+        <!-- 好友申请入口 -->
         <div v-if="!authStore.isGuest" class="flex items-center gap-1">
-          <!-- 私聊未读 -->
-          <div v-if="chatStore.totalPrivateUnread > 0" class="relative cursor-pointer"
-               @click="openFirstPrivateUnread" title="未读私聊消息">
-            <n-button quaternary circle size="small">
-              <template #icon><AppIcon name="message" :size="16" /></template>
-            </n-button>
-            <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-medium text-white flex items-center justify-center"
-                  style="background: var(--color-alarm)">{{ chatStore.totalPrivateUnread > 99 ? '99+' : chatStore.totalPrivateUnread }}</span>
-          </div>
-
           <!-- 好友申请 -->
           <div v-if="chatStore.friendRequestCount > 0" class="relative cursor-pointer"
                @click="showFriendRequests = true" title="好友申请">
@@ -89,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -113,20 +109,10 @@ const showAvatarPreview = ref(false)
 const avatarPreviewRef = ref(null)
 const showFriendRequests = ref(false)
 
-// 打开最早未读的私聊会话
-function openFirstPrivateUnread() {
-  const entries = Object.entries(chatStore.unreadCounts)
-    .filter(([_, count]) => count > 0)
-  if (entries.length === 0) return
-  // 取第一个有未读的会话
-  const [username] = entries[0]
-  const senderInfo = chatStore.privateUnreadSenders[username]
-  chatStore.openPrivateChat({
-    username,
-    name: senderInfo?.name || username,
-    id: senderInfo?.id || null
-  })
-}
+// 侧边栏收起时菜单图标的未读红点：有私聊未读或好友申请时亮起
+const hasSidebarBadge = computed(() =>
+  chatStore.totalPrivateUnread > 0 || chatStore.friendRequestCount > 0
+)
 
 function onFriendRequestChanged() {
   chatStore.incrementFriendListVersion()

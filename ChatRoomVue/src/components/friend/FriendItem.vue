@@ -16,13 +16,13 @@
 
     <span v-if="hasUnread" class="rounded-full shrink-0" style="width:5px;height:5px;background:#FF3B30"></span>
 
-    <div class="relative shrink-0">
-      <n-button quaternary circle size="small" @click.stop="showMenu = !showMenu" aria-label="更多操作">
-        <template #icon><AppIcon name="ellipsis" :size="16" /></template>
-      </n-button>
-
+    <div class="relative shrink-0" @click.stop>
       <n-dropdown v-model:show="showMenu" trigger="click" :options="menuOptions"
-                  placement="bottom-end" @select="onMenuSelect" />
+                  placement="bottom-end" @select="onMenuSelect">
+        <n-button quaternary circle size="small" aria-label="更多操作">
+          <template #icon><AppIcon name="ellipsis" :size="16" /></template>
+        </n-button>
+      </n-dropdown>
     </div>
 
     <n-modal v-model:show="showRemark" preset="dialog" title="修改备注"

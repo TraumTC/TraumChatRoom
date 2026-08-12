@@ -147,6 +147,10 @@ export function useWebSocket() {
       const data = JSON.parse(msg.body)
       console.error('发送失败:', data.message)
       chatStore.setError(data.message)
+      // 移除本地乐观更新的临时消息（后端 send-error 携带 clientId 时精确定位）
+      if (data.clientId) {
+        chatStore.removePendingMessage(data.clientId)
+      }
       // 所有发送错误都弹窗提醒（Toast 容易被忽略）
       const isBlocked = data.subtype === 'blocked'
       window.$dialog?.warning({
@@ -195,7 +199,8 @@ export function useWebSocket() {
       recalled: false,
       replyToId: replyToId || null,
       createdAt: new Date().toISOString(),
-      _tempCreatedAt: Date.now()  // 临时创建时间戳，用于后端回传时匹配替换
+      _tempCreatedAt: Date.now(),  // 临时创建时间戳，用于后端回传时匹配替换
+      _clientId: clientId          // 关联本次发送，后端 send-error 携带时用于移除临时消息
     }
     chatStore.addPrivateMessage(localMsg)
 

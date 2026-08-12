@@ -243,7 +243,7 @@ button:not(.n-button):not([class*="n-"]):focus-visible {
     gap: 8px;
     height: 36px;
     min-width: 36px;
-    padding: 0 14px;
+    padding: 0 12px;   /* 默认（移动端仅图标）：紧凑 */
     border-radius: 8px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 14px;
@@ -255,6 +255,14 @@ button:not(.n-button):not([class*="n-"]):focus-visible {
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  }
+  /* 桌面端：仅「发送」文字，固定背景宽度（不随文字大小变化），文字居中 */
+  @media (min-width: 640px) {
+    button.send-btn {
+      width: 96px;
+      padding: 0;
+      min-width: 0;
+    }
   }
   button.send-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%) !important;
