@@ -41,7 +41,8 @@
 
           <div>
             <n-input v-model:value="password" type="password" placeholder="密码（6-20位，含字母和数字）"
-                     maxlength="20" show-password-on="click" :status="passwordError ? 'error' : undefined" @keyup.enter="handleRegister">
+                     maxlength="20" show-password-on="click" :status="passwordError ? 'error' : undefined"
+                     :input-props="{ autocomplete: 'new-password' }" @keyup.enter="handleRegister">
               <template #prefix><AppIcon name="lock" :size="16" /></template>
             </n-input>
             <div class="flex justify-between items-center mt-1">

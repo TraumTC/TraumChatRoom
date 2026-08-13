@@ -190,12 +190,13 @@ function resetPassword(user) {
   let newPassword = ''
   dialog.warning({
     title: '重置密码',
-    content: () => h('div', null, [
+    content: () => h('form', { onSubmit: (e) => { e.preventDefault() } }, [
       h('p', { style: 'margin-bottom:8px;color:var(--color-ink-soft)' }, `为 ${user.name} 设置新密码（6-20位，含字母和数字）：`),
       h(NInput, {
         type: 'password',
         placeholder: '输入新密码',
         showPasswordOn: 'click',
+        inputProps: { autocomplete: 'new-password' },
         onUpdateValue: (v) => { newPassword = v }
       })
     ]),

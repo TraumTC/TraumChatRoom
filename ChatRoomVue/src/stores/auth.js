@@ -95,16 +95,16 @@ export const useAuthStore = defineStore('auth', () => {
     // 先保存 refreshToken（clearToken 会删除它）
     const refresh = localStorage.getItem('refreshToken')
 
-    // 清理本地状态（防止导航守卫误判）
+    // 先发起后端注销请求（此刻 token 未清除，拦截器可附加认证头，避免 401）
+    if (refresh) {
+      authApi.logout({ refreshToken: refresh }).catch(() => {})
+    }
+
+    // 清理本地状态（不影响已发出的请求）
     accessToken.value = null
     setUser(null)
     clearToken()
     clearCachedUser()
-
-    // 异步通知后端（忽略错误，因为本地已清理）
-    if (refresh) {
-      authApi.logout({ refreshToken: refresh }).catch(() => {})
-    }
   }
 
   // 获取当前用户信息（可强制刷新，同步更新缓存）

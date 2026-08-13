@@ -25,9 +25,6 @@
       <!-- 列表 -->
       <div class="flex-1 min-h-0 overflow-y-auto">
         <n-data-table :columns="columns" :data="words" :bordered="true" size="small" :scroll-x="600" />
-        <div v-if="words.length === 0" class="py-10 text-center text-sm" style="color: var(--color-ink-faint)">
-          暂无敏感词
-        </div>
       </div>
 
       <!-- 添加/修改弹窗 -->

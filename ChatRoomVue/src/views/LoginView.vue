@@ -23,11 +23,11 @@
               show-label require-mark-placement="right-hanging" :label-width="64">
         <n-form-item path="username" label="用户名">
           <n-input v-model:value="loginForm.username" type="text" placeholder="请输入用户名"
-                   autocomplete="username" @keyup.enter="handleLogin" />
+                   :input-props="{ autocomplete: 'username' }" @keyup.enter="handleLogin" />
         </n-form-item>
         <n-form-item path="password" label="密码">
           <n-input v-model:value="loginForm.password" type="password" placeholder="请输入密码"
-                   autocomplete="current-password" show-password-on="click" @keyup.enter="handleLogin" />
+                   :input-props="{ autocomplete: 'current-password' }" show-password-on="click" @keyup.enter="handleLogin" />
         </n-form-item>
 
         <n-button type="primary" size="large" block class="mt-4" :loading="authStore.loading" attr-type="submit">

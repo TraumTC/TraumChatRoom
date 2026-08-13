@@ -93,8 +93,11 @@ async function loadPendingCount() {
 }
 
 onMounted(() => {
-  loadFriends()
-  loadPendingCount()
+  // 防御：无 token（登出中/未登录）时不发请求，避免 401
+  if (localStorage.getItem('accessToken')) {
+    loadFriends()
+    loadPendingCount()
+  }
 })
 
 watch(() => chatStore.friendListVersion, () => {

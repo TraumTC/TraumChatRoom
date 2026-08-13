@@ -10,7 +10,7 @@ spring:
 
 ai:
   api:
-    key: ${AI_API_KEY:sk-ea4434f132fc4c12bcb53bd568c657b7}
+    key: ${AI_API_KEY:}
 
 # 本地开发用 JWT 密钥（Base64 解码后 32 字节，仅供本地联调，生产禁用）
 jwt:

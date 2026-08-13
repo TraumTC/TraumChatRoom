@@ -11,6 +11,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 显式允许 unload 事件（sockjs-client 在页面卸载时清理连接），消除 Chrome Permissions Policy violation 警告
+    headers: {
+      'Permissions-Policy': 'unload=(self)'
+    },
     proxy: {
       // 开发环境代理：/api 和 /ws 转发到后端 8080
       '/api': {

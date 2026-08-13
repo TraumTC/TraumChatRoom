@@ -11,8 +11,8 @@
       <aside :class="['w-64 shrink-0 flex flex-col', isMobile ? 'fixed z-30 left-0 top-14 bottom-0 transition-transform duration-200' : '']"
              :style="isMobile ? { transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', background: 'var(--color-ghost)', borderRight: '1px solid var(--color-border)' }
                                  : { background: 'var(--color-ghost)', borderRight: '1px solid var(--color-border)', boxShadow: '1px 0 8px rgba(0,0,0,0.03)' }">
-        <!-- 好友列表（游客隐藏） -->
-        <div v-if="!authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-border)">
+        <!-- 好友列表（游客隐藏；未登录（登出中）也隐藏，避免挂载后请求 401） -->
+        <div v-if="authStore.user && !authStore.isGuest" class="flex-1 flex flex-col min-h-0" style="border-bottom: 1px solid var(--color-border)">
           <FriendList @openChat="startPrivateChat" @addFriend="showAddFriend = true" @openRequests="showFriendRequests = true" />
         </div>
 
@@ -51,8 +51,8 @@
 
       <!-- 右侧 -->
       <main class="flex-1 flex flex-col min-w-0">
-        <!-- 私聊标签条 -->
-        <PrivateChatTab v-if="!authStore.isGuest" @openChat="startPrivateChat" @open-group="chatStore.openGroupChat" />
+        <!-- 私聊标签条（游客/未登录隐藏，避免登出瞬间闪现） -->
+        <PrivateChatTab v-if="authStore.user && !authStore.isGuest" @openChat="startPrivateChat" @open-group="chatStore.openGroupChat" />
 
         <!-- 连接状态提示 -->
         <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"

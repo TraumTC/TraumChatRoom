@@ -50,9 +50,10 @@
         <div class="p-6 space-y-4" style="border-top: 1px solid var(--color-border)">
           <h2 class="text-sm font-medium" style="color: var(--color-ink)">修改密码</h2>
           <div class="space-y-3">
-            <n-input v-model:value="oldPassword" type="password" placeholder="当前密码" show-password-on="click" />
+            <n-input v-model:value="oldPassword" type="password" placeholder="当前密码" show-password-on="click"
+                     :input-props="{ autocomplete: 'current-password' }" />
             <n-input v-model:value="newPassword" type="password" placeholder="新密码（6-20位，含字母和数字）" show-password-on="click"
-                     @keyup.enter="handleChangePassword" />
+                     :input-props="{ autocomplete: 'new-password' }" @keyup.enter="handleChangePassword" />
             <n-button block @click="handleChangePassword">修改密码</n-button>
           </div>
         </div>

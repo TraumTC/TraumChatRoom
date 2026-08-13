@@ -1,13 +1,12 @@
 <!-- src/components/admin/AdminTabs.vue — 管理后台 tab 导航（亮色） -->
 <template>
   <div class="flex flex-wrap items-center justify-between gap-y-2 mb-5" style="border-bottom: 1px solid var(--color-border)">
-    <div class="flex items-center gap-1 overflow-x-auto max-w-full">
+    <div class="flex items-center gap-1 overflow-x-auto overflow-y-hidden max-w-full">
       <div v-for="t in tabs" :key="t.path"
            class="px-4 py-2 text-sm cursor-pointer select-none"
            :style="{ color: isActive(t.path) ? 'var(--color-signal)' : 'var(--color-ink-soft)',
                      borderBottom: '2px solid ' + (isActive(t.path) ? 'var(--color-signal)' : 'transparent'),
                      fontWeight: isActive(t.path) ? '600' : '400',
-                     marginBottom: '-1px',
                      transition: 'color 0.2s, border-color 0.2s' }"
            @click="router.push(t.path)">
         {{ t.label }}
