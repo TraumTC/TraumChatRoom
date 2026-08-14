@@ -31,7 +31,7 @@
       </label>
 
       <!-- 表情包 -->
-      <div class="relative shrink-0">
+      <div ref="emojiWrapRef" class="relative shrink-0">
         <button @click="showEmoji = !showEmoji"
                 class="input-icon-btn"
                 :style="{ color: showEmoji ? 'var(--color-signal)' : 'var(--color-ink-soft)' }"
@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import MentionPopup from './MentionPopup.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -89,6 +89,7 @@ const chatStore = useChatStore()
 const inputText = ref('')
 const inputRef = ref(null)
 const inputContainerRef = ref(null)
+const emojiWrapRef = ref(null)
 const showMention = ref(false)
 const showEmoji = ref(false)
 const mentionKeyword = ref('')
@@ -104,6 +105,14 @@ function handleResize() {
   isMobile.value = window.innerWidth < 640
 }
 
+// 点击弹窗外任意区域 → 关闭表情选择弹窗（图标按钮与弹窗本身在 emojiWrapRef 内，不触发关闭）
+function onOutsideClick(e) {
+  if (!showEmoji.value) return
+  if (emojiWrapRef.value && !emojiWrapRef.value.contains(e.target)) {
+    showEmoji.value = false
+  }
+}
+
 function onInputFocus() {
   nextTick(() => {
     if (inputContainerRef.value) {
@@ -116,9 +125,15 @@ function onInputBlur() {
   // 失焦时不做特殊处理，键盘收起后布局自动恢复
 }
 
-if (typeof window !== 'undefined') {
+onMounted(() => {
   window.addEventListener('resize', handleResize)
-}
+  document.addEventListener('mousedown', onOutsideClick)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  document.removeEventListener('mousedown', onOutsideClick)
+})
 
 const props = defineProps({
   chatType: { type: String, default: 'group' },
@@ -154,6 +169,15 @@ function handleKeydown(e) {
       return
     }
     if (e.key === 'Escape') {
+      showMention.value = false
+      return
+    }
+  }
+
+  // Esc：关闭表情/@弹窗
+  if (e.key === 'Escape') {
+    if (showEmoji.value || showMention.value) {
+      showEmoji.value = false
       showMention.value = false
       return
     }

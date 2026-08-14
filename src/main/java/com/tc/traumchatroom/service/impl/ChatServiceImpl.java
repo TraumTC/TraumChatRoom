@@ -1,7 +1,9 @@
 package com.tc.traumchatroom.service.impl;
 
+import com.tc.traumchatroom.controller.WebSocketChatController;
 import com.tc.traumchatroom.dto.response.MessageResponse;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.MentionNoticeVO;
 import com.tc.traumchatroom.dto.vo.UnreadStatsVO;
 import com.tc.traumchatroom.dto.vo.UnreadSummaryVO;
 import com.tc.traumchatroom.entity.Message;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -48,6 +51,9 @@ public class ChatServiceImpl implements ChatService {
     @Resource
     private org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
 
+    @Resource
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     /** 撤回时间窗（秒），可配置，默认 120 秒 */
     @org.springframework.beans.factory.annotation.Value("${chat.recall-window-seconds:120}")
     private long recallWindowSeconds;
@@ -56,6 +62,28 @@ public class ChatServiceImpl implements ChatService {
     private static final String READ_KEY_PREFIX = "chat:read:";
     /** 已读游标 TTL：90 天（活跃时刷新，长期不活跃自动清理，避免无效数据残留） */
     private static final long READ_TTL_DAYS = 90;
+
+    /** 群聊 @提及未读 Redis Key 前缀：chat:mention:{username} */
+    private static final String MENTION_KEY_PREFIX = "chat:mention:";
+
+    /** 撤回时按 messageId 清理 @提及未读的 Lua 脚本（List 中剔除含该 messageId 的记录） */
+    private static final String MENTION_REMOVE_LUA =
+            "local list = redis.call('LRANGE', KEYS[1], 0, -1) " +
+            "if #list == 0 then return 0 end " +
+            "local rest = {} " +
+            "local found = 0 " +
+            "for _, v in ipairs(list) do " +
+            "  if string.find(v, '\"messageId\":' .. ARGV[1]) then " +
+            "    found = 1 " +
+            "  else " +
+            "    rest[#rest + 1] = v " +
+            "  end " +
+            "end " +
+            "if found == 1 then " +
+            "  redis.call('DEL', KEYS[1]) " +
+            "  if #rest > 0 then redis.call('RPUSH', KEYS[1], unpack(rest)) end " +
+            "end " +
+            "return found";
 
     // ---------- 群聊历史 ----------
 
@@ -81,6 +109,20 @@ public class ChatServiceImpl implements ChatService {
         Long nextCursor = items.isEmpty() ? null : items.get(items.size() - 1).getId();
 
         return new CursorPageVO<>(items, nextCursor, hasMore);
+    }
+
+    @Override
+    public CursorPageVO<MessageResponse> getGroupHistoryAround(Long anchorId, int size) {
+        if (size <= 0 || size > 100) size = 20;
+
+        // 从 anchor 开始向后取 size 条（升序，@提及定位用）
+        List<Message> messages = messageMapper.selectGroupHistoryAround(anchorId, size);
+
+        List<MessageResponse> items = messages.stream()
+                .map(this::toMessageResponse)
+                .collect(Collectors.toList());
+
+        return new CursorPageVO<>(items, null, false);
     }
 
     // ---------- 私聊历史 ----------
@@ -190,9 +232,83 @@ public class ChatServiceImpl implements ChatService {
         } else {
             // 群聊：广播给所有人
             messagingTemplate.convertAndSend("/topic/messages", recallNotice);
+            // 群聊撤回：同步清理被 @ 用户的未读提醒（按原消息内容解析 @名单）
+            removeMentionNotices(message);
         }
 
         log.info("用户 {} 撤回消息 {}", currentUsername, messageId);
+    }
+
+    /**
+     * 群聊消息撤回后，按原消息内容解析 @名单，用 Lua 脚本逐用户清除对应 messageId 的 @未读记录。
+     * Redis 异常降级（不影响撤回主流程）。
+     */
+    private void removeMentionNotices(Message message) {
+        String content = message.getContent();
+        if (content == null || !content.contains("@")) return;
+        try {
+            Set<String> names = WebSocketChatController.extractMentions(content);
+            names.remove("小汤");
+            if (names.isEmpty()) return;
+            List<User> targets = userMapper.findByNames(new ArrayList<>(names));
+            if (targets.isEmpty()) return;
+            for (User target : targets) {
+                // 发送者本人已在 sendMentionNotices 中从 @名单排除，此处无需重复判断
+                try {
+                    redisTemplate.execute(
+                            new org.springframework.data.redis.core.script.DefaultRedisScript<>(MENTION_REMOVE_LUA, Long.class),
+                            List.of(MENTION_KEY_PREFIX + target.getUsername()),
+                            String.valueOf(message.getId()));
+                } catch (Exception e) {
+                    log.warn("清理 @提及未读失败: target={}, messageId={}", target.getUsername(), message.getId(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("解析撤回消息 @名单失败: {}", e.getMessage());
+        }
+    }
+
+    // ---------- 群聊 @提及未读（Redis List） ----------
+
+    @Override
+    public List<MentionNoticeVO> getMentionUnread(String username) {
+        List<MentionNoticeVO> result = new ArrayList<>();
+        try {
+            List<String> raw = redisTemplate.opsForList().range(MENTION_KEY_PREFIX + username, 0, -1);
+            if (raw == null) return result;
+            for (String json : raw) {
+                try {
+                    result.add(objectMapper.readValue(json, MentionNoticeVO.class));
+                } catch (Exception ignore) {
+                    // 单条解析失败跳过（格式异常或字段演进）
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取 @提及未读失败: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    public void clearMentionUnread(String username) {
+        try {
+            redisTemplate.delete(MENTION_KEY_PREFIX + username);
+        } catch (Exception e) {
+            log.warn("清除 @提及未读失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void markMentionRead(String username, Long messageId) {
+        if (messageId == null) return;
+        try {
+            redisTemplate.execute(
+                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(MENTION_REMOVE_LUA, Long.class),
+                    List.of(MENTION_KEY_PREFIX + username),
+                    String.valueOf(messageId));
+        } catch (Exception e) {
+            log.warn("标记 @提及已读失败: username={}, messageId={}", username, messageId, e);
+        }
     }
 
     // ---------- 私聊离线未读（Redis 会话级已读游标） ----------
@@ -243,8 +359,8 @@ public class ChatServiceImpl implements ChatService {
             result.sort(Comparator.comparing(UnreadSummaryVO::getLastMessageId,
                     Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
         } catch (Exception e) {
-            // Redis 异常降级：返回空，不阻塞聊天
-            log.warn("获取私聊未读汇总失败: {}", e.getMessage());
+            // Redis 异常降级：返回空，不阻塞聊天（补异常对象便于定位序列化/连接问题）
+            log.warn("获取私聊未读汇总失败: {}", e.getMessage(), e);
         }
         return result;
     }
@@ -262,8 +378,8 @@ public class ChatServiceImpl implements ChatService {
             redisTemplate.opsForHash().put(key, targetUsername, String.valueOf(latestId));
             redisTemplate.expire(key, Duration.ofDays(READ_TTL_DAYS));
         } catch (Exception e) {
-            // Redis 异常忽略：仅影响下次上线的未读游标，不阻塞打开会话
-            log.warn("标记会话已读失败: username={}, target={}", username, targetUsername);
+            // Redis 异常忽略：仅影响下次上线的未读游标，不阻塞打开会话（补异常对象便于定位）
+            log.warn("标记会话已读失败: username={}, target={}", username, targetUsername, e);
         }
     }
 

@@ -49,13 +49,19 @@
         <!-- 修改密码 -->
         <div class="p-6 space-y-4" style="border-top: 1px solid var(--color-border)">
           <h2 class="text-sm font-medium" style="color: var(--color-ink)">修改密码</h2>
-          <div class="space-y-3">
-            <n-input v-model:value="oldPassword" type="password" placeholder="当前密码" show-password-on="click"
-                     :input-props="{ autocomplete: 'current-password' }" />
-            <n-input v-model:value="newPassword" type="password" placeholder="新密码（6-20位，含字母和数字）" show-password-on="click"
-                     :input-props="{ autocomplete: 'new-password' }" @keyup.enter="handleChangePassword" />
-            <n-button block @click="handleChangePassword">修改密码</n-button>
-          </div>
+          <n-form @submit.prevent="handleChangePassword">
+            <div class="space-y-3">
+              <n-form-item path="oldPassword" :show-label="false">
+                <n-input v-model:value="oldPassword" type="password" placeholder="当前密码" show-password-on="click"
+                         :input-props="{ autocomplete: 'current-password' }" />
+              </n-form-item>
+              <n-form-item path="newPassword" :show-label="false">
+                <n-input v-model:value="newPassword" type="password" placeholder="新密码（6-20位，含字母和数字）" show-password-on="click"
+                         :input-props="{ autocomplete: 'new-password' }" @keyup.enter="handleChangePassword" />
+              </n-form-item>
+              <n-button type="primary" block attr-type="submit">修改密码</n-button>
+            </div>
+          </n-form>
         </div>
 
         <n-alert v-if="error" type="error" :show-icon="false" class="mx-6 mb-6" closable @close="error = ''">

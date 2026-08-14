@@ -15,6 +15,7 @@ export const useChatStore = defineStore('chat', () => {
   const loading = ref(false)
   const error = ref(null)
   const notifications = ref([])         // 通知队列（Toast）
+  const mentionNotices = ref([])        // 群聊 @提及未读 [{ senderName, messageId, content, createdAt }]
   const replyTo = ref(null)             // 引用消息 { id, senderName, content }
   const friendRequestCount = ref(0)     // 未处理的好友申请数量
   const friendListVersion = ref(0)      // 好友列表刷新版本号（监听变化自动刷新）
@@ -311,6 +312,40 @@ export const useChatStore = defineStore('chat', () => {
     clearPersistedSession()
   }
 
+  // 群聊 @提及未读计数
+  const mentionUnreadCount = computed(() => mentionNotices.value.length)
+
+  // 收到实时 @提及推送：去重入队 + 页面隐藏时标题闪烁
+  function addMentionNotice(payload) {
+    if (!payload?.messageId) return
+    if (mentionNotices.value.some(n => n.messageId === payload.messageId)) return
+    mentionNotices.value.unshift(payload)
+    if (mentionNotices.value.length > 50) mentionNotices.value.length = 50
+    if (isPageHidden.value) startTitleFlash()
+  }
+
+  // 上线拉取离线 @提及未读（合并去重）
+  function mergeMentions(list) {
+    if (!Array.isArray(list)) return
+    list.forEach(n => {
+      if (n?.messageId && !mentionNotices.value.some(x => x.messageId === n.messageId)) {
+        mentionNotices.value.push(n)
+      }
+    })
+    if (mentionNotices.value.length > 50) mentionNotices.value.length = 50
+    if (mentionNotices.value.length > 0 && isPageHidden.value) startTitleFlash()
+  }
+
+  // 清除全部 @提及未读（点击提示条后调用）
+  function clearMentions() {
+    mentionNotices.value = []
+  }
+
+  // 清除单条 @提及（点击并定位消息后调用）
+  function removeMention(messageId) {
+    mentionNotices.value = mentionNotices.value.filter(n => n.messageId !== messageId)
+  }
+
   // 添加通知（Toast）
   function addNotification(notification) {
     const id = Date.now() + Math.random()
@@ -347,11 +382,12 @@ export const useChatStore = defineStore('chat', () => {
 
   return { messages, onlineUsers, privateMessages, privateTabs,
            currentChat, currentPrivateChat, unreadCounts, privateUnreadSenders,
-           totalUnread, totalPrivateUnread, loading, error, notifications, replyTo, friendRequestCount, friendListVersion,
+           totalUnread, totalPrivateUnread, loading, error, notifications, mentionNotices, mentionUnreadCount, replyTo, friendRequestCount, friendListVersion,
            addMessage, addPrivateMessage, updateMessage,
            handleMessageRecalled, setOnlineUsers,
            openGroupChat, openPrivateChat, closePrivateTab,
            setPrivateMessages, clearMessages, addNotification,
+           addMentionNotice, mergeMentions, clearMentions, removeMention,
            setLoading, setError, setPageHidden,
            setReplyTo, clearReplyTo,
            setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,

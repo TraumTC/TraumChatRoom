@@ -10,6 +10,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      database: ${REDIS_DATABASE:5}
       password: ${REDIS_PASSWORD}
 
 ai:

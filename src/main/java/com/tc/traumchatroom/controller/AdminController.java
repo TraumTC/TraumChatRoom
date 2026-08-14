@@ -259,6 +259,8 @@ public class AdminController {
             throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
 
+        assertNotProtected(user, "修改角色");
+
         userMapper.updateRole(id, role);
         cacheService.evictUser(id);
         log.info("管理员修改用户 {} 角色为 {}", id, role);
@@ -278,30 +280,47 @@ public class AdminController {
             throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
 
-        // 修改昵称
         String name = (String) body.get("name");
+        String role = (String) body.get("role");
+        Integer status = (Integer) body.get("status");
+        String password = (String) body.get("password");
+
+        // 保护校验（前置）：小汤与管理员禁止改角色/禁用/重置密码；小汤昵称固定，管理员昵称可改
+        if (role != null && !role.isBlank()) {
+            assertNotProtected(user, "修改角色");
+        }
+        if (status != null) {
+            assertNotProtected(user, "禁用/启用");
+        }
+        if (password != null && !password.isBlank()) {
+            assertNotProtected(user, "重置密码");
+        }
         if (name != null && !name.isBlank() && !name.equals(user.getName())) {
-            User existing = userMapper.findByName(name);
+            if (isAiUser(user)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "小汤为系统AI助手，昵称固定，不能修改");
+            }
+        }
+
+        // 修改昵称（含已软删除用户查重，避免撞唯一键抛 500）
+        if (name != null && !name.isBlank() && !name.equals(user.getName())) {
+            User existing = userMapper.findByNameIncludingDeleted(name);
             if (existing != null) {
                 throw new BusinessException(ErrorCode.NAME_EXISTS);
             }
             user.setName(name);
         }
 
-        // 修改角色
-        String role = (String) body.get("role");
+        // 修改角色（updateProfile 的 SQL 不含 role 列，必须单独走 updateRole 落库）
         if (role != null && !role.isBlank()) {
-            user.setRole(role);
+            userMapper.updateRole(id, role);
         }
 
-        // 修改状态
-        Integer status = (Integer) body.get("status");
+        // 修改状态（updateProfile 的 SQL 不含 status 列，必须单独走 updateStatus 落库）
         if (status != null) {
-            user.setStatus(status);
+            userMapper.updateStatus(id, status);
         }
 
         // 重置密码（与注册规则一致：6-20位，含字母和数字）
-        String password = (String) body.get("password");
         if (password != null && !password.isBlank()) {
             if (password.length() < 6 || password.length() > 20) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "密码长度需6-20位");
@@ -331,6 +350,9 @@ public class AdminController {
             throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
         }
 
+        // 小汤 / 管理员受保护，不能删除
+        assertNotProtected(user, "删除");
+
         // 不能删除自己
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         if (user.getUsername().equals(currentUsername)) {
@@ -342,5 +364,23 @@ public class AdminController {
         log.info("管理员删除用户: {}", user.getUsername());
 
         return Result.success();
+    }
+
+    /** 是否系统 AI 助手（小汤） */
+    private boolean isAiUser(User user) {
+        return "ai_xiaoai".equals(user.getUsername()) || "ROLE_AI".equals(user.getRole());
+    }
+
+    /**
+     * 受保护用户校验：小汤与管理员不允许被敏感操作（改角色/禁用/删除/重置密码）。
+     * 昵称修改除外（管理员可改自己的昵称，小汤昵称固定由调用方单独判断）。
+     */
+    private void assertNotProtected(User user, String action) {
+        if (isAiUser(user)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "小汤为系统AI助手，不能" + action);
+        }
+        if ("ROLE_ADMIN".equals(user.getRole())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "不能对管理员" + action);
+        }
     }
 }

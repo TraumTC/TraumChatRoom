@@ -1,8 +1,10 @@
 package com.tc.traumchatroom.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tc.traumchatroom.config.AiConfig;
+import com.tc.traumchatroom.config.ChatRateLimitConfig;
 import com.tc.traumchatroom.dto.response.MessageResponse;
 import com.tc.traumchatroom.entity.Message;
-import com.tc.traumchatroom.entity.OnlineUserInfo;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
@@ -10,6 +12,7 @@ import com.tc.traumchatroom.service.AiService;
 import com.tc.traumchatroom.service.FilterResult;
 import com.tc.traumchatroom.service.OnlineUserService;
 import com.tc.traumchatroom.service.SensitiveWordFilter;
+import com.tc.traumchatroom.util.RedisRateLimiter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -18,9 +21,15 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * WebSocket 消息控制器
@@ -54,6 +63,18 @@ public class WebSocketChatController {
     private AiService aiService;
 
     @Resource
+    private AiConfig aiConfig;
+
+    @Resource
+    private ChatRateLimitConfig chatRateLimitConfig;
+
+    @Resource
+    private RedisRateLimiter redisRateLimiter;
+
+    @Resource
+    private ObjectMapper objectMapper;
+
+    @Resource
     private SensitiveWordFilter sensitiveWordFilter;
 
     @Resource
@@ -66,28 +87,29 @@ public class WebSocketChatController {
     /** 消息内容最大长度（防超长消息 DoS） */
     private static final int MAX_MESSAGE_LENGTH = 2000;
 
-    /** 消息发送限流：每用户每分钟最多 30 条（防灌水 DoS） */
-    private static final int SEND_RATE_LIMIT = 30;
-    private static final String SEND_RATE_LUA =
-            "local cur = redis.call('GET', KEYS[1]) " +
-            "if cur == false then " +
-            "  redis.call('SET', KEYS[1], 1, 'EX', 60) " +
-            "  return 1 " +
-            "end " +
-            "local n = redis.call('INCR', KEYS[1]) " +
-            "return n";
+    /** 群聊 @提及未读 Redis Key 前缀：chat:mention:{username} */
+    private static final String MENTION_KEY_PREFIX = "chat:mention:";
+    /** @提及未读 TTL：7 天 */
+    private static final Duration MENTION_TTL = Duration.ofDays(7);
+    /** 单个用户 @提及未读上限 */
+    private static final long MENTION_MAX = 50;
+    /** @提及提醒消息摘要最大长度 */
+    private static final int MENTION_CONTENT_MAX = 120;
+    /**
+     * @提及正则：昵称通常由字母、数字、下划线、连字符或汉字组成。
+     * 不把逗号、句号等标点吞进昵称，避免「@张三，」无法匹配真实用户。
+     */
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([\\p{L}\\p{N}_-]+)");
+    /** AI 助手昵称（触发 AI 链路，不参与 @提醒） */
+    private static final String AI_NICKNAME = "小汤";
 
     /**
-     * 消息发送限流（Redis 原子计数，每用户每分钟 30 条）
+     * 消息发送限流（Redis 原子计数，每用户每分钟最多 sendMaxPerMinute 条，读配置 chat.rate-limit.send-max-per-minute）
      * @return true 允许发送；false 超限
      */
     private boolean allowSend(String username) {
         String key = "chat:send:rate:" + username;
-        Long n = redisTemplate.execute(
-                new org.springframework.data.redis.core.script.DefaultRedisScript<>(SEND_RATE_LUA, Long.class),
-                java.util.List.of(key));
-        long count = n != null ? n : 1;
-        if (count > SEND_RATE_LIMIT) {
+        if (!redisRateLimiter.tryAcquire(key, chatRateLimitConfig.getSendMaxPerMinute(), 60)) {
             log.warn("用户 {} 发送消息超限，拦截", username);
             return false;
         }
@@ -146,6 +168,12 @@ public class WebSocketChatController {
         }
         if (sender == null) return;
 
+        // 游客拦截：游客使用 @AI（@小汤）→ 消息不发送，仅提示（游客不能使用 AI 助手）
+        if ("ROLE_GUEST".equals(sender.getRole()) && aiService.detectAiMention(content)) {
+            sendError(username, clientId, "游客暂不能使用 AI 助手，登录后即可体验", null);
+            return;
+        }
+
         // 敏感词过滤
         FilterResult filterResult = sensitiveWordFilter.filter(content);
         if (filterResult.isBlocked()) {
@@ -194,12 +222,79 @@ public class WebSocketChatController {
         // 广播到群聊
         messagingTemplate.convertAndSend("/topic/messages", response);
 
+        // @提及提醒：解析被@用户，在线实时推送 + 离线未读累计（不走 AI，快路径无 @ 直接跳过）
+        sendMentionNotices(content, message, sender);
+
         log.debug("群聊消息: {} -> {}", sender.getName(), content);
 
-        // 检测 @小爱，触发 AI 回复（游客无权使用 AI）
-        if (!"ROLE_GUEST".equals(sender.getRole()) && aiService.detectAiMention(content)) {
+        // 检测 @小汤，触发 AI 回复（游客已被上方拦截，此处仅处理登录用户）
+        if (aiService.detectAiMention(content)) {
             triggerAiReply(content, message.getId(), sender.getUsername());
         }
+    }
+
+    /**
+     * 群聊 @提及提醒：
+     * 1. 解析消息中的 @昵称（排除 AI 助手与发送者自己）
+     * 2. 对被 @用户实时推送 /user/queue/mention-notice
+     * 3. 离线未读累计到 Redis List（TTL 7 天，上限 50 条），前端上线可拉取
+     * Redis 异常不影响消息主链路（try-catch 降级）
+     */
+    private void sendMentionNotices(String content, Message message, User sender) {
+        if (content == null || !content.contains("@")) return;
+
+        Set<String> names = extractMentions(content);
+        names.remove(AI_NICKNAME);
+        if (names.isEmpty()) return;
+
+        try {
+            List<User> targets = userMapper.findByNames(new ArrayList<>(names));
+            if (targets.isEmpty()) return;
+
+            String summary = content.length() > MENTION_CONTENT_MAX
+                    ? content.substring(0, MENTION_CONTENT_MAX) : content;
+            // 扁平结构，与 MentionNoticeVO 字段一致（离线未读直接反序列化为该 VO）
+            Map<String, Object> payload = Map.of(
+                    "type", "mention",
+                    "senderUsername", sender.getUsername(),
+                    "senderName", sender.getName(),
+                    "messageId", message.getId(),
+                    "content", summary,
+                    "createdAt", message.getCreatedAt() != null ? message.getCreatedAt().toString() : ""
+            );
+
+            for (User target : targets) {
+                // 仅排除发送者本人；按昵称排除会误伤昵称相同的其他用户。
+                if (target.getUsername().equals(sender.getUsername())) continue;
+                // 在线用户实时推送（传对象，由 STOMP converter 序列化，与全项目其他推送一致；
+                // 离线用户 STOMP 静默丢弃）
+                messagingTemplate.convertAndSendToUser(target.getUsername(), "/queue/mention-notice", payload);
+                // 离线未读累计（Redis 故障时降级，不影响消息发送）
+                try {
+                    String key = MENTION_KEY_PREFIX + target.getUsername();
+                    redisTemplate.opsForList().leftPush(key, objectMapper.writeValueAsString(payload));
+                    redisTemplate.expire(key, MENTION_TTL);
+                    redisTemplate.opsForList().trim(key, 0, MENTION_MAX - 1);
+                } catch (Exception e) {
+                    log.warn("@提及未读累计失败: target={}", target.getUsername(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("@提及提醒处理失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 解析消息中的 @提及昵称（去重、保序）
+     */
+    public static Set<String> extractMentions(String content) {
+        Set<String> names = new LinkedHashSet<>();
+        if (content == null) return names;
+        Matcher m = MENTION_PATTERN.matcher(content);
+        while (m.find()) {
+            names.add(m.group(1));
+        }
+        return names;
     }
 
     /**
@@ -219,10 +314,11 @@ public class WebSocketChatController {
                     // 并发首触发时用 INSERT IGNORE 幂等创建，避免唯一键冲突
                     aiUser = new User();
                     aiUser.setUsername("ai_xiaoai");
-                    aiUser.setName("小爱");
+                    aiUser.setName("小汤");
                     aiUser.setPassword("ai-no-password");
                     aiUser.setRole("ROLE_AI");
                     aiUser.setStatus(1);
+                    aiUser.setAvatar(aiConfig.getAvatarUrl());
                     userMapper.insertIgnore(aiUser);
                     aiUser = userMapper.findByUsername("ai_xiaoai");
                     if (aiUser == null) {
@@ -230,10 +326,14 @@ public class WebSocketChatController {
                         return;
                     }
                 }
+                // 已存在的 AI 用户若头像为空，用配置的头像兜底（聊天消息 sender 头像即时生效）
+                if (aiUser.getAvatar() == null || aiUser.getAvatar().isBlank()) {
+                    aiUser.setAvatar(aiConfig.getAvatarUrl());
+                }
 
                 Message aiMessage = new Message();
                 aiMessage.setSenderId(aiUser.getId());
-                aiMessage.setSenderName("小爱");
+                aiMessage.setSenderName("小汤");
                 aiMessage.setContent(aiReply);
                 aiMessage.setMessageType("text");
                 aiMessage.setIsAiReply(1);

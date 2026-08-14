@@ -59,6 +59,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new UsernameNotFoundException("用户不存在: " + username);
         }
 
+        // 账号被禁用：视为不存在，让 JWT 过滤器清空认证态，立即失去访问权限
+        // （JwtAuthenticationFilter 捕获 UsernameNotFoundException → clearContext → 401）
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            throw new UsernameNotFoundException("账号已被禁用: " + username);
+        }
+
         // 返回 Spring Security 的 UserDetails 对象
         // 参数：用户名、密码、权限列表
         return new org.springframework.security.core.userdetails.User(

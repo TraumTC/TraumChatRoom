@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { getToken, getRefreshToken, setToken, clearToken } from '@/utils/token'
 import router from '@/router'
+import { wsCleanup } from '@/utils/ws-cleanup'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
@@ -50,6 +51,8 @@ api.interceptors.response.use(
       }
 
       clearToken()
+      // 清理残留的 WebSocket 连接（复用旧 token 会导致重连失败、@未读回补失效）
+      wsCleanup()
       router.push('/')
     }
 

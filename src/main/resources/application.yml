@@ -16,7 +16,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      database: ${REDIS_DATABASE:0}
+      database: ${REDIS_DATABASE:}
       password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
@@ -37,7 +37,6 @@ mybatis:
 file:
     upload-dir: D:/Javawork/TraumChatRoom/uploads/
     allowed-types: jpg,jpeg,png,gif,bmp,webp,pdf,doc,docx,zip,rar,md,mp4,webm,ogg,mov,avi
-    max-file-size: 104857600
     # 头像文件 大小max
     avatar-max-size: 5MB
 
@@ -50,7 +49,9 @@ ai:
     max-tokens: 1024
     temperature: 0.7
     timeout: 30000
-    system-prompt: "你是小爱，一个友善的AI助手。你在一个聊天室中，用户通过@小爱来和你对话。请简洁友好地回答问题，控制在80字以内。"
+    system-prompt: "你是小汤，一个友善的AI助手。你在一个聊天室中，用户通过@小汤来和你对话。请简洁友好地回答问题，控制在80字以内。"
+    # 小汤固定头像 URL（如 /api/file/download/avatars/tang.jpg）；留空则使用默认首字头像
+    avatar-url: "/api/file/download/avatars/ai/AI_Tang.jpg"
   rate-limit:
     max-per-minute: 10
 
@@ -59,6 +60,11 @@ jwt:
   secret: ${JWT_SECRET:}
   access-expiration: 86400000
   refresh-expiration: 604800000
+
+# 聊天限流配置
+chat:
+  rate-limit:
+    send-max-per-minute: 30
 
 # CORS 配置
 cors:

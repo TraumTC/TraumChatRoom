@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -53,21 +54,21 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserResponse register(RegisterRequest request) {
-        // 0. 禁止占用 AI 用户保留名称（用户名 ai_xiaoai / 昵称 小爱）
+        // 0. 禁止占用 AI 用户保留名称（用户名 ai_xiaoai / 昵称 小汤）
         if ("ai_xiaoai".equalsIgnoreCase(request.getUsername())) {
             throw new BusinessException(ErrorCode.USER_EXISTS);
         }
-        if ("小爱".equals(request.getName())) {
+        if ("小汤".equals(request.getName())) {
             throw new BusinessException(ErrorCode.NAME_EXISTS);
         }
 
-        // 1. 检查用户名是否已存在
-        if (userMapper.findByUsername(request.getUsername()) != null) {
+        // 1. 检查用户名是否已存在（含已软删除用户，软删除后名字永久保留，避免撞唯一键抛 500）
+        if (userMapper.findByUsernameIncludingDeleted(request.getUsername()) != null) {
             throw new BusinessException(ErrorCode.USER_EXISTS);
         }
 
-        // 2. 检查昵称是否已存在
-        if (userMapper.findByName(request.getName()) != null) {
+        // 2. 检查昵称是否已存在（含已软删除用户）
+        if (userMapper.findByNameIncludingDeleted(request.getName()) != null) {
             throw new BusinessException(ErrorCode.NAME_EXISTS);
         }
 
@@ -275,21 +276,32 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 记录失败次数，达到上限后锁定
+     * 原子 Lua：INCR + 首次设 TTL + 达上限写 lock key + 删 fail key 一步完成（消除 INCR/EXPIRE 竞态）
      */
     private void incrementFailCount(String failKey, int maxCount, long timeout, TimeUnit unit) {
-        Long count = redisTemplate.opsForValue().increment(failKey);
-        if (count != null && count == 1) {
-            // 第一次失败，设置过期时间
-            redisTemplate.expire(failKey, timeout, unit);
-        }
-        if (count != null && count >= maxCount) {
-            // 达到上限，锁定（fail → lock）
+        try {
+            long timeoutSeconds = unit.toSeconds(timeout);
             String lockKey = failKey.replace("fail", "lock");
-            redisTemplate.opsForValue().set(lockKey, "1", timeout, unit);
-            // 清除失败计数
-            redisTemplate.delete(failKey);
+            redisTemplate.execute(
+                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(FAIL_COUNT_LUA, Long.class),
+                    List.of(failKey, lockKey),
+                    String.valueOf(maxCount), String.valueOf(timeoutSeconds)
+            );
+        } catch (Exception e) {
+            // Redis 异常降级：仅影响失败计数与锁定，不阻塞登录流程
+            log.warn("记录登录失败计数异常: {}", e.getMessage(), e);
         }
     }
+
+    /** 登录失败计数 + 锁定的原子 Lua：KEYS[1]=failKey, KEYS[2]=lockKey, ARGV[1]=maxCount, ARGV[2]=timeout秒 */
+    private static final String FAIL_COUNT_LUA =
+            "local c = redis.call('INCR', KEYS[1]) " +
+            "if c == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2])) end " +
+            "if c >= tonumber(ARGV[1]) then " +
+            "  redis.call('SET', KEYS[2], '1', 'EX', tonumber(ARGV[2])) " +
+            "  redis.call('DEL', KEYS[1]) " +
+            "end " +
+            "return c";
 
     /**
      * 将秒数格式化为 "x 分 y 秒"

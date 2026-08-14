@@ -3,6 +3,8 @@ package com.tc.traumchatroom.config;
 import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.exception.BusinessException;
 import com.tc.traumchatroom.exception.ErrorCode;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -17,6 +19,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Resource
+    private HttpServletRequest request;
+
     @ExceptionHandler(BusinessException.class)
     public Result<?> handleBusinessException(BusinessException e) {
         log.warn("业务异常:{}",e.getMessage());
@@ -51,7 +57,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception e) {
-        log.error("未知异常", e);
+        // 兜底未知异常：记录请求 URL，便于生产定位是哪个接口出问题
+        log.error("未知异常: {}", request.getRequestURI(), e);
         return  Result.error(ErrorCode.INTERNAL_ERROR);
     }
 }

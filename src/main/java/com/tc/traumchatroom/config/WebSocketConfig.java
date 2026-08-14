@@ -168,6 +168,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             String username = user.getName();
             webSocketChatController.onUserDisconnect(username);
             log.info("用户断开 WebSocket: {}", username);
+        } else {
+            // 无用户上下文：通常是握手未完成/连接建立前异常断开，生产 WARN 记录便于排查
+            log.warn("WebSocket 断开但无用户上下文（可能为异常断连或握手未完成）");
         }
     }
 }

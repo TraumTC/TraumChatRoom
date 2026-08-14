@@ -5,6 +5,7 @@ import com.tc.traumchatroom.dto.request.MarkReadRequest;
 import com.tc.traumchatroom.dto.response.MessageResponse;
 import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.MentionNoticeVO;
 import com.tc.traumchatroom.dto.vo.UnreadSummaryVO;
 import com.tc.traumchatroom.service.ChatService;
 import jakarta.annotation.Resource;
@@ -30,15 +31,50 @@ public class MessageController {
     private ChatService chatService;
 
     /**
-     * 群聊历史消息（游标分页）
-     * GET /api/messages/history?cursor=1234&size=20
+     * 群聊历史消息（游标分页 / 指定消息定位）
+     * GET /api/messages/history?cursor=1234&size=20  （向前翻页）
+     * GET /api/messages/history?anchorId=5678&size=20 （从指定消息开始向后，@提及定位）
      */
     @GetMapping("/history")
     public Result<CursorPageVO<MessageResponse>> getGroupHistory(
             @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Long anchorId,
             @RequestParam(defaultValue = "20") int size) {
-        CursorPageVO<MessageResponse> result = chatService.getGroupHistory(cursor, size);
+        CursorPageVO<MessageResponse> result = anchorId != null
+                ? chatService.getGroupHistoryAround(anchorId, size)
+                : chatService.getGroupHistory(cursor, size);
         return Result.success(result);
+    }
+
+    /**
+     * 群聊 @提及未读提醒
+     * GET /api/messages/mention-unread
+     */
+    @GetMapping("/mention-unread")
+    public Result<List<MentionNoticeVO>> getMentionUnread() {
+        String username = getCurrentUsername();
+        return Result.success(chatService.getMentionUnread(username));
+    }
+
+    /**
+     * 清除群聊 @提及未读
+     * POST /api/messages/mention-read
+     */
+    @PostMapping("/mention-read")
+    public Result<Void> clearMentionUnread() {
+        String username = getCurrentUsername();
+        chatService.clearMentionUnread(username);
+        return Result.success();
+    }
+
+    /**
+     * 将单条群聊 @提及标记为已读
+     * POST /api/messages/mention-read/{messageId}
+     */
+    @PostMapping("/mention-read/{messageId}")
+    public Result<Void> markMentionRead(@PathVariable Long messageId) {
+        chatService.markMentionRead(getCurrentUsername(), messageId);
+        return Result.success();
     }
 
     /**

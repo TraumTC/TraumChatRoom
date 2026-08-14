@@ -24,6 +24,7 @@
             Traum<span style="color: var(--color-signal)">Space</span>
           </h1>
           <p class="text-base mt-3" style="color: var(--color-ink-soft)">一个在线聊天室：群聊 · 私聊 · AI 助手 · 好友</p>
+          <p class="mt-2 text-xs" style="color: var(--color-ink-faint)">特此声明，本网站内容仅供个人学习交流使用</p>
         </div>
 
         <!-- 功能亮点 -->
@@ -67,7 +68,7 @@ function goLogin() {
 
 const features = [
   { icon: 'messages-square', title: '群聊', desc: '实时文本、图片、文件消息' },
-  { icon: 'bot', title: 'AI 助手', desc: '@小爱 随时提问，智能回复' },
+  { icon: 'bot', title: 'AI 助手', desc: '@小汤 随时提问，智能回复' },
   { icon: 'users', title: '好友', desc: '搜索、申请、私聊，双向好友' }
 ]
 </script>

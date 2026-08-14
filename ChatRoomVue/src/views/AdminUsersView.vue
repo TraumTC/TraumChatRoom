@@ -17,10 +17,46 @@
         <n-button @click="handleReset">重置</n-button>
       </div>
 
-      <!-- 表格 -->
-      <div class="flex-1 min-h-0 overflow-y-auto">
+      <!-- 表格（桌面端） -->
+      <div v-if="!isMobile" class="flex-1 min-h-0 overflow-y-auto">
         <n-data-table :columns="columns" :data="users" :loading="loading"
                       :bordered="true" size="small" :scroll-x="800" />
+      </div>
+
+      <!-- 卡片列表（平板/移动端） -->
+      <div v-else class="flex-1 min-h-0 overflow-y-auto space-y-2">
+        <div v-for="user in users" :key="user.id"
+             class="rounded-lg px-3 py-3 space-y-2" style="background: var(--color-card); border: 1px solid var(--color-border)">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium truncate" style="color: var(--color-ink)">{{ user.name }}</span>
+            <span class="text-xs truncate" style="color: var(--color-ink-soft)">@{{ user.username }}</span>
+            <span v-if="isProtected(user)" class="ml-auto text-xs shrink-0" style="color: var(--color-ink-soft)">
+              {{ user.username === 'ai_xiaoai' || user.role === 'ROLE_AI' ? '系统AI' : '管理员' }}
+            </span>
+            <span v-else class="ml-auto text-xs shrink-0" :style="{ color: user.status === 1 ? 'var(--color-live)' : 'var(--color-alarm)' }">
+              {{ user.status === 1 ? '正常' : '禁用' }}
+            </span>
+          </div>
+          <div class="flex items-center gap-3 text-xs" style="color: var(--color-ink-soft)">
+            <span>ID {{ user.id }}</span>
+            <span>角色：{{ roleName(user.role) }}</span>
+            <span class="ml-auto shrink-0">
+              <span class="action-link text-xs" style="color:var(--color-signal)" @click="toggleUserDetail(user.id)">
+                {{ expandedUserIds.has(user.id) ? '收起' : '详情' }}
+              </span>
+            </span>
+          </div>
+          <div v-if="expandedUserIds.has(user.id)" class="pt-1 text-xs" style="color: var(--color-ink-soft)">
+            最后活跃：{{ formatTime(user.lastActiveTime) || '-' }}
+          </div>
+          <div v-if="!isProtected(user)" class="flex items-center gap-4 pt-1 text-sm">
+            <span class="action-link" style="color:var(--color-signal)" @click="resetPassword(user)">重置密码</span>
+            <span class="action-link" style="color:var(--color-ink-soft)" @click="toggleStatus(user)">{{ user.status === 1 ? '禁用' : '启用' }}</span>
+            <span class="action-link" style="color:var(--color-alarm)" @click="deleteUser(user)">删除</span>
+          </div>
+          <n-select v-if="!isProtected(user)" :value="user.role" :options="roleOptions" size="small"
+                    class="w-full" @update:value="(v) => changeRole(user, v)" />
+        </div>
       </div>
 
       <!-- 分页 -->
@@ -34,16 +70,19 @@
 </template>
 
 <script setup>
-import { ref, h, onMounted } from 'vue'
+import { ref, h, onMounted, onUnmounted } from 'vue'
 import { NInput } from 'naive-ui'
 import { adminApi } from '@/api/admin'
-import { useAuthStore } from '@/stores/auth'
 import { formatTime } from '@/utils/format'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AdminTabs from '@/components/admin/AdminTabs.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
-const authStore = useAuthStore()
+const isMobile = ref(window.innerWidth < 1024)
+function handleResize() {
+  isMobile.value = window.innerWidth < 1024
+}
+
 const users = ref([])
 const keyword = ref('')
 const includeDeleted = ref(false)
@@ -51,6 +90,16 @@ const page = ref(1)
 const size = 10
 const total = ref(0)
 const loading = ref(false)
+const expandedUserIds = ref(new Set())  // 卡片"详情"展开状态
+
+function toggleUserDetail(id) {
+  if (expandedUserIds.value.has(id)) {
+    expandedUserIds.value.delete(id)
+  } else {
+    expandedUserIds.value.add(id)
+  }
+  expandedUserIds.value = new Set(expandedUserIds.value)
+}
 
 const roleOptions = [
   { label: '用户', value: 'ROLE_USER' },
@@ -62,7 +111,16 @@ function statusRender(row) {
     row.status === 1 ? '正常' : '禁用')
 }
 
+// 受保护用户（小汤 / 管理员）：不提供操作按钮、角色不可修改
+function isProtected(row) {
+  return row.username === 'ai_xiaoai' || row.role === 'ROLE_AI' || row.role === 'ROLE_ADMIN'
+}
+
 function actionsRender(row) {
+  if (isProtected(row)) {
+    return h('span', { style: 'color:var(--color-ink-soft);font-size:12px' },
+      row.username === 'ai_xiaoai' || row.role === 'ROLE_AI' ? '系统AI' : '管理员')
+  }
   return h('div', { style: 'display:flex;gap:12px;justify-content:flex-end' }, [
     h('a', { class: 'action-link', style: 'color:var(--color-signal)', onClick: () => resetPassword(row) }, '重置密码'),
     h('a', { class: 'action-link', style: 'color:var(--color-ink-soft)', onClick: () => toggleStatus(row) }, row.status === 1 ? '禁用' : '启用'),
@@ -82,6 +140,7 @@ const columns = [
         options: roleOptions,
         size: 'small',
         style: 'width:110px',
+        disabled: isProtected(row),
         onUpdateValue: (v) => changeRole(row, v)
       }, null)
     }
@@ -229,5 +288,11 @@ function resetPassword(user) {
   })
 }
 
-onMounted(loadUsers)
+onMounted(() => {
+  loadUsers()
+  window.addEventListener('resize', handleResize)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 </script>

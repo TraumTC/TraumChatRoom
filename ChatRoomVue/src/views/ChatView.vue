@@ -73,6 +73,16 @@
 
         <!-- 聊天区 -->
         <div class="flex-1 flex flex-col min-h-0 relative" style="background: var(--color-bg)">
+          <!-- 群聊 @提及提醒：离线期间被 @ 后，上线即可看到并定位到原消息 -->
+          <div v-if="!isPrivateMode && chatStore.mentionUnreadCount > 0"
+               class="mx-3 mt-2 px-3 py-2 rounded-lg flex items-center gap-2 text-sm shadow-sm mention-notice-bar">
+            <button class="flex-1 min-w-0 text-left truncate" @click="openLatestMention">
+              {{ latestMention.senderName }} @了你：{{ latestMention.content }}
+            </button>
+            <span class="shrink-0 text-xs">{{ chatStore.mentionUnreadCount }} 条</span>
+            <button class="shrink-0 text-xs underline" @click="clearAllMentions">全部已读</button>
+          </div>
+
           <!-- 顶部状态栏（有消息时显示） -->
           <template v-if="displayMessages.length > 0">
             <div v-if="chatStore.loading" class="py-2 flex justify-center">
@@ -230,7 +240,7 @@ const {
   groupScrollerRef, privateScrollerRef, hasMore, isNearBottom, showNewMessageHint,
   currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
   scrollToBottomAndHideHint, handleGroupScroll, handlePrivateScroll,
-  startPrivateChat, loadInitialHistory,
+  startPrivateChat, loadInitialHistory, locateGroupMessage,
 } = useChatHistory(chatStore, authStore)
 
 // 文件上传逻辑
@@ -244,6 +254,7 @@ const isMobile = ref(window.innerWidth < 1024)
 
 const onlineUsers = computed(() => chatStore.onlineUsers)
 const onlineCount = computed(() => onlineUsers.value.length)
+const latestMention = computed(() => chatStore.mentionNotices[0] || {})
 
 // 私聊会话切换时强制私聊 DynamicScroller 重挂载（重置滚动与缓存；群聊容器常驻不重挂载）
 // 注意：不包含消息数量，否则每条新消息都会触发重挂载
@@ -283,6 +294,25 @@ function handleVisibility() {
   chatStore.setPageHidden(document.hidden)
 }
 
+async function openLatestMention() {
+  const notice = latestMention.value
+  if (!notice?.messageId) return
+  const located = await locateGroupMessage(notice.messageId)
+  if (!located) {
+    window.$message?.warning('该消息可能已被撤回或删除')
+    return
+  }
+  chatStore.removeMention(notice.messageId)
+  messageApi.markMentionRead(notice.messageId).catch(() => {})
+}
+
+function clearAllMentions() {
+  chatStore.clearMentions()
+  messageApi.clearMentionUnread().catch(() => {
+    window.$message?.warning('@提醒已在本地清除，服务端同步失败')
+  })
+}
+
 onMounted(async () => {
   if (authStore.user?.id) {
     localStorage.setItem('myId', JSON.stringify(authStore.user.id))
@@ -296,7 +326,11 @@ onMounted(async () => {
     chatStore.resetSessionState()
   }
 
-  await loadInitialHistory()
+  try {
+    await loadInitialHistory()
+  } catch (e) {
+    // 历史加载失败不阻塞后续：保证 @未读拉取与 WS 连接仍执行
+  }
   // 拉取离线期间的未读汇总（游客无私聊，跳过），合并进本地未读状态
   if (!authStore.isGuest) {
     messageApi.getUnreadSummary()
@@ -363,6 +397,16 @@ onUnmounted(() => {
   background: var(--color-signal-deep);
   box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
   transform: translateX(-50%) translateY(-2px);
+}
+
+.mention-notice-bar {
+  background: var(--color-signal-ghost);
+  color: var(--color-signal);
+  border: 1px solid color-mix(in srgb, var(--color-signal) 20%, transparent);
+  max-width: 100%;
+}
+.mention-notice-bar .truncate {
+  min-width: 0;
 }
 
 /* --- 过渡动画 --- */

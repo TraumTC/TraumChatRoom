@@ -7,5 +7,8 @@ export const messageApi = {
     api.get(`/api/messages/private/${username}`, { params }),
   recall: (id) => api.put(`/api/messages/${id}/recall`),
   getUnreadSummary: () => api.get('/api/messages/unread-summary'),
-  markRead: (targetUsername) => api.post('/api/messages/read', { targetUsername })
+  markRead: (targetUsername) => api.post('/api/messages/read', { targetUsername }),
+  getMentionUnread: () => api.get('/api/messages/mention-unread'),
+  clearMentionUnread: () => api.post('/api/messages/mention-read'),
+  markMentionRead: (messageId) => api.post(`/api/messages/mention-read/${messageId}`)
 }

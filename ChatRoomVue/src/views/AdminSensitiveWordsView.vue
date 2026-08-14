@@ -12,8 +12,8 @@
         </n-button>
       </div>
 
-      <!-- 过滤 -->
-      <div class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
+      <!-- 过滤（桌面端横向条） -->
+      <div v-if="!isMobile" class="flex items-center gap-3 mb-4 flex-wrap shrink-0">
         <n-select v-model:value="levelFilter" :options="levelOptions" placeholder="全部级别" clearable class="w-full sm:w-[120px]"
                   @update:value="loadWords" />
         <n-select v-model:value="categoryFilter" :options="categoryOptions" placeholder="全部分类" clearable class="w-full sm:w-[120px]"
@@ -22,9 +22,49 @@
         <n-button @click="handleReset">重置</n-button>
       </div>
 
-      <!-- 列表 -->
-      <div class="flex-1 min-h-0 overflow-y-auto">
+      <!-- 过滤（平板/移动端：抽屉） -->
+      <div v-else class="flex items-center gap-2 mb-4 shrink-0">
+        <n-button type="primary" size="small" @click="showFilterDrawer = true">
+          <template #icon><AppIcon name="filter" :size="14" /></template>
+          筛选
+        </n-button>
+        <n-button size="small" quaternary @click="refreshWords">刷新词库</n-button>
+        <n-button size="small" quaternary @click="handleReset">重置</n-button>
+      </div>
+
+      <n-drawer v-model:show="showFilterDrawer" :width="300" placement="right">
+        <n-drawer-content title="筛选条件" closable>
+          <div class="flex flex-col gap-3">
+            <n-select v-model:value="levelFilter" :options="levelOptions" placeholder="全部级别" clearable
+                      @update:value="loadWords" />
+            <n-select v-model:value="categoryFilter" :options="categoryOptions" placeholder="全部分类" clearable
+                      @update:value="loadWords" />
+          </div>
+        </n-drawer-content>
+      </n-drawer>
+
+      <!-- 列表（桌面端表格） -->
+      <div v-if="!isMobile" class="flex-1 min-h-0 overflow-y-auto">
         <n-data-table :columns="columns" :data="words" :bordered="true" size="small" :scroll-x="600" />
+      </div>
+
+      <!-- 列表（移动端卡片） -->
+      <div v-else class="flex-1 min-h-0 overflow-y-auto space-y-2">
+        <div v-for="row in words" :key="row.id"
+             class="rounded-lg px-3 py-3 space-y-2" style="background: var(--color-card); border: 1px solid var(--color-border)">
+          <div class="flex items-center gap-2">
+            <span class="text-xs" style="color: var(--color-ink-faint)">#{{ row.id }}</span>
+            <span class="text-sm font-medium truncate" style="color: var(--color-ink)">{{ row.word }}</span>
+            <span class="ml-auto shrink-0 text-xs" :style="{ color: row.level === 1 ? 'var(--color-warn)' : 'var(--color-alarm)' }">
+              {{ levelName(row.level) }}
+            </span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <span class="text-xs" style="color: var(--color-ink-soft)">分类：{{ categoryName(row.category) }}</span>
+            <span class="ml-auto action-link" style="color:var(--color-signal)" @click="openEdit(row)">修改</span>
+            <span class="action-link" style="color:var(--color-alarm)" @click="deleteWord(row)">删除</span>
+          </div>
+        </div>
       </div>
 
       <!-- 添加/修改弹窗 -->
@@ -42,14 +82,20 @@
 </template>
 
 <script setup>
-import { ref, h, onMounted } from 'vue'
+import { ref, h, onMounted, onUnmounted } from 'vue'
 import { adminApi } from '@/api/admin'
-import { useChatStore } from '@/stores/chat'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AdminTabs from '@/components/admin/AdminTabs.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
-const chatStore = useChatStore()
+// ========== 响应式（平板/移动端卡片，桌面表格） ==========
+const isMobile = ref(window.innerWidth < 1024)
+function handleResize() {
+  isMobile.value = window.innerWidth < 1024
+}
+
+const showFilterDrawer = ref(false)
+
 const words = ref([])
 const levelFilter = ref(null)
 const categoryFilter = ref(null)
@@ -188,5 +234,11 @@ async function refreshWords() {
   }
 }
 
-onMounted(loadWords)
+onMounted(() => {
+  loadWords()
+  window.addEventListener('resize', handleResize)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 </script>

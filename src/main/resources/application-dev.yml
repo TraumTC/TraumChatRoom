@@ -6,11 +6,12 @@ spring:
   data:
     redis:
       host: 121.40.16.113
+      database: ${REDIS_DATABASE:0}
       password: 123456
 
 ai:
   api:
-    key: ${AI_API_KEY:}
+    key: ${AI_API_KEY:sk-3e095785d0ac49788ed48f2e7cd16d51}
 
 # 本地开发用 JWT 密钥（Base64 解码后 32 字节，仅供本地联调，生产禁用）
 jwt:

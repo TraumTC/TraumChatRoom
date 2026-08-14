@@ -5,6 +5,8 @@ target/
 !**/src/test/**/target/
 uploads/
 ./uploads
+logs/
+.m2-tmp/
 
 ### STS ###
 .apt_generated

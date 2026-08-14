@@ -200,6 +200,37 @@ export function useChatHistory(chatStore, authStore) {
     }
   }
 
+  // 定位一条群聊消息：当前列表没有时，从锚点重新加载一段历史。
+  async function locateGroupMessage(messageId) {
+    if (!messageId) return false
+    chatStore.openGroupChat()
+    showNewMessageHint.value = false
+
+    let index = chatStore.messages.findIndex(m => m.id === messageId)
+    if (index < 0) {
+      chatStore.setLoading(true)
+      suppressScrollWatch = true
+      try {
+        const res = await messageApi.getHistory({ anchorId: messageId, size: pageSize })
+        if (res.data.code !== 200 || !Array.isArray(res.data.data?.items)) return false
+        const around = res.data.data.items
+        const byId = new Map(chatStore.messages.map(m => [m.id, m]))
+        around.forEach(m => byId.set(m.id, m))
+        chatStore.messages = [...byId.values()].sort((a, b) => a.id - b.id)
+        index = chatStore.messages.findIndex(m => m.id === messageId)
+      } finally {
+        chatStore.setLoading(false)
+        await nextTick()
+        suppressScrollWatch = false
+      }
+    }
+
+    if (index < 0) return false
+    await nextTick()
+    groupScrollerRef.value?.scrollToItem(index)
+    return true
+  }
+
   // 群聊新消息（同会话 push 追加；私聊模式不处理）
   watch(() => groupMessages.value.length, (newLen, oldLen) => {
     if (suppressScrollWatch || isPrivateMode.value) return
@@ -263,6 +294,6 @@ export function useChatHistory(chatStore, authStore) {
     messages, currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
     scrollToBottom, scrollToBottomAndHideHint,
     loadHistory, handleGroupScroll, handlePrivateScroll,
-    startPrivateChat, loadInitialHistory,
+    startPrivateChat, loadInitialHistory, locateGroupMessage,
   }
 }

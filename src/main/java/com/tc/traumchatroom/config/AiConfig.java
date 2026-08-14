@@ -26,4 +26,6 @@ public class AiConfig {
     private int timeout;
     /** 系统提示词，告诉 AI 它的角色和行为 */
     private String systemPrompt;
+    /** AI 助手（小汤）固定头像 URL；为空则前端显示默认首字头像 */
+    private String avatarUrl;
 }

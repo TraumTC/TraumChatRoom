@@ -50,6 +50,10 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
             attributes.put("authenticated", true);
             log.debug("WebSocket 握手成功，用户: {}", username);
         } else {
+            if (StringUtils.hasText(token)) {
+                // 带了 token 但无效/过期 → 真实异常（token 失效/被篡改/密钥变更），生产 WARN 记录
+                log.warn("WebSocket 握手 token 无效或已过期");
+            }
             // 无有效 token，标记为游客
             attributes.put("username", "guest_" + System.currentTimeMillis());
             attributes.put("authenticated", false);

@@ -20,6 +20,10 @@ public interface MessageMapper {
     List<Message> selectGroupHistory(@Param("cursor") Long cursor,
                                      @Param("size") int size);
 
+    /** 群聊历史（从指定消息ID开始向后取 size 条，含 anchor，用于@提及定位） */
+    List<Message> selectGroupHistoryAround(@Param("anchorId") Long anchorId,
+                                           @Param("size") int size);
+
     /** 私聊历史（游标分页） */
     List<Message> selectPrivateHistory(@Param("userId") Integer userId,
                                        @Param("senderName") String senderName,

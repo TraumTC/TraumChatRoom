@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.service.impl;
 
 import com.tc.traumchatroom.config.FileStorageConfig;
+import com.tc.traumchatroom.config.AiConfig;
 import com.tc.traumchatroom.dto.request.UpdatePasswordRequest;
 import com.tc.traumchatroom.dto.request.UpdateProfileRequest;
 import com.tc.traumchatroom.dto.response.MentionableUserResponse;
@@ -45,6 +46,9 @@ public class UserServiceImpl implements UserService {
     private FileStorageConfig fileStorageConfig;
 
     @Resource
+    private AiConfig aiConfig;
+
+    @Resource
     private CacheService cacheService;
 
     @Value("${file.upload-dir}")
@@ -65,9 +69,9 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "游客不能修改资料");
         }
 
-        // 如果修改了昵称，检查唯一性
+        // 如果修改了昵称，检查唯一性（含已软删除用户，软删除后昵称永久保留）
         if (StringUtils.hasText(request.getName()) && !request.getName().equals(user.getName())) {
-            User existing = userMapper.findByName(request.getName());
+            User existing = userMapper.findByNameIncludingDeleted(request.getName());
             // 排除当前用户自己：MySQL 默认 collation 不区分大小写，查重会命中自身的旧昵称
             //（如 Alice → alice），需要允许这种仅大小写变化的修改
             if (existing != null && !existing.getId().equals(user.getId())) {
@@ -260,15 +264,15 @@ public class UserServiceImpl implements UserService {
 
         // 过滤掉与 AI 同名的真实用户，避免 @列表出现重复
         users = users.stream()
-                .filter(u -> !"小爱".equals(u.getName()))
+                .filter(u -> !"小汤".equals(u.getName()))
                 .collect(Collectors.toList());
 
         List<MentionableUserResponse> result = users.stream()
                 .map(u -> new MentionableUserResponse(u.getUsername(), u.getName(), u.getAvatar(), false))
                 .collect(Collectors.toList());
 
-        // 添加 AI 用户（小爱）
-        result.add(new MentionableUserResponse("ai_xiaoai", "小爱", null, true));
+        // 添加 AI 用户（小汤，头像走配置，为空则前端显示默认头像）
+        result.add(new MentionableUserResponse("ai_xiaoai", "小汤", aiConfig.getAvatarUrl(), true));
 
         // 按昵称排序
         result.sort(Comparator.comparing(MentionableUserResponse::getName));

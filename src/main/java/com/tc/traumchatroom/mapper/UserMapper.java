@@ -16,8 +16,17 @@ public interface UserMapper {
     /** 根据用户名查询用户（登录用） */
     User findByUsername(@Param("username") String username);
 
+    /** 根据用户名查询用户（含已软删除，用于注册查重，保证名字永久保留） */
+    User findByUsernameIncludingDeleted(@Param("username") String username);
+
     /** 根据昵称查询用户 */
     User findByName(@Param("name") String name);
+
+    /** 根据昵称查询用户（含已软删除，用于注册/改昵称查重） */
+    User findByNameIncludingDeleted(@Param("name") String name);
+
+    /** 按昵称集合批量查询用户（@提及提醒用，避免逐条查询） */
+    List<User> findByNames(@Param("names") List<String> names);
 
     /** 插入新用户（注册） */
     int insert(User user);

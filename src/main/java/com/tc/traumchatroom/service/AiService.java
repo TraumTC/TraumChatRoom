@@ -6,14 +6,14 @@ package com.tc.traumchatroom.service;
 public interface AiService {
 
     /**
-     * 检测消息是否包含 @小爱 触发词
+     * 检测消息是否包含 @小汤 触发词
      * @param content 消息内容
      * @return true=包含触发词
      */
     boolean detectAiMention(String content);
 
     /**
-     * 提取用户问题（去掉 @小爱 前缀）
+     * 提取用户问题（去掉 @小汤 前缀）
      * @param content 原始消息
      * @return 用户问题
      */

@@ -56,6 +56,19 @@
         LIMIT #{size}
     </select>
 
+    <!-- 群聊历史（从指定消息ID开始向后取 size 条，含 anchor，用于@提及定位） -->
+    <select id="selectGroupHistoryAround" resultMap="MessageResultMap">
+        SELECT m.*,
+               su.username AS sender_username,
+               COALESCE(su.name, m.sender_name) AS sender_name
+        FROM message m
+        LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
+        WHERE m.receiver_id IS NULL AND m.deleted_at IS NULL
+          AND m.id &gt;= #{anchorId}
+        ORDER BY m.id ASC
+        LIMIT #{size}
+    </select>
+
     <!-- 私聊历史（游标分页）：
          注意：JOIN user 表实时取昵称和用户名，用户改名后历史消息显示新昵称 -->
     <select id="selectPrivateHistory" resultMap="MessageResultMap">

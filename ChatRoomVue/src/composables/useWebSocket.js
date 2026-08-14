@@ -4,6 +4,7 @@ import SockJS from 'sockjs-client/dist/sockjs'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
+import { registerWsCleanup } from '@/utils/ws-cleanup'
 
 // 模块级变量：所有 useWebSocket() 调用共享同一个连接
 let stompClient = null
@@ -43,6 +44,11 @@ export function useWebSocket() {
       heartbeatOutgoing: 10000,
       reconnectDelay: 5000,
       maxReconnectAttempts: 10,
+      // 每次连接（含重连）前刷新 token，避免复用旧凭据导致连接失败
+      beforeConnect: () => {
+        const current = authStore.accessToken
+        stompClient.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {}
+      },
 
       onConnect: () => {
         console.log('WebSocket 已连接')
@@ -52,6 +58,10 @@ export function useWebSocket() {
         subscribeAll()
         syncState()
         startHeartbeat()
+        // 回补 @提及未读：覆盖首连与断线重连场景（离线期间被@，上线后补提醒）
+        fetchMentionUnread()
+        // 订阅/推送就绪后延迟重试一次，提高重连场景下的成功率
+        setTimeout(fetchMentionUnread, 3000)
       },
 
       onStompError: (frame) => {
@@ -143,6 +153,12 @@ export function useWebSocket() {
       chatStore.handleMessageRecalled(data)
     })
 
+    // 群聊 @提及提醒（后端推送对象，STOMP body 为 JSON，解析一次即得对象）
+    stompClient.subscribe('/user/queue/mention-notice', (msg) => {
+      const data = JSON.parse(msg.body)
+      chatStore.addMentionNotice(data)
+    })
+
     stompClient.subscribe('/user/queue/send-error', (msg) => {
       const data = JSON.parse(msg.body)
       console.error('发送失败:', data.message)
@@ -159,6 +175,21 @@ export function useWebSocket() {
         positiveText: '我知道了',
       })
     })
+  }
+
+  // 拉取群聊 @提及未读并合并（游客跳过；失败保留日志，不阻塞连接）
+  // 动态 import messageApi：避免顶层静态依赖把 useWebSocket 拉入
+  // api/index ↔ router ↔ stores/auth ↔ api/auth 循环（Vite 分块下导致 pinia 双实例、路由切换白屏）
+  async function fetchMentionUnread() {
+    if (authStore.isGuest) return
+    const { messageApi } = await import('@/api/message')
+    messageApi.getMentionUnread()
+      .then(res => {
+        if (res.data.code === 200) chatStore.mergeMentions(res.data.data)
+      })
+      .catch(e => {
+        console.warn('拉取 @提及未读失败', e)
+      })
   }
 
   // 发送群聊消息（带 clientId 幂等，防重连/双击重复）
@@ -248,6 +279,16 @@ export function useWebSocket() {
       wsStore.connecting = false
     }
   }
+
+  // 注册全局清理回调：api 拦截器 401 踢出时清理残留连接
+  registerWsCleanup(() => {
+    if (stompClient) {
+      stompClient.deactivate()
+      stompClient = null
+    }
+    wsStore.connected = false
+    wsStore.connecting = false
+  })
 
   return { connect, disconnect, sendGroupMessage, sendPrivateMessage, sendHeartbeat, syncState }
 }

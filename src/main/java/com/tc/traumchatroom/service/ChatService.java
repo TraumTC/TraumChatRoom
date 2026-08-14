@@ -2,6 +2,7 @@ package com.tc.traumchatroom.service;
 
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
 import com.tc.traumchatroom.dto.response.MessageResponse;
+import com.tc.traumchatroom.dto.vo.MentionNoticeVO;
 import com.tc.traumchatroom.dto.vo.UnreadSummaryVO;
 
 import java.util.List;
@@ -18,6 +19,14 @@ public interface ChatService {
      * @return 分页消息列表
      */
     CursorPageVO<MessageResponse> getGroupHistory(Long cursor, int size);
+
+    /**
+     * 从指定消息ID开始向后获取群聊历史（含 anchor，用于@提及定位滚动）
+     * @param anchorId 锚点消息ID
+     * @param size 数量
+     * @return 分页消息列表
+     */
+    CursorPageVO<MessageResponse> getGroupHistoryAround(Long anchorId, int size);
 
     /**
      * 获取私聊历史消息（游标分页）
@@ -51,4 +60,24 @@ public interface ChatService {
      * @param targetUsername 会话对象用户名
      */
     void markConversationRead(String username, String targetUsername);
+
+    /**
+     * 获取群聊 @提及未读提醒（Redis List，最新在前）
+     * @param username 当前用户名
+     * @return 未读提醒列表
+     */
+    List<MentionNoticeVO> getMentionUnread(String username);
+
+    /**
+     * 清除当前用户的全部群聊 @提及未读
+     * @param username 当前用户名
+     */
+    void clearMentionUnread(String username);
+
+    /**
+     * 将当前用户的一条群聊 @提及标记为已读。
+     * @param username 当前用户名
+     * @param messageId 被 @消息 ID
+     */
+    void markMentionRead(String username, Long messageId);
 }

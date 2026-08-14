@@ -3,9 +3,11 @@ package com.tc.traumchatroom.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tc.traumchatroom.config.AiConfig;
+import com.tc.traumchatroom.config.AiRateLimitConfig;
 import com.tc.traumchatroom.entity.AiConversationContext;
 import com.tc.traumchatroom.mapper.AiContextMapper;
 import com.tc.traumchatroom.service.AiService;
+import com.tc.traumchatroom.util.RedisRateLimiter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -21,7 +23,7 @@ import java.util.regex.Pattern;
 
 /**
  * AI 服务实现
- * 调用 DeepSeek-V3 API 实现 @小爱 自动回复
+ * 调用 DeepSeek-V3 API 实现 @小汤 自动回复
  */
 @Slf4j
 @Service
@@ -29,6 +31,9 @@ public class AiServiceImpl implements AiService {
 
     @Resource
     private AiConfig aiConfig;
+
+    @Resource
+    private AiRateLimitConfig aiRateLimitConfig;
 
     @Resource
     private AiContextMapper aiContextMapper;
@@ -39,24 +44,11 @@ public class AiServiceImpl implements AiService {
     @Resource
     private ObjectMapper objectMapper;
 
-    // @小爱 触发词正则
-    private static final Pattern AI_MENTION = Pattern.compile("@小爱|@AI|@ai|@Ai");
+    @Resource
+    private RedisRateLimiter redisRateLimiter;
 
-    // 每用户每分钟最大调用次数
-    private static final int MAX_CALLS_PER_MINUTE = 3;
-
-    /** 原子限流 Lua 脚本：不存在则置 1 并设 TTL，否则自增（避免 get+increment+expire 竞态） */
-    private static final String RATE_LIMIT_LUA =
-            "local cur = redis.call('GET', KEYS[1]) " +
-            "if cur == false then " +
-            "  redis.call('SET', KEYS[1], 1, 'EX', tonumber(ARGV[2])) " +
-            "  return 1 " +
-            "end " +
-            "local n = redis.call('INCR', KEYS[1]) " +
-            "if n == 1 then " +
-            "  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2])) " +
-            "end " +
-            "return n";
+    // @小汤 触发词正则
+    private static final Pattern AI_MENTION = Pattern.compile("@小汤|@AI|@ai|@Ai");
 
     @Override
     public boolean detectAiMention(String content) {
@@ -71,16 +63,11 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public String getAiReply(String userMessage, String sessionKey) {
-        // 1. 限流检查（原子 Lua：计数 + TTL 一次性完成）
+        // 1. 限流检查（原子 Lua：计数 + TTL 一次性完成；上限读配置 ai.rate-limit.max-per-minute）
         String rateKey = "chat:ai:rate:" + sessionKey;
-        Long count = redisTemplate.execute(
-                new org.springframework.data.redis.core.script.DefaultRedisScript<>(RATE_LIMIT_LUA, Long.class),
-                List.of(rateKey),
-                String.valueOf(MAX_CALLS_PER_MINUTE), "60"
-        );
-        long current = count != null ? count : 1;
-        if (current > MAX_CALLS_PER_MINUTE) {
-            return "小爱正在思考中，请稍后再试~";
+        int maxCallsPerMinute = aiRateLimitConfig.getMaxPerMinute();
+        if (!redisRateLimiter.tryAcquire(rateKey, maxCallsPerMinute, 60)) {
+            return "小汤正在思考中，请稍后再试~";
         }
 
         try {
@@ -127,8 +114,9 @@ public class AiServiceImpl implements AiService {
             return reply;
 
         } catch (Exception e) {
-            log.error("AI 调用失败: {}", e.getMessage());
-            return "小爱暂时无法回复，请稍后再试~";
+            // 补异常对象：生产环境 AI 调用失败需堆栈定位（网络/超时/API 响应异常）
+            log.error("AI 调用失败: {}", e.getMessage(), e);
+            return "小汤暂时无法回复，请稍后再试~";
         }
     }
 
@@ -175,10 +163,10 @@ public class AiServiceImpl implements AiService {
                     }
                 }
             }
-            return "小爱暂时无法理解您的问题~";
+            return "小汤暂时无法理解您的问题~";
         } catch (Exception e) {
             log.error("解析 AI 响应失败", e);
-            return "小爱暂时无法回复，请稍后再试~";
+            return "小汤暂时无法回复，请稍后再试~";
         }
     }
 }
