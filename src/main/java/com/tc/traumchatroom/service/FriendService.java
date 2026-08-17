@@ -5,6 +5,7 @@ import com.tc.traumchatroom.dto.request.FriendHandleRequest;
 import com.tc.traumchatroom.dto.response.FriendRequestResponse;
 import com.tc.traumchatroom.dto.response.FriendResponse;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.FriendRequestPageVO;
 import com.tc.traumchatroom.dto.vo.FriendSearchVO;
 
 import java.util.List;
@@ -29,7 +30,7 @@ public interface FriendService {
      * @param type received=收到的, sent=发出的
      * @param status 状态筛选（null=全部）
      */
-    CursorPageVO<FriendRequestResponse> getRequests(String username, String type, String status, int page, int size);
+    FriendRequestPageVO getRequests(String username, String type, String status, int page, int size);
 
     /**
      * 处理好友申请（同意/拒绝）

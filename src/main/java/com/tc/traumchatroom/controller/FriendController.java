@@ -4,10 +4,10 @@ import com.tc.traumchatroom.annotation.Idempotent;
 import com.tc.traumchatroom.annotation.LogOperation;
 import com.tc.traumchatroom.dto.request.FriendApplyRequest;
 import com.tc.traumchatroom.dto.request.FriendHandleRequest;
-import com.tc.traumchatroom.dto.response.FriendRequestResponse;
 import com.tc.traumchatroom.dto.response.FriendResponse;
 import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.FriendRequestPageVO;
 import com.tc.traumchatroom.dto.vo.FriendSearchVO;
 import com.tc.traumchatroom.service.FriendService;
 import jakarta.annotation.Resource;
@@ -59,7 +59,7 @@ public class FriendController {
      * GET /api/friend/requests?type=received&status=pending&page=1&size=20
      */
     @GetMapping("/api/friend/requests")
-    public Result<CursorPageVO<FriendRequestResponse>> getRequests(
+    public Result<FriendRequestPageVO> getRequests(
             @RequestParam(defaultValue = "received") String type,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") int page,

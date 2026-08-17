@@ -87,7 +87,9 @@ async function loadPendingCount() {
   try {
     const res = await friendApi.getRequests({ type: 'received', status: 'pending' })
     if (res.data.code === 200) {
-      chatStore.setFriendRequestCount(res.data.data.total)
+      // 优先用后端 total（真实总数）；缺失时降级用当页条数，避免 NaN
+      const total = res.data.data?.total ?? res.data.data?.items?.length ?? 0
+      chatStore.setFriendRequestCount(Number(total) || 0)
     }
   } catch (e) { /* 忽略 */ }
 }

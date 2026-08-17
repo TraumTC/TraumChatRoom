@@ -5,6 +5,7 @@ import com.tc.traumchatroom.dto.request.FriendHandleRequest;
 import com.tc.traumchatroom.dto.response.FriendRequestResponse;
 import com.tc.traumchatroom.dto.response.FriendResponse;
 import com.tc.traumchatroom.dto.vo.CursorPageVO;
+import com.tc.traumchatroom.dto.vo.FriendRequestPageVO;
 import com.tc.traumchatroom.dto.vo.FriendSearchVO;
 import com.tc.traumchatroom.entity.Friend;
 import com.tc.traumchatroom.entity.FriendRequest;
@@ -155,7 +156,7 @@ public class FriendServiceImpl implements FriendService {
     // ---------- 获取申请列表 ----------
 
     @Override
-    public CursorPageVO<FriendRequestResponse> getRequests(String username, String type, String status, int page, int size) {
+    public FriendRequestPageVO getRequests(String username, String type, String status, int page, int size) {
         User currentUser = userMapper.findByUsername(username);
         if (currentUser == null) throw new BusinessException(ErrorCode.UNAUTHORIZED);
 
@@ -183,7 +184,7 @@ public class FriendServiceImpl implements FriendService {
                 .map(fr -> toFriendRequestResponse(fr, userMap))
                 .collect(Collectors.toList());
 
-        return new CursorPageVO<>(items, null, total > page * size);
+        return new FriendRequestPageVO(items, (long) total, total > page * size);
     }
 
     /** 批量预取申请涉及的用户，避免 N+1 */

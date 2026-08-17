@@ -5,8 +5,8 @@
     <!-- 从 application.yml 读取应用名 -->
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="TraumChatRoom"/>
 
-    <!-- 日志目录 -->
-    <property name="LOG_DIR" value="./logs"/>
+    <!-- 日志目录（可用环境变量 LOG_DIR 覆盖，如 /home/traums/javawork/run/log） -->
+    <property name="LOG_DIR" value="${LOG_DIR:-./logs}"/>
     <!-- 启动时间戳（精确到秒，用于区分每次启动的日志文件） -->
     <timestamp key="START_TIME" datePattern="yyyy-MM-dd_HH-mm"/>
 

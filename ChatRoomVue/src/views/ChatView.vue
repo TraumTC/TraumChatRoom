@@ -88,7 +88,7 @@
             <div v-if="chatStore.loading" class="py-2 flex justify-center">
               <n-spin size="small" />
             </div>
-            <div v-else-if="!hasMore && !isPrivateMode"
+            <div v-else-if="!hasMore && isAtTop && !isPrivateMode"
                  class="py-2 text-center text-xs" style="color: var(--color-ink-faint)">
               没有更多消息了
             </div>
@@ -237,7 +237,7 @@ const { connect, disconnect } = useWebSocket()
 
 // 历史消息加载、分页、智能滚动逻辑（群聊/私聊双容器）
 const {
-  groupScrollerRef, privateScrollerRef, hasMore, isNearBottom, showNewMessageHint,
+  groupScrollerRef, privateScrollerRef, hasMore, isAtTop, isNearBottom, showNewMessageHint,
   currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
   scrollToBottomAndHideHint, handleGroupScroll, handlePrivateScroll,
   startPrivateChat, loadInitialHistory, locateGroupMessage,

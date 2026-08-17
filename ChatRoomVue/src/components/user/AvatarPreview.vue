@@ -58,8 +58,8 @@
             <input type="file" class="hidden" accept="image/*" @change="handleFileSelect" />
           </label>
 
-          <!-- 删除头像（仅有自定义头像时显示） -->
-          <button v-if="user?.avatar" @click="handleDelete" class="avatar-btn-text">
+          <!-- 删除头像（始终显示，无自定义头像时点击无副作用） -->
+          <button @click="handleDelete" class="avatar-btn-text">
             恢复默认头像
           </button>
         </template>

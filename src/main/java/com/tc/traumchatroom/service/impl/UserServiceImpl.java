@@ -25,6 +25,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
@@ -186,7 +187,7 @@ public class UserServiceImpl implements UserService {
         // 6. 生成文件名（带 userId 前缀，方便运维排查）
         String newFileName = "avatar_" + user.getId() + "_" + System.currentTimeMillis() +
                 "_" + UUID.randomUUID().toString().substring(0, 8) + ".jpg";
-        String avatarDir = uploadDir + "avatars/";
+        String avatarDir = Paths.get(uploadDir, "avatars").toString() + File.separator;
         String filePath = avatarDir + newFileName;
 
         // 7. 服务端压缩：居中裁剪为 256x256 JPEG
@@ -318,7 +319,7 @@ public class UserServiceImpl implements UserService {
         try {
             // 去掉 /api/file/download/ 前缀，保留子目录路径
             String relativePath = avatarUrl.replace("/api/file/download/", "");
-            File file = new File(uploadDir + relativePath);
+            File file = new File(Paths.get(uploadDir, relativePath).toString());
             if (file.exists()) {
                 file.delete();
             }

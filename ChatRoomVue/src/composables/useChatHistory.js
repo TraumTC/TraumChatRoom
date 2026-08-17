@@ -8,6 +8,8 @@ export function useChatHistory(chatStore, authStore) {
   const privateScrollerRef = ref(null)
   const pageSize = 50
   const hasMore = ref(true)
+  // 是否已滚动到群聊最顶端（"没有更多消息了"只在真正到顶且无更早历史时显示）
+  const isAtTop = ref(false)
   const privateHasMore = ref({})        // 各私聊会话是否还有更早历史 { username: boolean }
   const isNearBottom = ref(true)
   const showNewMessageHint = ref(false)
@@ -80,6 +82,8 @@ export function useChatHistory(chatStore, authStore) {
     if (isBottom) {
       showNewMessageHint.value = false
     }
+    // 顶部判断（10px 内视为到顶）：驱动"没有更多消息了"显示
+    isAtTop.value = el.scrollTop < 10
     if (el.scrollTop < 50) {
       loadHistory()
     }
@@ -290,7 +294,7 @@ export function useChatHistory(chatStore, authStore) {
   })
 
   return {
-    groupScrollerRef, privateScrollerRef, hasMore, isNearBottom, showNewMessageHint,
+    groupScrollerRef, privateScrollerRef, hasMore, isAtTop, isNearBottom, showNewMessageHint,
     messages, currentChat, isPrivateMode, groupMessages, privateMessages, displayMessages,
     scrollToBottom, scrollToBottomAndHideHint,
     loadHistory, handleGroupScroll, handlePrivateScroll,

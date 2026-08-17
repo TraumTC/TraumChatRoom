@@ -25,7 +25,7 @@
       </div>
 
       <!-- 引用摘要 -->
-      <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs truncate max-w-[75vw] sm:max-w-[400px]"
+      <div v-if="quotedMsg" class="mb-1 px-2dot5 py-1 rounded text-xs line-clamp-2 break-words max-w-[75vw] sm:max-w-[400px]"
            style="background: var(--color-card); border-left: 2px solid var(--color-signal); color: var(--color-ink-soft)">
         <span style="color: var(--color-signal)">{{ quotedMsg.senderName }}：</span>{{ quotedMsg.content }}
       </div>

@@ -194,7 +194,8 @@ export const useChatStore = defineStore('chat', () => {
     friendRequestCount.value = count
   }
   function incrementFriendRequestCount() {
-    friendRequestCount.value++
+    // NaN 防御：初始拉取失败/字段缺失时计数可能为 undefined，++ 会变 NaN 导致红点永不显示
+    friendRequestCount.value = (Number(friendRequestCount.value) || 0) + 1
   }
 
   // 好友列表刷新版本号

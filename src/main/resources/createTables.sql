@@ -107,12 +107,14 @@ CREATE TABLE `operation_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 数据库触发器
+DELIMITER $$
 CREATE TRIGGER trg_user_name_update
-    AFTER UPDATE ON `user`
+    AFTER UPDATE ON user
     FOR EACH ROW
 BEGIN
     IF OLD.name != NEW.name THEN
-        UPDATE `message` SET `sender_name` = NEW.name WHERE `sender_name` = OLD.name;
-        UPDATE `message` SET `receiver_name` = NEW.name WHERE `receiver_name` = OLD.name;
+        UPDATE message SET sender_name = NEW.name WHERE sender_name = OLD.name;
+        UPDATE message SET receiver_name = NEW.name WHERE receiver_name = OLD.name;
     END IF;
-END;
+END$$
+DELIMITER ;

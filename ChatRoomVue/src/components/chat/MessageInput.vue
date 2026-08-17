@@ -6,9 +6,9 @@
          class="flex items-center gap-2 px-2 sm:px-3 py-1dot5 sm:py-2"
          style="background: var(--color-hover); border-bottom: 1px solid var(--color-border)">
       <div class="w-0.5 h-4 rounded-full shrink-0" style="background: var(--color-signal)"></div>
-      <div class="flex-1 min-w-0">
-        <span class="text-xs font-medium" style="color: var(--color-signal)">{{ chatStore.replyTo.senderName }}</span>
-        <span class="text-xs ml-1 truncate" style="color: var(--color-ink-soft)">{{ chatStore.replyTo.content }}</span>
+      <div class="flex-1 min-w-0 flex items-start gap-1">
+        <span class="text-xs font-medium shrink-0" style="color: var(--color-signal)">{{ chatStore.replyTo.senderName }}</span>
+        <span class="text-xs flex-1 min-w-0 line-clamp-2 break-all" style="color: var(--color-ink-soft)">{{ chatStore.replyTo.content }}</span>
       </div>
       <button @click="chatStore.clearReplyTo()" class="close-btn-inline">
         <AppIcon name="x" :size="14" />
