@@ -58,6 +58,9 @@ public interface UserMapper {
     /** 更新最后活跃时间 */
     int updateLastActiveTime(@Param("id") Integer id);
 
+    /** 更新最近一次登录IP */
+    int updateLastLoginIp(@Param("id") Integer id, @Param("ip") String ip);
+
     /** 软删除用户 */
     int softDelete(@Param("id") Integer id);
 

@@ -11,6 +11,7 @@
         <result property="role" column="role"/>
         <result property="avatar" column="avatar"/>
         <result property="status" column="status"/>
+        <result property="lastLoginIp" column="last_login_ip"/>
         <result property="lastActiveTime" column="last_active_time"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
@@ -93,6 +94,11 @@
     <update id="updateLastActiveTime">
         UPDATE user SET last_active_time = NOW()
         WHERE id = #{id}
+    </update>
+
+    <!-- 更新最近一次登录IP -->
+    <update id="updateLastLoginIp">
+        UPDATE user SET last_login_ip = #{ip} WHERE id = #{id}
     </update>
 
     <!-- 软删除用户 -->

@@ -130,8 +130,12 @@ public class AuthServiceImpl implements AuthService {
         redisTemplate.delete("chat:login:fail:user:" + request.getUsername());
         redisTemplate.delete("chat:login:fail:ip:" + clientIp);
 
-        // 6. 更新最后活跃时间
+        // 6. 更新最后活跃时间 + 最近登录IP
         userMapper.updateLastActiveTime(user.getId());
+        if (StringUtils.hasText(clientIp)) {
+            user.setLastLoginIp(clientIp);
+            userMapper.updateLastLoginIp(user.getId(), clientIp);
+        }
 
         // 7. 写入用户信息缓存（Cache-Aside）
         cacheService.cacheUser(user);

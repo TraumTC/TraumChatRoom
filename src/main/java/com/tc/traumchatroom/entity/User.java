@@ -22,6 +22,8 @@ public class User {
     private String avatar;
     /** 账号状态：1正常 0禁用 */
     private Integer status;
+    /** 最近一次登录IP（v4/v6兼容） */
+    private String lastLoginIp;
     /** 最后活跃时间 */
     private LocalDateTime lastActiveTime;
     /** 注册时间 */

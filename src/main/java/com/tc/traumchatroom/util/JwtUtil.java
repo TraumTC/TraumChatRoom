@@ -53,7 +53,8 @@ public class JwtUtil {
 
     /**
      * 获取签名密钥
-     * 密钥至少 256 位（32 字节），用于 HMAC-SHA256 签名
+     * 密钥直接取 jwt.secret 字符串的 UTF-8 字节（不做 Base64 解码），
+     * 因此字符串本身需 ≥32 字节（ASCII 下即 ≥32 字符），满足 HMAC-SHA256 的 256 位要求
      */
     private SecretKey getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
