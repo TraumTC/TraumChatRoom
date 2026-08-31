@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JWT 工具类 — 生成、解析、验证 Token
@@ -65,8 +66,14 @@ public class JwtUtil {
      * @return JWT Token 字符串
      */
     public String generateAccessToken(String username) {
+        return generateAccessToken(username, UUID.randomUUID().toString());
+    }
+
+    public String generateAccessToken(String username, String sessionId) {
         return Jwts.builder()
                 .subject(username)                          // 设置主题（用户名）
+                .claim("token_type", "access")
+                .claim("sid", sessionId)
                 .issuedAt(new Date())                       // 签发时间
                 .expiration(new Date(System.currentTimeMillis() + accessExpiration)) // 过期时间
                 .signWith(getSigningKey())                  // 签名
@@ -78,12 +85,39 @@ public class JwtUtil {
      * 有效期比 accessToken 长，用于刷新
      */
     public String generateRefreshToken(String username) {
+        return generateRefreshToken(username, UUID.randomUUID().toString(), refreshExpiration);
+    }
+
+    /** 生成带会话 ID 的刷新令牌，支持同一账号多设备并行登录。 */
+    public String generateRefreshToken(String username, String sessionId) {
+        return generateRefreshToken(username, sessionId, refreshExpiration);
+    }
+
+    /** 生成指定有效期的刷新令牌（游客会话使用较短 TTL）。 */
+    public String generateRefreshToken(String username, String sessionId, long expiration) {
         return Jwts.builder()
                 .subject(username)
+                .claim("token_type", "refresh")
+                .claim("sid", sessionId)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    /** 从刷新令牌中获取会话 ID；旧版本令牌没有 sid 时返回 null。 */
+    public String getSessionIdFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims.get("sid", String.class);
+    }
+
+    public long getRefreshExpirationMillis() {
+        return refreshExpiration;
+    }
+
+    public long getRemainingValidityMillis(String token) {
+        Claims claims = parseToken(token);
+        return Math.max(0, claims.getExpiration().getTime() - System.currentTimeMillis());
     }
 
     /**
@@ -107,6 +141,28 @@ public class JwtUtil {
             return !claims.getExpiration().before(new Date()); // 未过期则有效
         } catch (Exception e) {
             return false; // 解析失败说明 Token 无效
+        }
+    }
+
+    /** 仅验证 accessToken，防止 refreshToken 被直接当作接口凭证使用。 */
+    public boolean validateAccessToken(String token) {
+        try {
+            Claims claims = parseToken(token);
+            return "access".equals(claims.get("token_type", String.class))
+                    && !claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 仅验证 refreshToken。 */
+    public boolean validateRefreshToken(String token) {
+        try {
+            Claims claims = parseToken(token);
+            return "refresh".equals(claims.get("token_type", String.class))
+                    && !claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return false;
         }
     }
 

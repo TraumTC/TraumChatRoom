@@ -190,15 +190,19 @@ public class FileServiceImpl implements FileService {
         response.setRecalled(false);
         response.setCreatedAt(msg.getCreatedAt());
 
+        // username 必须回传：前端以 username 作为私聊会话唯一标识，缺失会退化成按昵称建会话，导致同一个人出现多个页签
         MessageResponse.SenderInfo senderInfo = new MessageResponse.SenderInfo();
         senderInfo.setId(sender.getId());
+        senderInfo.setUsername(sender.getUsername());
         senderInfo.setName(sender.getName());
         senderInfo.setAvatar(sender.getAvatar());
         response.setSender(senderInfo);
 
+        // 接收者信息（私聊时，receiver_name 语义为 username）
         if (msg.getReceiverId() != null) {
             MessageResponse.ReceiverInfo receiverInfo = new MessageResponse.ReceiverInfo();
             receiverInfo.setId(msg.getReceiverId());
+            receiverInfo.setUsername(msg.getReceiverName());
             receiverInfo.setName(msg.getReceiverName());
             response.setReceiver(receiverInfo);
         }

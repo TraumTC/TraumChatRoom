@@ -13,11 +13,13 @@ import com.tc.traumchatroom.mapper.SensitiveWordMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.SensitiveWordFilter;
 import com.tc.traumchatroom.service.CacheService;
+import com.tc.traumchatroom.service.RefreshTokenStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +52,9 @@ public class AdminController {
 
     @Resource
     private CacheService cacheService;
+
+    @Resource
+    private RefreshTokenStore refreshTokenStore;
 
     /**
      * 获取敏感词列表（分页）
@@ -248,6 +253,7 @@ public class AdminController {
      */
     @LogOperation(action = "CHANGE_ROLE", targetType = "user")
     @PutMapping("/users/{id}/role")
+    @Transactional
     public Result<Void> updateRole(@PathVariable Integer id, @RequestBody Map<String, String> body) {
         String role = body.get("role");
         if (role == null || role.isBlank()) {
@@ -262,7 +268,7 @@ public class AdminController {
         assertNotProtected(user, "修改角色");
 
         userMapper.updateRole(id, role);
-        cacheService.evictUser(id);
+        cacheService.evictUserAfterCommit(id);
         log.info("管理员修改用户 {} 角色为 {}", id, role);
 
         return Result.success();
@@ -274,6 +280,7 @@ public class AdminController {
      */
     @LogOperation(action = "CHANGE_PROFILE", targetType = "user")
     @PutMapping("/users/{id}")
+    @Transactional
     public Result<Void> updateUser(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         User user = userMapper.findById(id);
         if (user == null) {
@@ -332,7 +339,10 @@ public class AdminController {
         }
 
         userMapper.updateProfile(user);
-        cacheService.evictUser(id);
+        cacheService.evictUserAfterCommit(id);
+        if ((status != null && status == 0) || (password != null && !password.isBlank())) {
+            refreshTokenStore.revokeAll(user.getUsername());
+        }
         log.info("管理员修改用户 {} 信息", id);
 
         return Result.success();
@@ -344,6 +354,7 @@ public class AdminController {
      */
     @LogOperation(action = "DELETE_USER", targetType = "user")
     @DeleteMapping("/users/{id}")
+    @Transactional
     public Result<Void> deleteUser(@PathVariable Integer id) {
         User user = userMapper.findById(id);
         if (user == null) {
@@ -360,7 +371,8 @@ public class AdminController {
         }
 
         userMapper.softDelete(id);
-        cacheService.evictUser(id);
+        cacheService.evictUserAfterCommit(id);
+        refreshTokenStore.revokeAll(user.getUsername());
         log.info("管理员删除用户: {}", user.getUsername());
 
         return Result.success();

@@ -29,13 +29,26 @@ class JwtUtilTest {
         assertThat(jwtUtil.validateToken(token)).isTrue();
         assertThat(jwtUtil.getUsernameFromToken(token)).isEqualTo("zhangsan");
         assertThat(jwtUtil.isTokenExpired(token)).isFalse();
+        assertThat(jwtUtil.validateAccessToken(token)).isTrue();
+        assertThat(jwtUtil.validateRefreshToken(token)).isFalse();
     }
 
     @Test
     void generateRefreshTokenIsValid() {
-        String token = jwtUtil.generateRefreshToken("lisi");
+        String token = jwtUtil.generateRefreshToken("lisi", "session-1");
         assertThat(jwtUtil.validateToken(token)).isTrue();
+        assertThat(jwtUtil.validateRefreshToken(token)).isTrue();
+        assertThat(jwtUtil.validateAccessToken(token)).isFalse();
         assertThat(jwtUtil.getUsernameFromToken(token)).isEqualTo("lisi");
+        assertThat(jwtUtil.getSessionIdFromToken(token)).isEqualTo("session-1");
+        assertThat(jwtUtil.getRemainingValidityMillis(token)).isPositive();
+    }
+
+    @Test
+    void refreshTokenSupportsCustomExpiration() {
+        String token = jwtUtil.generateRefreshToken("guest_1", "guest-session", 60_000L);
+        long remaining = jwtUtil.getRemainingValidityMillis(token);
+        assertThat(remaining).isBetween(55_000L, 60_000L);
     }
 
     @Test

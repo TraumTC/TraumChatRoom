@@ -47,4 +47,16 @@
         DELETE FROM ai_conversation_context WHERE session_key = #{sessionKey}
     </delete>
 
+    <!--
+        按时间兜底清理陈旧上下文（走 idx_ctx_created_at）。
+        deleteOld 只管「每个 session_key 保留最近 N 条」，管不到 session_key 本身的增长；
+        游客会话 2 小时即失效却永久留在表里，是表无界膨胀的主因。
+        LIMIT 分批，避免单次删除过多造成长事务。
+    -->
+    <delete id="deleteStaleBefore">
+        DELETE FROM ai_conversation_context
+        WHERE created_at &lt; #{cutoff}
+        LIMIT #{batchSize}
+    </delete>
+
 </mapper>

@@ -42,13 +42,6 @@ class SensitiveWordTrieTest {
     }
 
     @Test
-    void clearRemovesAllWords() {
-        trie.addWord("广告", 1);
-        trie.clear();
-        assertThat(trie.matchFrom("广告", 0)).isZero();
-    }
-
-    @Test
     void emptyWordIgnored() {
         trie.addWord(null, 1);
         trie.addWord("", 1);

@@ -8,7 +8,7 @@
   </div>
 
   <!-- 正常消息（纯 flex 行，避免组件包裹破坏布局） -->
-  <div v-else class="flex gap-2dot5 px-4 py-1dot5 group msg-enter msg-touchable" :class="isSelf ? 'flex-row-reverse' : ''"
+  <div v-else class="flex gap-2dot5 px-4 py-2dot5 group msg-enter msg-touchable" :class="isSelf ? 'flex-row-reverse' : ''"
        @contextmenu.prevent="openMenu"
        @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchCancel">
     <!-- 头像 -->
@@ -43,19 +43,16 @@
            :class="isSelf ? 'bubble-self' : 'bubble-other'"
            v-html="safeContent"></div>
 
-      <!-- 图片消息 -->
+      <!-- 图片消息（ChatImage 内部按缓存的原始尺寸先撑好占位框，避免加载完成时撑高行、推动上下内容） -->
       <div v-else-if="message.messageType === 'image'">
-        <img :src="message.filePath" :alt="message.fileName"
-             loading="lazy" decoding="async"
-             class="max-w-[60vw] sm:max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-             @click="onImageClick" />
+        <ChatImage :path="message.filePath" :file-name="message.fileName" @open="onImageClick" />
       </div>
 
       <!-- 视频消息 -->
       <div v-else-if="message.messageType === 'file' && isVideo(message.fileName)"
            class="rounded-lg overflow-hidden max-w-[75vw] sm:max-w-[400px]" style="background: var(--color-card); border: 1px solid var(--color-border)">
         <video controls preload="none" class="w-full rounded-t-lg max-h-[300px]">
-          <source :src="message.filePath" />
+          <source :src="resolveFileUrl(message.filePath)" />
           您的浏览器不支持视频播放
         </video>
         <div class="px-3 py-2 text-xs truncate flex items-center gap-1dot5 min-w-0" style="color: var(--color-ink-soft); border-top: 1px solid var(--color-border)">
@@ -107,12 +104,14 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
+import ChatImage from '@/components/chat/ChatImage.vue'
 import ImagePreview from '@/components/common/ImagePreview.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { messageApi } from '@/api/message'
 import { formatTime, formatFileSize } from '@/utils/format'
+import { resolveFileUrl } from '@/utils/url'
 
 const props = defineProps({ message: Object })
 const authStore = useAuthStore()
@@ -123,11 +122,7 @@ const menuVisible = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
 
-const isSelf = computed(() => {
-  const myId = authStore.user?.id
-  if (myId != null) return props.message.sender?.id === myId
-  return props.message.sender?.name === authStore.user?.name
-})
+const isSelf = computed(() => chatStore.isMyMessage(props.message))
 
 const hasFile = computed(() => {
   return props.message.messageType === 'image' || props.message.messageType === 'file'
@@ -247,7 +242,7 @@ function handleMenu(key) {
   if (key === 'quote') chatStore.setReplyTo(props.message)
   else if (key === 'download') {
     const a = document.createElement('a')
-    a.href = props.message.filePath + '?name=' + encodeURIComponent(props.message.fileName || '')
+    a.href = resolveFileUrl(props.message.filePath) + '?name=' + encodeURIComponent(props.message.fileName || '')
     a.download = ''
     a.click()
   } else if (key === 'recall') handleRecall()

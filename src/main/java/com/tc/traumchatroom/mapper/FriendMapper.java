@@ -19,6 +19,14 @@ public interface FriendMapper {
     /** 查询是否存在好友关系 */
     boolean exists(@Param("userId") Integer userId, @Param("friendId") Integer friendId);
 
+    /**
+     * 批量判断好友关系：从候选 id 中筛出与 userId 已是好友的那些。
+     * 与 {@link #exists} 同为双向判定，用于替代「循环内逐个 exists」。
+     * 调用方需保证 candidateIds 非空（空集合会生成非法的 IN ()）。
+     */
+    List<Integer> findFriendIdsIn(@Param("userId") Integer userId,
+                                  @Param("candidateIds") List<Integer> candidateIds);
+
     /** 查询用户的好友列表（分页） */
     List<Friend> findByUserId(@Param("userId") Integer userId,
                               @Param("keyword") String keyword,

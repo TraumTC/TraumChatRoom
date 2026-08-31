@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.interceptor;
 
 import com.tc.traumchatroom.util.JwtUtil;
+import com.tc.traumchatroom.service.RefreshTokenStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
@@ -29,6 +30,9 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
     @Resource
     private JwtUtil jwtUtil;
 
+    @Resource
+    private RefreshTokenStore refreshTokenStore;
+
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -44,11 +48,17 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
         }
 
         // 3. 验证 token
-        if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
+        if (StringUtils.hasText(token) && jwtUtil.validateAccessToken(token)) {
             String username = jwtUtil.getUsernameFromToken(token);
-            attributes.put("username", username);
-            attributes.put("authenticated", true);
-            log.debug("WebSocket 握手成功，用户: {}", username);
+            String sessionId = jwtUtil.getSessionIdFromToken(token);
+            if (refreshTokenStore.isSessionActive(username, sessionId)) {
+                attributes.put("username", username);
+                attributes.put("authenticated", true);
+                log.debug("WebSocket 握手成功，用户: {}", username);
+            } else {
+                attributes.put("username", "guest_" + System.currentTimeMillis());
+                attributes.put("authenticated", false);
+            }
         } else {
             if (StringUtils.hasText(token)) {
                 // 带了 token 但无效/过期 → 真实异常（token 失效/被篡改/密钥变更），生产 WARN 记录

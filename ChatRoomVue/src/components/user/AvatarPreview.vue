@@ -20,7 +20,7 @@
         <div class="w-40 h-40 rounded-full overflow-hidden shadow-2xl ring-4 ring-white/20">
           <img v-if="previewUrl" :src="previewUrl" alt="预览"
                class="w-full h-full object-cover" />
-          <img v-else-if="user?.avatar" :src="user.avatar" :alt="user?.name"
+          <img v-else-if="user?.avatar" :src="resolveFileUrl(user.avatar)" :alt="user?.name"
                class="w-full h-full object-cover" />
           <div v-else class="w-full h-full flex items-center justify-center text-white text-5xl font-bold"
                :style="{ backgroundColor: avatarConfig.color }">
@@ -69,8 +69,10 @@
 </template>
 
 <script setup>
+import { NSpin } from 'naive-ui'
 import { ref, computed, watch } from 'vue'
 import { getDefaultAvatar } from '@/utils/avatar'
+import { resolveFileUrl } from '@/utils/url'
 import { validateAvatarFile, compressAvatar, readImageAsDataURL } from '@/utils/compressAvatar'
 
 const props = defineProps({

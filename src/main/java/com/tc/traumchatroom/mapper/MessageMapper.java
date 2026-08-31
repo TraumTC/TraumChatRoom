@@ -26,9 +26,7 @@ public interface MessageMapper {
 
     /** 私聊历史（游标分页） */
     List<Message> selectPrivateHistory(@Param("userId") Integer userId,
-                                       @Param("senderName") String senderName,
                                        @Param("targetUserId") Integer targetUserId,
-                                       @Param("targetName") String targetName,
                                        @Param("cursor") Long cursor,
                                        @Param("size") int size);
 

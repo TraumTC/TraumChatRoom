@@ -44,14 +44,17 @@
 </template>
 
 <script setup>
+import { NButton } from 'naive-ui'
 import { ref, computed, onMounted, watch } from 'vue'
 import FriendItem from './FriendItem.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { friendApi } from '@/api/friend'
 import { useChatStore } from '@/stores/chat'
+import { useAuthStore } from '@/stores/auth'
 
 const emit = defineEmits(['openChat', 'addFriend', 'openRequests'])
 const chatStore = useChatStore()
+const authStore = useAuthStore()
 
 const friends = ref([])
 const loading = ref(false)
@@ -96,7 +99,7 @@ async function loadPendingCount() {
 
 onMounted(() => {
   // 防御：无 token（登出中/未登录）时不发请求，避免 401
-  if (localStorage.getItem('accessToken')) {
+  if (authStore.isAuthenticated) {
     loadFriends()
     loadPendingCount()
   }

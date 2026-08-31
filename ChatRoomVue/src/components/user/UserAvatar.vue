@@ -2,7 +2,7 @@
 <template>
   <!-- 有自定义头像：显示图片 -->
   <img v-if="user?.avatar"
-       :src="user.avatar"
+       :src="resolveFileUrl(user.avatar)"
        :alt="user?.name || '头像'"
        class="rounded-full object-cover shrink-0"
        :class="sizeClass" />
@@ -19,6 +19,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getDefaultAvatar } from '@/utils/avatar'
+import { resolveFileUrl } from '@/utils/url'
 
 const props = defineProps({
   user: { type: Object, default: null },

@@ -1,6 +1,7 @@
 <!-- src/components/layout/AppHeader.vue — 顶部导航栏（亮色） -->
 <template>
-  <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-10 header-glass"
+  <!-- z-30：高于移动端侧边栏遮罩(z-20)，保证抽屉展开时顶栏依然清晰可见且可点击 -->
+  <header class="flex items-center justify-between px-4 sm:px-6 h-14 shrink-0 z-30 header-glass"
           style="border-bottom: 1px solid var(--color-border)">
     <!-- 左侧：移动端侧边栏开关 + 品牌 -->
     <div class="flex items-center gap-2 sm:gap-3">
@@ -85,11 +86,11 @@
 </template>
 
 <script setup>
+import { NButton } from 'naive-ui'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-import { useWebSocket } from '@/composables/useWebSocket'
 import { userApi } from '@/api/user'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
@@ -104,7 +105,6 @@ const emit = defineEmits(['toggle-sidebar'])
 const router = useRouter()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
-const { disconnect } = useWebSocket()
 const showAvatarPreview = ref(false)
 const avatarPreviewRef = ref(null)
 const showFriendRequests = ref(false)
@@ -153,9 +153,7 @@ async function handleAvatarDelete() {
 }
 
 async function handleLogout() {
-  disconnect()
-  // 清理所有本地状态（包括缓存的用户信息）
-  chatStore.clearMessages()
+  // 断连、清 chat store、清 localStorage 全部收在 authStore.logout() 内
   await authStore.logout()
   // 跳转到首页，使用 replace 避免回退到已登出的页面
   router.replace('/')

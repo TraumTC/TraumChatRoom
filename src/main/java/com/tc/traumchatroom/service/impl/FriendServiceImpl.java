@@ -26,9 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -67,6 +69,24 @@ public class FriendServiceImpl implements FriendService {
                 .filter(u -> !"ai_xiaoai".equals(u.getUsername()) && !"ROLE_AI".equals(u.getRole()))
                 .collect(Collectors.toList());
 
+        if (users.isEmpty()) return List.of();
+
+        // 一次性取回好友关系与待处理申请，替代循环内的 1 次 exists + 2 次 findPending
+        // （20 条结果原本最坏 60 次查询，现在固定 2 次）
+        List<Integer> candidateIds = users.stream().map(User::getId).collect(Collectors.toList());
+        Set<Integer> friendIds = new HashSet<>(
+                friendMapper.findFriendIdsIn(currentUser.getId(), candidateIds));
+
+        Set<Integer> pendingSentTo = new HashSet<>();      // 我发出的申请 → 对方 id
+        Set<Integer> pendingReceivedFrom = new HashSet<>(); // 我收到的申请 → 对方 id
+        for (FriendRequest fr : friendRequestMapper.findPendingBetween(currentUser.getId(), candidateIds)) {
+            if (currentUser.getId().equals(fr.getSenderId())) {
+                pendingSentTo.add(fr.getReceiverId());
+            } else {
+                pendingReceivedFrom.add(fr.getSenderId());
+            }
+        }
+
         return users.stream().map(user -> {
             FriendSearchVO vo = new FriendSearchVO();
             vo.setId(user.getId());
@@ -74,12 +94,12 @@ public class FriendServiceImpl implements FriendService {
             vo.setName(user.getName());
             vo.setAvatar(user.getAvatar());
 
-            // 判断好友状态
-            if (friendMapper.exists(currentUser.getId(), user.getId())) {
+            // 判断好友状态（优先级与原实现一致：friend > pending_sent > pending_received > none）
+            if (friendIds.contains(user.getId())) {
                 vo.setFriendStatus("friend");
-            } else if (friendRequestMapper.findPendingBySenderAndReceiver(currentUser.getId(), user.getId()) != null) {
+            } else if (pendingSentTo.contains(user.getId())) {
                 vo.setFriendStatus("pending_sent");
-            } else if (friendRequestMapper.findPendingBySenderAndReceiver(user.getId(), currentUser.getId()) != null) {
+            } else if (pendingReceivedFrom.contains(user.getId())) {
                 vo.setFriendStatus("pending_received");
             } else {
                 vo.setFriendStatus("none");
@@ -286,6 +306,10 @@ public class FriendServiceImpl implements FriendService {
         Map<Integer, User> friendMap = loadUsers(
                 friends.stream().map(Friend::getFriendId).collect(Collectors.toList()));
 
+        // 一次取回在线用户集合，循环内内存判断，避免每个好友一次 ZSCORE 往返。
+        // getOnlineUsers() 与 isOnline() 用的是同一个 5 分钟心跳窗口，判定结果等价。
+        Set<String> onlineUsernames = onlineUserService.getOnlineUsers();
+
         List<FriendResponse> items = friends.stream().map(f -> {
             User friendUser = friendMap.get(f.getFriendId());
             if (friendUser == null) return null;
@@ -296,7 +320,7 @@ public class FriendServiceImpl implements FriendService {
             resp.setName(friendUser.getName());
             resp.setAvatar(friendUser.getAvatar());
             resp.setRemark(f.getRemark());
-            resp.setOnline(onlineUserService.isOnline(friendUser.getUsername()));
+            resp.setOnline(onlineUsernames.contains(friendUser.getUsername()));
             resp.setLastActiveTime(friendUser.getLastActiveTime());
             return resp;
         }).filter(r -> r != null).collect(Collectors.toList());

@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.controller;
 
 import com.tc.traumchatroom.annotation.LogOperation;
+import com.tc.traumchatroom.annotation.RateLimit;
 import com.tc.traumchatroom.dto.request.UpdatePasswordRequest;
 import com.tc.traumchatroom.dto.request.UpdateProfileRequest;
 import com.tc.traumchatroom.dto.response.MentionableUserResponse;
@@ -55,7 +56,10 @@ public class UserController {
     /**
      * 上传头像
      * POST /api/user/avatar
+     * 限流：头像上传要完整解码图片，是本服务最耗 CPU / 堆内存的接口之一，
+     *       与 /api/file/upload 取同一档配额（5 次/分钟），防止单账号刷解码
      */
+    @RateLimit(key = "avatar-upload", maxRequests = 5, windowMillis = 60000)
     @PostMapping("/avatar")
     public Result<Map<String, String>> uploadAvatar(@RequestParam("file") MultipartFile file) {
         String username = getCurrentUsername();

@@ -1,13 +1,16 @@
 // src/stores/auth.js — 认证状态
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getToken, setToken, clearToken, getCachedUser, setCachedUser, clearCachedUser } from '@/utils/token'
+import { getToken, setToken, clearToken, subscribeToken, getCachedUser, setCachedUser, clearCachedUser } from '@/utils/token'
+import { runSessionCleanup } from '@/utils/session-cleanup'
+import { clearSessionKeys } from '@/utils/session-keys'
 import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const user = ref(getCachedUser())  // 从 localStorage 恢复（含 role）
-  const accessToken = ref(getToken())  // 从 localStorage 恢复
+  const accessToken = ref(getToken())  // 仅保存在当前页面内存
+  const initialized = ref(false)
   const loading = ref(false)
   const error = ref(null)
 
@@ -16,6 +19,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.role === 'ROLE_ADMIN')
   const isGuest = computed(() => user.value?.role === 'ROLE_GUEST')
   const displayName = computed(() => user.value?.name || '未登录')
+
+  // Axios 拦截器刷新 Token 后，同步 Pinia，确保路由和 WebSocket 使用新值
+  subscribeToken(token => { accessToken.value = token })
 
   function setUser(newUser) {
     user.value = newUser
@@ -33,9 +39,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.login({ username, password })
       if (res.data.code === 200) {
-        const { accessToken: token, refreshToken: refresh, user: userData } = res.data.data
+        const { accessToken: token, user: userData } = res.data.data
         accessToken.value = token
-        setToken(token, refresh)
+        setToken(token)
         setUser(userData)
         return true
       }
@@ -55,9 +61,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.guest()
       if (res.data.code === 200) {
-        const { accessToken: token, refreshToken: refresh, user: userData } = res.data.data
+        const { accessToken: token, user: userData } = res.data.data
         accessToken.value = token
-        setToken(token, refresh)
+        setToken(token)
         setUser(userData)
         return true
       }
@@ -72,13 +78,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 刷新 Token
   async function refresh() {
-    const refresh = localStorage.getItem('refreshToken')
-    if (!refresh) return false
     try {
-      const res = await authApi.refresh({ refreshToken: refresh })
+      const res = await authApi.refresh()
       if (res.data.code === 200) {
         accessToken.value = res.data.data.accessToken
-        setToken(res.data.data.accessToken, refresh)
+        setToken(res.data.data.accessToken)
         if (res.data.data.user) {
           setUser(res.data.data.user)
         }
@@ -90,17 +94,41 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
-  // 登出（本地状态清理 + 可选后端注销）
-  async function logout() {
-    // 先保存 refreshToken（clearToken 会删除它）
-    const refresh = localStorage.getItem('refreshToken')
+  async function initialize() {
+    if (initialized.value) return isAuthenticated.value
+    initialized.value = true
+    const restored = await refresh()
+    if (!restored) {
+      clearToken()
+      setUser(null)
+    }
+    return restored
+  }
 
-    // 先发起后端注销请求（此刻 token 未清除，拦截器可附加认证头，避免 401）
-    if (refresh) {
-      authApi.logout({ refreshToken: refresh }).catch(() => {})
+  /**
+   * 登出：注销服务端会话 + 拆掉本地全部会话状态。
+   *
+   * 所有清理都收在这里，而不是让调用方各自清 —— 原先 AppHeader 记得 disconnect() 和
+   * clearMessages()，ProfileView 的改密码登出两件都漏了，401 拦截器只断连接不清 store。
+   * 同一个 bug 出现三次，根因就是清理写在调用方：每新增一个登出入口都会重犯。
+   * 调用方现在只需要 await logout() 然后跳转。
+   */
+  async function logout() {
+    // 等待服务端清理 Cookie；即使服务端失败，也必须清理本地状态
+    try {
+      await authApi.logout()
+    } catch (e) {
+      console.warn('服务端会话注销失败，本地状态已清理', e)
     }
 
-    // 清理本地状态（不影响已发出的请求）
+    // 拆掉 WebSocket 连接与 chat store 状态（由各自模块注册，避免循环依赖）
+    runSessionCleanup()
+
+    // 兜底清 localStorage：用户在 /profile 刷新后直接改密码登出时，
+    // chat store 可能本次页面加载中从未实例化，注册的清理函数就不会跑到
+    clearSessionKeys()
+
+    // 清理认证状态（不影响已发出的请求）
     accessToken.value = null
     setUser(null)
     clearToken()
@@ -124,5 +152,5 @@ export const useAuthStore = defineStore('auth', () => {
 
   return { user, accessToken, loading, error,
            isAuthenticated, isAdmin, isGuest, displayName,
-           login, loginAsGuest, refresh, logout, fetchUser, setUser }
+           login, loginAsGuest, refresh, initialize, logout, fetchUser, setUser }
 })

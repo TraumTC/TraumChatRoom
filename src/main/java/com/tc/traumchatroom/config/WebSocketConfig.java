@@ -3,6 +3,7 @@ package com.tc.traumchatroom.config;
 import com.tc.traumchatroom.controller.WebSocketChatController;
 import com.tc.traumchatroom.interceptor.WebSocketHandshakeInterceptor;
 import com.tc.traumchatroom.util.JwtUtil;
+import com.tc.traumchatroom.service.RefreshTokenStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -54,6 +55,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Resource
     private JwtUtil jwtUtil;
 
+    @Resource
+    private RefreshTokenStore refreshTokenStore;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/topic", "/queue");
@@ -104,8 +108,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     if (username != null) {
                         // 设置 Principal，后续 @MessageMapping 的 Principal 参数即可用
                         accessor.setUser(() -> username);
-                        webSocketChatController.onUserConnect(username);
-                        log.info("用户连接 WebSocket: {}", username);
+                        // 带上 STOMP 会话 ID：同一账号多设备并行在线时用它做引用计数
+                        webSocketChatController.onUserConnect(username, accessor.getSessionId());
+                        log.info("用户连接 WebSocket: {} (session={})", username, accessor.getSessionId());
                     }
                 }
                 return message;
@@ -122,8 +127,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 String authHeader = accessor.getFirstNativeHeader("Authorization");
                 if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
                     String token = authHeader.substring(7);
-                    if (jwtUtil.validateToken(token)) {
-                        return jwtUtil.getUsernameFromToken(token);
+                    if (jwtUtil.validateAccessToken(token)) {
+                        String username = jwtUtil.getUsernameFromToken(token);
+                        String sessionId = jwtUtil.getSessionIdFromToken(token);
+                        if (refreshTokenStore.isSessionActive(username, sessionId)) return username;
                     }
                 }
 
@@ -160,14 +167,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     /**
      * 监听 WebSocket 断开事件
+     *
+     * 只注销当前这一个会话；该用户是否真的离线由 OnlineUserService 按存活会话数判定，
+     * 多设备场景下关掉任意一台不会把整个账号判离线。
      */
     @EventListener
     public void handleSessionDisconnect(SessionDisconnectEvent event) {
         Principal user = event.getUser();
         if (user != null) {
             String username = user.getName();
-            webSocketChatController.onUserDisconnect(username);
-            log.info("用户断开 WebSocket: {}", username);
+            webSocketChatController.onUserDisconnect(username, event.getSessionId());
+            log.info("用户断开 WebSocket: {} (session={})", username, event.getSessionId());
         } else {
             // 无用户上下文：通常是握手未完成/连接建立前异常断开，生产 WARN 记录便于排查
             log.warn("WebSocket 断开但无用户上下文（可能为异常断连或握手未完成）");

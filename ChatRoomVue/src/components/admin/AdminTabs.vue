@@ -22,6 +22,7 @@
 </template>
 
 <script setup>
+import { NButton } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/ui/AppIcon.vue'
 

@@ -76,6 +76,20 @@
         WHERE sender_id = #{senderId} AND receiver_id = #{receiverId} AND status = 0
     </select>
 
+    <!-- 批量查询 userId 与一批对端之间的全部待处理申请（双向，方向由调用方区分） -->
+    <select id="findPendingBetween" resultMap="FriendRequestResultMap">
+        SELECT * FROM friend_request
+        WHERE status = 0
+          AND (
+                (sender_id = #{userId} AND receiver_id IN
+                  <foreach collection="peerIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+                )
+             OR (receiver_id = #{userId} AND sender_id IN
+                  <foreach collection="peerIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+                )
+          )
+    </select>
+
     <!-- 删除申请记录 -->
     <delete id="deleteById">
         DELETE FROM friend_request WHERE id = #{id}

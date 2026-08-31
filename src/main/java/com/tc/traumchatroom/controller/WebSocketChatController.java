@@ -17,6 +17,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -87,12 +88,28 @@ public class WebSocketChatController {
     /** 消息内容最大长度（防超长消息 DoS） */
     private static final int MAX_MESSAGE_LENGTH = 2000;
 
-    /** 群聊 @提及未读 Redis Key 前缀：chat:mention:{username} */
-    private static final String MENTION_KEY_PREFIX = "chat:mention:";
+    /**
+     * 群聊 @提及未读 Redis Key 前缀：chat:mention:v2:{username}
+     * ZSet 结构：member = 提醒 JSON，score = messageId
+     * （读取与剔除侧见 ChatServiceImpl#MENTION_KEY_PREFIX，两处需保持一致）
+     */
+    private static final String MENTION_KEY_PREFIX = "chat:mention:v2:";
     /** @提及未读 TTL：7 天 */
     private static final Duration MENTION_TTL = Duration.ofDays(7);
     /** 单个用户 @提及未读上限 */
     private static final long MENTION_MAX = 50;
+    /**
+     * @提及未读入库：ZADD 以 messageId 为 score，再按 rank 截断到最新 MENTION_MAX 条。
+     * rank 按 score 升序，因此超量时删的是 score 最小（最旧）的那几条。
+     */
+    private static final org.springframework.data.redis.core.script.DefaultRedisScript<Long> MENTION_PUSH_SCRIPT =
+            new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                    "redis.call('ZADD', KEYS[1], tonumber(ARGV[2]), ARGV[1]) " +
+                            "local excess = redis.call('ZCARD', KEYS[1]) - tonumber(ARGV[3]) " +
+                            "if excess > 0 then " +
+                            "  redis.call('ZREMRANGEBYRANK', KEYS[1], 0, excess - 1) " +
+                            "end " +
+                            "redis.call('EXPIRE', KEYS[1], tonumber(ARGV[4])) return 1", Long.class);
     /** @提及提醒消息摘要最大长度 */
     private static final int MENTION_CONTENT_MAX = 120;
     /**
@@ -124,6 +141,7 @@ public class WebSocketChatController {
     @MessageMapping("/space")
     public void sendGroupMessage(Map<String, String> payload, Principal principal,
                                  org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
+        if (principal == null) return;
         String content = payload.get("content");
         String username = principal.getName();
         String clientId = payload.get("clientId");
@@ -272,9 +290,10 @@ public class WebSocketChatController {
                 // 离线未读累计（Redis 故障时降级，不影响消息发送）
                 try {
                     String key = MENTION_KEY_PREFIX + target.getUsername();
-                    redisTemplate.opsForList().leftPush(key, objectMapper.writeValueAsString(payload));
-                    redisTemplate.expire(key, MENTION_TTL);
-                    redisTemplate.opsForList().trim(key, 0, MENTION_MAX - 1);
+                    redisTemplate.execute(MENTION_PUSH_SCRIPT, java.util.List.of(key),
+                            objectMapper.writeValueAsString(payload),
+                            String.valueOf(message.getId()),
+                            String.valueOf(MENTION_MAX), String.valueOf(MENTION_TTL.getSeconds()));
                 } catch (Exception e) {
                     log.warn("@提及未读累计失败: target={}", target.getUsername(), e);
                 }
@@ -361,6 +380,7 @@ public class WebSocketChatController {
     @MessageMapping("/private.message")
     public void sendPrivateMessage(Map<String, String> payload, Principal principal,
                                    org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
+        if (principal == null) return;
         String content = payload.get("content");
         String receiverUsername = payload.get("receiver");
         String senderUsername = principal.getName();
@@ -488,9 +508,10 @@ public class WebSocketChatController {
      * 客户端发送到 /app/heartbeat
      */
     @MessageMapping("/heartbeat")
-    public void heartbeat(Principal principal) {
-        if (principal != null) {
-            onlineUserService.updateHeartbeat(principal.getName());
+    public void heartbeat(Principal principal,
+                          org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
+        if (principal != null && accessor != null) {
+            onlineUserService.updateHeartbeat(principal.getName(), accessor.getSessionId());
         }
     }
 
@@ -506,9 +527,19 @@ public class WebSocketChatController {
 
     /**
      * 用户上线时调用（由拦截器触发）
+     *
+     * 同一账号可多设备并行在线，因此上线通知与在线列表广播都只在状态真正跃迁
+     * （首个会话建立）时发送：后续设备接入时在线集合没有变化，广播出去的内容与上一次
+     * 完全相同，纯属浪费 —— 100 人在线时一次网络抖动引发的重连会触发一次全员广播。
+     * 新接入的客户端自己会在 onConnect 里调 /app/sync-state 取一次列表，不依赖这里。
      */
-    public void onUserConnect(String username) {
-        onlineUserService.userOnline(username);
+    public void onUserConnect(String username, String sessionId) {
+        boolean firstSession = onlineUserService.userOnline(username, sessionId);
+        if (!firstSession) {
+            // 该用户已有其它设备在线，在线集合未变，不广播
+            return;
+        }
+
         broadcastOnlineUsers();
 
         // 广播上线通知
@@ -523,9 +554,17 @@ public class WebSocketChatController {
 
     /**
      * 用户下线时调用
+     *
+     * 只有最后一个会话断开才算真正离线；关掉多设备中的任意一台既不广播「下线了」，
+     * 也不重发在线列表（集合没变）。
      */
-    public void onUserDisconnect(String username) {
-        onlineUserService.userOffline(username);
+    public void onUserDisconnect(String username, String sessionId) {
+        boolean lastSession = onlineUserService.userOffline(username, sessionId);
+        if (!lastSession) {
+            // 还有其它设备在线，在线集合未变，不广播
+            return;
+        }
+
         broadcastOnlineUsers();
 
         // 广播下线通知
@@ -540,14 +579,20 @@ public class WebSocketChatController {
 
     /**
      * 广播在线用户列表（返回 {username, name} 对象）
+     *
+     * 显示名批量解析：原实现对每个在线用户调一次 getDisplayName（查库或查 Redis），
+     * 100 人在线时一次广播就是 100 次往返，而广播本身在每次上下线时都会触发。
+     * 现在拆成「注册用户一次 IN 查询 + 游客一次 Redis pipeline」，固定 2 次往返。
      */
     private void broadcastOnlineUsers() {
         Set<String> usernames = onlineUserService.getOnlineUsers();
         java.util.List<java.util.Map<String, String>> users = new java.util.ArrayList<>();
 
-        if (usernames != null) {
+        if (usernames != null && !usernames.isEmpty()) {
+            java.util.Map<String, String> displayNames = resolveDisplayNames(usernames);
             for (String username : usernames) {
-                users.add(java.util.Map.of("username", username, "name", getDisplayName(username)));
+                users.add(java.util.Map.of("username", username,
+                        "name", displayNames.getOrDefault(username, username)));
             }
         }
 
@@ -556,19 +601,52 @@ public class WebSocketChatController {
     }
 
     /**
-     * 根据用户名获取显示昵称（支持游客）
+     * 批量解析显示名：注册用户走一次 IN 查询，游客走一次 Redis pipeline。
+     * 解析不到的回退为 username 本身，与原 getDisplayName 的兜底行为一致。
      */
-    private String getDisplayName(String username) {
-        // 游客从 Redis 获取
-        if (username.startsWith("guest_")) {
-            String guestKey = "chat:guest:" + username;
-            java.util.Map<Object, Object> guestData = redisTemplate.opsForHash().entries(guestKey);
-            String name = (String) guestData.get("name");
-            return name != null ? name : username;
+    private java.util.Map<String, String> resolveDisplayNames(Set<String> usernames) {
+        java.util.Map<String, String> result = new java.util.HashMap<>();
+
+        java.util.List<String> guests = new java.util.ArrayList<>();
+        java.util.List<String> registered = new java.util.ArrayList<>();
+        for (String u : usernames) {
+            if (u == null) continue;
+            if (u.startsWith("guest_")) guests.add(u); else registered.add(u);
         }
-        // 普通用户从数据库获取
-        User user = userMapper.findByUsername(username);
-        return user != null ? user.getName() : username;
+
+        // 注册用户：一次 IN 查询
+        if (!registered.isEmpty()) {
+            try {
+                for (User u : userMapper.findByUsernames(registered)) {
+                    if (u.getName() != null) result.put(u.getUsername(), u.getName());
+                }
+            } catch (Exception e) {
+                log.warn("批量解析在线用户昵称失败，回退为用户名", e);
+            }
+        }
+
+        // 游客：一次 pipeline 取回全部 guest hash 的 name 字段
+        if (!guests.isEmpty()) {
+            try {
+                java.util.List<Object> names = redisTemplate.executePipelined(
+                        (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                            for (String g : guests) {
+                                connection.hashCommands().hGet(
+                                        ("chat:guest:" + g).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                                        "name".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            }
+                            return null;
+                        });
+                for (int i = 0; i < guests.size() && i < names.size(); i++) {
+                    Object name = names.get(i);
+                    if (name != null) result.put(guests.get(i), name.toString());
+                }
+            } catch (Exception e) {
+                log.warn("批量解析游客昵称失败，回退为用户名", e);
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -582,6 +660,23 @@ public class WebSocketChatController {
         if (subtype != null) payload.put("subtype", subtype);
         if (clientId != null) payload.put("clientId", clientId);
         messagingTemplate.convertAndSendToUser(username, "/queue/send-error", payload);
+    }
+
+    @MessageExceptionHandler(com.tc.traumchatroom.exception.BusinessException.class)
+    public void handleWebSocketBusinessException(com.tc.traumchatroom.exception.BusinessException e,
+                                                  Principal principal) {
+        String username = principal != null ? principal.getName() : null;
+        log.warn("WebSocket 业务异常: username={}, code={}, message={}",
+                username, e.getErrorCode().getCode(), e.getMessage());
+        if (username != null) sendError(username, null, e.getMessage(), "business");
+    }
+
+    @MessageExceptionHandler(Exception.class)
+    public void handleWebSocketException(Exception e, Principal principal) {
+        String username = principal != null ? principal.getName() : null;
+        log.error("WebSocket 未知异常: username={}, exception={}",
+                username, e.getClass().getName(), e);
+        if (username != null) sendError(username, null, "消息处理失败，请稍后再试", "system");
     }
 
     /**

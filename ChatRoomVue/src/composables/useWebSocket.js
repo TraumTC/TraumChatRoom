@@ -4,7 +4,7 @@ import SockJS from 'sockjs-client/dist/sockjs'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useWebSocketStore } from '@/stores/websocket'
-import { registerWsCleanup } from '@/utils/ws-cleanup'
+import { registerSessionCleanup } from '@/utils/session-cleanup'
 
 // 模块级变量：所有 useWebSocket() 调用共享同一个连接
 let stompClient = null
@@ -45,7 +45,9 @@ export function useWebSocket() {
       reconnectDelay: 5000,
       maxReconnectAttempts: 10,
       // 每次连接（含重连）前刷新 token，避免复用旧凭据导致连接失败
-      beforeConnect: () => {
+      beforeConnect: async () => {
+        // accessToken 仅 30 分钟且仅在内存中；每次首连/重连前用 HttpOnly Cookie 换取新 Token
+        await authStore.refresh()
         const current = authStore.accessToken
         stompClient.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {}
       },
@@ -106,8 +108,8 @@ export function useWebSocket() {
     stompClient.subscribe('/user/queue/private-messages', (msg) => {
       const data = JSON.parse(msg.body)
       chatStore.addPrivateMessage(data)
-      // 非当前活跃会话时弹 Toast 通知
-      const isMyMsg = data.sender?.id && String(data.sender.id) === localStorage.getItem('myId')
+      // 非当前活跃会话时弹 Toast 通知（归属判断统一走 chatStore，避免各处各判一套）
+      const isMyMsg = chatStore.isMyMessage(data)
       if (!isMyMsg) {
         const otherUsername = data.sender?.username || data.sender?.name || '未知用户'
         const isCurrent = chatStore.currentChat.type === 'private'
@@ -271,24 +273,33 @@ export function useWebSocket() {
 
   // 断开连接
   function disconnect() {
-    stopHeartbeat()
-    if (stompClient) {
-      stompClient.deactivate()
-      stompClient = null
-      wsStore.connected = false
-      wsStore.connecting = false
-    }
+    teardownConnection()
   }
-
-  // 注册全局清理回调：api 拦截器 401 踢出时清理残留连接
-  registerWsCleanup(() => {
-    if (stompClient) {
-      stompClient.deactivate()
-      stompClient = null
-    }
-    wsStore.connected = false
-    wsStore.connecting = false
-  })
 
   return { connect, disconnect, sendGroupMessage, sendPrivateMessage, sendHeartbeat, syncState }
 }
+
+/**
+ * 拆掉当前 STOMP 连接与心跳定时器。
+ * 操作的全是模块级单例状态，因此放在 useWebSocket() 外面，供组件内外共用。
+ */
+function teardownConnection() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
+  if (stompClient) {
+    stompClient.deactivate()
+    stompClient = null
+  }
+  const wsStore = useWebSocketStore()
+  wsStore.connected = false
+  wsStore.connecting = false
+}
+
+// 模块加载时注册一次会话清理回调：登出、改密码、401 被踢时都要拆掉残留连接。
+// 旧 STOMP 客户端带着已被 revokeAll 撤销的会话会持续重连，必须断开。
+//
+// 注册放在模块作用域而非 useWebSocket() 内 —— composable 会被多个组件调用，
+// 写在里面每次调用都会往注册表塞一个新闭包。
+registerSessionCleanup(teardownConnection)

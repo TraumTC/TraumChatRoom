@@ -71,7 +71,7 @@
 
 <script setup>
 import { ref, h, onMounted, onUnmounted } from 'vue'
-import { NInput } from 'naive-ui'
+import { NButton, NCheckbox, NDataTable, NInput, NPagination, NSelect } from 'naive-ui'
 import { adminApi } from '@/api/admin'
 import { formatTime } from '@/utils/format'
 import AppHeader from '@/components/layout/AppHeader.vue'

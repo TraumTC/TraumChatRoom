@@ -20,6 +20,8 @@ public class AiConfig {
     private String model;
     /** 最大 Token 数，如 1024 */
     private int maxTokens;
+    /** AI 回复硬性字数上限（字符数）；超过则在服务端截断，兜底防止提示词被越过导致超长 */
+    private int maxReplyChars;
     /** 温度（0-1），越高回答越随机，0.7 比较平衡 */
     private double temperature;
     /** 超时时间（毫秒），如 30000 = 30秒 */

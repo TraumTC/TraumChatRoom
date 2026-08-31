@@ -16,6 +16,12 @@ public class Message {
     private String senderName;
     /** 发送者用户名（非表列，查询时 JOIN user 表实时获取，用于前端区分会话） */
     private String senderUsername;
+    /**
+     * 发送者头像（非表列，与 senderName/senderUsername 一同由 JOIN user 表取得）。
+     * 走 JOIN 而非逐条查缓存：列表查询本来就要 JOIN user，顺带取一列成本为零，
+     * 且头像与昵称同源同鲜度（改头像后不会出现「新昵称 + 旧头像」）。
+     */
+    private String senderAvatar;
     /** 接收者ID，群聊时为NULL */
     private Integer receiverId;
     /** 接收者昵称（冗余字段） */

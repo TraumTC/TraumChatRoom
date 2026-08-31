@@ -101,6 +101,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/register").permitAll()    // 注册
                 .requestMatchers("/api/auth/login").permitAll()       // 登录
                 .requestMatchers("/api/auth/refresh").permitAll()     // 刷新 Token
+                .requestMatchers("/api/auth/logout").permitAll()      // 允许仅凭 refresh Cookie 登出并清理
                 .requestMatchers("/api/auth/guest").permitAll()       // 游客登录
                 .requestMatchers(HttpMethod.GET, "/api/file/download/**").permitAll()  // 文件下载
                 .requestMatchers("/ws/**").permitAll()                 // WebSocket 端点

@@ -1,11 +1,11 @@
 <!-- src/views/ChatView.vue — 聊天室主页面（亮色） -->
 <template>
   <div class="app-h-screen flex flex-col overflow-hidden" style="background: var(--color-bg)">
-    <AppHeader :show-sidebar-toggle="isMobile" @toggle-sidebar="sidebarOpen = true" />
+    <AppHeader :show-sidebar-toggle="isMobile" @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
     <div class="flex flex-1 min-h-0">
-      <!-- 移动端遮罩 -->
-      <div v-if="sidebarOpen && isMobile" class="fixed inset-0 z-20" style="background: rgba(0,0,0,0.5)" @click="sidebarOpen = false"></div>
+      <!-- 移动端遮罩：从顶栏下方(top-14)开始，避免把顶栏一起压暗/挡住点击 -->
+      <div v-if="sidebarOpen && isMobile" class="fixed left-0 right-0 bottom-0 top-14 z-20" style="background: rgba(0,0,0,0.5)" @click="sidebarOpen = false"></div>
 
       <!-- 左侧栏 -->
       <aside :class="['w-64 shrink-0 flex flex-col', isMobile ? 'fixed z-30 left-0 top-14 bottom-0 transition-transform duration-200' : '']"
@@ -212,6 +212,7 @@
 </template>
 
 <script setup>
+import { NSpin } from 'naive-ui'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
@@ -314,13 +315,6 @@ function clearAllMentions() {
 }
 
 onMounted(async () => {
-  if (authStore.user?.id) {
-    localStorage.setItem('myId', JSON.stringify(authStore.user.id))
-  }
-  if (authStore.user?.name) {
-    localStorage.setItem('myName', authStore.user.name)
-  }
-
   // 游客：强制回到群聊并清除已持久化的私聊会话（游客不恢复私聊）
   if (authStore.isGuest) {
     chatStore.resetSessionState()

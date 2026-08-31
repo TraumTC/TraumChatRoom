@@ -27,6 +27,7 @@
 </template>
 
 <script setup>
+import { NBadge, NTab, NTabs } from 'naive-ui'
 import { computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 

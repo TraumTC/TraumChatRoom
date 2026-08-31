@@ -82,6 +82,7 @@
 </template>
 
 <script setup>
+import { NButton, NDataTable, NDrawer, NDrawerContent, NInput, NModal, NSelect } from 'naive-ui'
 import { ref, h, onMounted, onUnmounted } from 'vue'
 import { adminApi } from '@/api/admin'
 import AppHeader from '@/components/layout/AppHeader.vue'

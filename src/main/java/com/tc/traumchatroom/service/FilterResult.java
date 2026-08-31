@@ -1,7 +1,5 @@
 package com.tc.traumchatroom.service;
 
-import com.tc.traumchatroom.handler.SensitiveWordTrie;
-
 /**
  * 敏感词过滤结果
  */

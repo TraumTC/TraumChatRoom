@@ -31,6 +31,18 @@
            OR (user_id = #{friendId} AND friend_id = #{userId})
     </select>
 
+    <!-- 批量判断好友关系：返回候选 id 中已与 userId 成为好友的那些（双向，与 exists 语义一致） -->
+    <select id="findFriendIdsIn" resultType="int">
+        SELECT CASE WHEN user_id = #{userId} THEN friend_id ELSE user_id END AS peer_id
+        FROM friend
+        WHERE (user_id = #{userId} AND friend_id IN
+                <foreach collection="candidateIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+              )
+           OR (friend_id = #{userId} AND user_id IN
+                <foreach collection="candidateIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+              )
+    </select>
+
     <!-- 查询用户的好友列表（分页） -->
     <select id="findByUserId" resultMap="FriendResultMap">
         SELECT * FROM friend

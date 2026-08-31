@@ -1,6 +1,7 @@
 package com.tc.traumchatroom.filter;
 
 import com.tc.traumchatroom.util.JwtUtil;
+import com.tc.traumchatroom.service.RefreshTokenStore;
 import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -37,6 +38,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Resource
     private UserDetailsService userDetailsService;
 
+    @Resource
+    private RefreshTokenStore refreshTokenStore;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
@@ -46,9 +50,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = extractToken(request);
 
         // 2. 如果 Token 有效，设置认证信息
-        if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
+        if (StringUtils.hasText(token) && jwtUtil.validateAccessToken(token)) {
             // 从 Token 中解析用户名
             String username = jwtUtil.getUsernameFromToken(token);
+            String sessionId = jwtUtil.getSessionIdFromToken(token);
+
+            boolean sessionActive;
+            try {
+                sessionActive = refreshTokenStore.isSessionActive(username, sessionId);
+            } catch (com.tc.traumchatroom.exception.BusinessException e) {
+                SecurityContextHolder.clearContext();
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":503,\"message\":\"认证会话服务暂时不可用\",\"data\":null}");
+                return;
+            }
+            if (!sessionActive) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             try {
                 // 加载用户详情（包含密码和权限）

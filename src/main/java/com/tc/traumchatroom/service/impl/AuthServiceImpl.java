@@ -2,7 +2,6 @@ package com.tc.traumchatroom.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tc.traumchatroom.dto.request.LoginRequest;
-import com.tc.traumchatroom.dto.request.RefreshRequest;
 import com.tc.traumchatroom.dto.request.RegisterRequest;
 import com.tc.traumchatroom.dto.response.LoginResponse;
 import com.tc.traumchatroom.dto.response.UserResponse;
@@ -12,6 +11,7 @@ import com.tc.traumchatroom.exception.ErrorCode;
 import com.tc.traumchatroom.mapper.UserMapper;
 import com.tc.traumchatroom.service.AuthService;
 import com.tc.traumchatroom.service.CacheService;
+import com.tc.traumchatroom.service.RefreshTokenStore;
 import com.tc.traumchatroom.util.GuestNameUtil;
 import com.tc.traumchatroom.util.JwtUtil;
 import jakarta.annotation.Resource;
@@ -20,10 +20,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 /**
  * 认证服务实现
@@ -49,6 +51,17 @@ public class AuthServiceImpl implements AuthService {
 
     @Resource
     private CacheService cacheService;
+
+    @Resource
+    private RefreshTokenStore refreshTokenStore;
+
+    @Value("${jwt.access-expiration:1800000}")
+    private long accessExpiration;
+
+    @Value("${jwt.refresh-expiration:604800000}")
+    private long refreshExpiration;
+
+    private static final Duration GUEST_REFRESH_TTL = Duration.ofHours(2);
 
     // ---------- 注册 ----------
 
@@ -130,30 +143,64 @@ public class AuthServiceImpl implements AuthService {
     // ---------- 刷新 Token ----------
 
     @Override
-    public LoginResponse refresh(RefreshRequest request) {
-        String token = request.getRefreshToken();
+    public LoginResponse refresh(String token) {
+        if (!StringUtils.hasText(token)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 缺失，请重新登录");
+        }
 
         // 1. 验证 refreshToken 是否有效
-        if (!jwtUtil.validateToken(token)) {
+        if (!jwtUtil.validateRefreshToken(token)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 已过期，请重新登录");
         }
 
         // 2. 检查 Redis 中是否存在（登出后会被删除）
         String username = jwtUtil.getUsernameFromToken(token);
-        String redisKey = "chat:refresh:" + username;
-        String storedToken = redisTemplate.opsForValue().get(redisKey);
-        if (storedToken == null || !storedToken.equals(token)) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 无效，请重新登录");
-        }
-
         // 3. 查询用户
         User user = userMapper.findByUsername(username);
+        if (user == null && username.startsWith("guest_")) {
+            Map<Object, Object> guestData = redisTemplate.opsForHash().entries("chat:guest:" + username);
+            if (!guestData.isEmpty()) {
+                user = new User();
+                user.setUsername(username);
+                user.setName((String) guestData.get("name"));
+                user.setRole("ROLE_GUEST");
+                user.setStatus(1);
+
+                Long remainingSeconds = redisTemplate.getExpire("chat:guest:" + username, TimeUnit.SECONDS);
+                long ttl = remainingSeconds != null && remainingSeconds > 0 ? remainingSeconds : 1;
+                String sessionId = jwtUtil.getSessionIdFromToken(token);
+                if (sessionId == null || sessionId.isBlank()) {
+                    throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 无效，请重新登录");
+                }
+                String newToken = jwtUtil.generateRefreshToken(username, sessionId,
+                        Math.min(refreshExpiration, ttl * 1000));
+                String accessToken = jwtUtil.generateAccessToken(username, sessionId);
+                if (!refreshTokenStore.rotate(username, token, newToken,
+                        Duration.ofMillis(Math.min(refreshExpiration, ttl * 1000)))) {
+                    throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 无效，请重新登录");
+                }
+                return new LoginResponse(accessToken, newToken, accessExpiration / 1000, UserResponse.fromEntity(user));
+            }
+        }
         if (user == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户不存在");
         }
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            refreshTokenStore.revokeAll(username);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "账号已被禁用");
+        }
 
         // 4. 生成新 Token
-        return generateLoginResponse(user);
+        String sessionId = jwtUtil.getSessionIdFromToken(token);
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 无效，请重新登录");
+        }
+        String newToken = jwtUtil.generateRefreshToken(username, sessionId);
+        String accessToken = jwtUtil.generateAccessToken(username, sessionId);
+        if (!refreshTokenStore.rotate(username, token, newToken, Duration.ofMillis(refreshExpiration))) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh Token 无效，请重新登录");
+        }
+        return new LoginResponse(accessToken, newToken, accessExpiration / 1000, UserResponse.fromEntity(user));
     }
 
     // ---------- 登出 ----------
@@ -161,15 +208,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String refreshToken) {
         if (StringUtils.hasText(refreshToken)) {
-            try {
-                // 从 token 中解析用户名，删除 Redis 中的记录
-                String username = jwtUtil.getUsernameFromToken(refreshToken);
-                redisTemplate.delete("chat:refresh:" + username);
-                log.info("用户登出: {}", username);
-            } catch (Exception e) {
-                // token 无效时忽略，登出本身是幂等的
-                log.warn("登出时解析 token 失败: {}", e.getMessage());
-            }
+            if (!jwtUtil.validateRefreshToken(refreshToken)) return;
+            String username = jwtUtil.getUsernameFromToken(refreshToken);
+            refreshTokenStore.revoke(username, refreshToken);
+            log.info("用户登出: {}", username);
         }
     }
 
@@ -220,8 +262,10 @@ public class AuthServiceImpl implements AuthService {
         redisTemplate.expire(guestKey, 2, TimeUnit.HOURS);  // 2小时过期
 
         // 3. 生成 Token（游客专用，不查数据库）
-        String accessToken = jwtUtil.generateAccessToken(username);
-        String refreshToken = jwtUtil.generateRefreshToken(username);
+        String sessionId = java.util.UUID.randomUUID().toString();
+        String accessToken = jwtUtil.generateAccessToken(username, sessionId);
+        String refreshToken = jwtUtil.generateRefreshToken(username,
+                sessionId, GUEST_REFRESH_TTL.toMillis());
 
         // 4. 构造游客用户对象（不存数据库）
         User guest = new User();
@@ -231,15 +275,11 @@ public class AuthServiceImpl implements AuthService {
         guest.setStatus(1);
 
         // 5. refreshToken 也存 Redis
-        redisTemplate.opsForValue().set(
-                "chat:refresh:" + username,
-                refreshToken,
-                2, TimeUnit.HOURS
-        );
+        refreshTokenStore.save(username, refreshToken, GUEST_REFRESH_TTL);
 
         log.info("游客登录: {} (仅存Redis)", name);
 
-        return new LoginResponse(accessToken, refreshToken, 7200L, UserResponse.fromEntity(guest));
+        return new LoginResponse(accessToken, refreshToken, accessExpiration / 1000, UserResponse.fromEntity(guest));
     }
 
     // ---------- 私有方法 ----------
@@ -248,18 +288,20 @@ public class AuthServiceImpl implements AuthService {
      * 生成登录响应（accessToken + refreshToken + 用户信息）
      */
     private LoginResponse generateLoginResponse(User user) {
+        return generateLoginResponse(user, Duration.ofMillis(refreshExpiration));
+    }
+
+    private LoginResponse generateLoginResponse(User user, Duration refreshTtl) {
         // 1. 生成 Token
-        String accessToken = jwtUtil.generateAccessToken(user.getUsername());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+        String sessionId = java.util.UUID.randomUUID().toString();
+        String accessToken = jwtUtil.generateAccessToken(user.getUsername(), sessionId);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername(),
+                sessionId, refreshTtl.toMillis());
 
         // 2. refreshToken 存入 Redis（支持登出时主动失效）
-        redisTemplate.opsForValue().set(
-                "chat:refresh:" + user.getUsername(),
-                refreshToken,
-                7, TimeUnit.DAYS
-        );
+        refreshTokenStore.save(user.getUsername(), refreshToken, refreshTtl);
 
-        return new LoginResponse(accessToken, refreshToken, 86400L, UserResponse.fromEntity(user));
+        return new LoginResponse(accessToken, refreshToken, accessExpiration / 1000, UserResponse.fromEntity(user));
     }
 
     /**
@@ -283,7 +325,7 @@ public class AuthServiceImpl implements AuthService {
             long timeoutSeconds = unit.toSeconds(timeout);
             String lockKey = failKey.replace("fail", "lock");
             redisTemplate.execute(
-                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(FAIL_COUNT_LUA, Long.class),
+                    FAIL_COUNT_SCRIPT,
                     List.of(failKey, lockKey),
                     String.valueOf(maxCount), String.valueOf(timeoutSeconds)
             );
@@ -293,15 +335,20 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /** 登录失败计数 + 锁定的原子 Lua：KEYS[1]=failKey, KEYS[2]=lockKey, ARGV[1]=maxCount, ARGV[2]=timeout秒 */
-    private static final String FAIL_COUNT_LUA =
+    /**
+     * 登录失败计数 + 锁定的原子 Lua：KEYS[1]=failKey, KEYS[2]=lockKey, ARGV[1]=maxCount, ARGV[2]=timeout秒
+     *
+     * 提为静态常量以复用脚本 SHA1（走 EVALSHA），写法与 RefreshTokenStore 一致。
+     */
+    private static final org.springframework.data.redis.core.script.DefaultRedisScript<Long> FAIL_COUNT_SCRIPT =
+            new org.springframework.data.redis.core.script.DefaultRedisScript<>(
             "local c = redis.call('INCR', KEYS[1]) " +
             "if c == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2])) end " +
             "if c >= tonumber(ARGV[1]) then " +
             "  redis.call('SET', KEYS[2], '1', 'EX', tonumber(ARGV[2])) " +
             "  redis.call('DEL', KEYS[1]) " +
             "end " +
-            "return c";
+            "return c", Long.class);
 
     /**
      * 将秒数格式化为 "x 分 y 秒"

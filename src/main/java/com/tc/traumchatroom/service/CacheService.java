@@ -7,6 +7,8 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 
@@ -70,7 +72,26 @@ public class CacheService {
      */
     public void evictUser(Integer id) {
         if (id != null) {
-            redisTemplate.delete(USER_CACHE_KEY + id);
+            try {
+                redisTemplate.delete(USER_CACHE_KEY + id);
+            } catch (Exception e) {
+                log.warn("删除用户缓存失败: id={}", id, e);
+            }
+        }
+    }
+
+    /** 数据库事务提交成功后再失效缓存，避免提交前被旧数据重新回填。 */
+    public void evictUserAfterCommit(Integer id) {
+        if (id == null) return;
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictUser(id);
+                }
+            });
+        } else {
+            evictUser(id);
         }
     }
 
@@ -99,7 +120,13 @@ public class CacheService {
     }
 
     private User readFromCache(Integer id) {
-        String json = redisTemplate.opsForValue().get(USER_CACHE_KEY + id);
+        String json;
+        try {
+            json = redisTemplate.opsForValue().get(USER_CACHE_KEY + id);
+        } catch (Exception e) {
+            log.warn("读取用户缓存失败，回退数据库: id={}", id, e);
+            return null;
+        }
         if (json != null) {
             try {
                 return objectMapper.readValue(json, User.class);

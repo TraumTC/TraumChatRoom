@@ -1,7 +1,6 @@
 package com.tc.traumchatroom.service;
 
 import com.tc.traumchatroom.dto.request.LoginRequest;
-import com.tc.traumchatroom.dto.request.RefreshRequest;
 import com.tc.traumchatroom.dto.request.RegisterRequest;
 import com.tc.traumchatroom.dto.response.LoginResponse;
 import com.tc.traumchatroom.dto.response.UserResponse;
@@ -28,10 +27,10 @@ public interface AuthService {
 
     /**
      * 刷新访问令牌
-     * @param request refreshToken
+     * @param refreshToken refreshToken（优先来自 HttpOnly Cookie）
      * @return 新的访问令牌
      */
-    LoginResponse refresh(RefreshRequest request);
+    LoginResponse refresh(String refreshToken);
 
     /**
      * 登出（删除 refreshToken）

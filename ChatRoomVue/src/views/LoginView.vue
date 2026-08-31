@@ -65,6 +65,7 @@
 </template>
 
 <script setup>
+import { NAlert, NButton, NForm, NFormItem, NInput } from 'naive-ui'
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

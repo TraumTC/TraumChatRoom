@@ -23,7 +23,32 @@
         <result property="senderIp" column="sender_ip"/>
         <result property="createdAt" column="created_at"/>
         <result property="deletedAt" column="deleted_at"/>
+        <!-- 非表列：由 JOIN user 取得 -->
+        <result property="senderAvatar" column="sender_avatar"/>
     </resultMap>
+
+    <!--
+        列表查询的列清单：显式列出，不用 m.*。
+
+        排除 original_content（TEXT，撤回前原文）、sender_ip、deleted_at ——
+        这三列在 Java 侧无任何 getter 调用方，却会让每行都拖着一个 TEXT 字段过网络。
+        content 是消息正文，必须保留。
+        也排除 m.sender_name：由下面 senderJoinColumns 的 COALESCE 提供，
+        否则结果集里会出现两个同名 sender_name 列，映射到哪一个取决于 JDBC 驱动。
+        findById 仍取全列（撤回逻辑等单行场景，TEXT 开销无所谓）。
+    -->
+    <sql id="listColumns">
+        m.id, m.sender_id, m.receiver_id, m.receiver_name,
+        m.content, m.message_type, m.file_name, m.file_path, m.file_size,
+        m.is_ai_reply, m.reply_to_id, m.is_recalled, m.recalled_at, m.created_at
+    </sql>
+
+    <!-- JOIN user 取到的发送者实时信息（昵称 / 用户名 / 头像同源同鲜度） -->
+    <sql id="senderJoinColumns">
+        su.username AS sender_username,
+        COALESCE(su.name, m.sender_name) AS sender_name,
+        su.avatar AS sender_avatar
+    </sql>
 
     <!-- 根据ID查询消息 -->
     <select id="findById" resultMap="MessageResultMap">
@@ -41,11 +66,10 @@
     </insert>
 
     <!-- 群聊历史（游标分页）：
-         注意：JOIN user 表实时取昵称和用户名，用户改名后历史消息显示新昵称 -->
+         注意：JOIN user 表实时取昵称、用户名和头像，用户改名/换头像后历史消息即时生效 -->
     <select id="selectGroupHistory" resultMap="MessageResultMap">
-        SELECT m.*,
-               su.username AS sender_username,
-               COALESCE(su.name, m.sender_name) AS sender_name
+        SELECT <include refid="listColumns"/>,
+               <include refid="senderJoinColumns"/>
         FROM message m
         LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
         WHERE m.receiver_id IS NULL AND m.deleted_at IS NULL
@@ -58,9 +82,8 @@
 
     <!-- 群聊历史（从指定消息ID开始向后取 size 条，含 anchor，用于@提及定位） -->
     <select id="selectGroupHistoryAround" resultMap="MessageResultMap">
-        SELECT m.*,
-               su.username AS sender_username,
-               COALESCE(su.name, m.sender_name) AS sender_name
+        SELECT <include refid="listColumns"/>,
+               <include refid="senderJoinColumns"/>
         FROM message m
         LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
         WHERE m.receiver_id IS NULL AND m.deleted_at IS NULL
@@ -70,17 +93,24 @@
     </select>
 
     <!-- 私聊历史（游标分页）：
-         注意：JOIN user 表实时取昵称和用户名，用户改名后历史消息显示新昵称 -->
+         注意：JOIN user 表实时取昵称、用户名和头像，用户改名/换头像后历史消息即时生效
+
+         按 receiver_id 而非 receiver_name 定位：
+         1. 与 selectUnreadStats / selectPrivateConversationPeers / selectConversationLatestId
+            统一，消除「同一业务两套定位方式」；
+         2. 能命中 idx_private_history(sender_id, receiver_id, deleted_at, id)，
+            而字符串列 receiver_name 无法延伸进该索引（实测只用到 sender_id 一列）；
+         3. 免疫 trg_user_name_update 触发器 —— 它会把 receiver_name 改写成昵称，
+            而这里存的语义是 username，改名后按 receiver_name 定位会查不到历史。 -->
     <select id="selectPrivateHistory" resultMap="MessageResultMap">
-        SELECT m.*,
-               su.username AS sender_username,
-               COALESCE(su.name, m.sender_name) AS sender_name
+        SELECT <include refid="listColumns"/>,
+               <include refid="senderJoinColumns"/>
         FROM message m
         LEFT JOIN user su ON su.id = m.sender_id AND su.deleted_at IS NULL
         WHERE m.deleted_at IS NULL
         AND (
-            (m.sender_id = #{userId} AND m.receiver_name = #{targetName})
-            OR (m.sender_id = #{targetUserId} AND m.receiver_name = #{senderName})
+            (m.sender_id = #{userId} AND m.receiver_id = #{targetUserId})
+            OR (m.sender_id = #{targetUserId} AND m.receiver_id = #{userId})
         )
         <if test="cursor != null">
             AND m.id &lt; #{cursor}

@@ -3,6 +3,7 @@ package com.tc.traumchatroom.aspect;
 import com.tc.traumchatroom.annotation.LogOperation;
 import com.tc.traumchatroom.dto.request.LoginRequest;
 import com.tc.traumchatroom.dto.request.RegisterRequest;
+import com.tc.traumchatroom.dto.request.UpdatePasswordRequest;
 import com.tc.traumchatroom.entity.OperationLog;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.OperationLogMapper;
@@ -30,8 +31,8 @@ public class OperationLogAspect {
 
     /** detail 中禁止记录的敏感字段 */
     private static final Set<String> SENSITIVE_KEYS = Set.of(
-            "password", "oldPassword", "newPassword", "confirmPassword",
-            "refreshToken", "accessToken", "token", "secret", "jwt"
+            "password", "oldpassword", "newpassword", "confirmpassword",
+            "refreshtoken", "accesstoken", "token", "secret", "jwt"
     );
 
     @Resource
@@ -56,7 +57,11 @@ public class OperationLogAspect {
      */
     @AfterThrowing(pointcut = "@annotation(com.tc.traumchatroom.annotation.LogOperation)", throwing = "ex")
     public void afterThrowing(JoinPoint joinPoint, Throwable ex) {
-        recordLog(joinPoint, false, ex.getMessage());
+        Throwable root = ex;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String safeMessage = ex instanceof com.tc.traumchatroom.exception.BusinessException
+                ? ex.getMessage() : root.getClass().getSimpleName();
+        recordLog(joinPoint, false, safeMessage);
     }
 
     /**
@@ -201,13 +206,18 @@ public class OperationLogAspect {
                     + "\",\"name\":\"" + jsonEscape(registerRequest.getName()) + "\"}";
         }
 
+        // 修改密码请求：保留请求类型用于审计，但绝不记录任何密码字段。
+        if (arg instanceof UpdatePasswordRequest) {
+            return "\"<UpdatePasswordRequest:passwords-redacted>\"";
+        }
+
         // Map 参数：排除敏感 key
         if (arg instanceof Map<?, ?> map) {
             StringBuilder sb = new StringBuilder("{");
             boolean first = true;
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = String.valueOf(entry.getKey());
-                if (SENSITIVE_KEYS.contains(key)) continue;
+                if (SENSITIVE_KEYS.contains(key.toLowerCase(java.util.Locale.ROOT))) continue;
                 if (!first) sb.append(",");
                 first = false;
                 String value = entry.getValue() == null ? "" : jsonEscape(String.valueOf(entry.getValue()));
@@ -230,7 +240,13 @@ public class OperationLogAspect {
      */
     private String jsonEscape(String str) {
         if (str == null) return "";
-        return str.replace("\\", "\\\\").replace("\"", "\\\"");
+        return str.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     /**

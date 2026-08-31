@@ -28,6 +28,12 @@ public interface UserMapper {
     /** 按昵称集合批量查询用户（@提及提醒用，避免逐条查询） */
     List<User> findByNames(@Param("names") List<String> names);
 
+    /**
+     * 按 username 批量查询（用于在线列表广播等需要一次取回多个用户显示名的场景）。
+     * 调用方需保证 usernames 非空（空集合会生成非法的 IN ()）。
+     */
+    List<User> findByUsernames(@Param("usernames") List<String> usernames);
+
     /** 插入新用户（注册） */
     int insert(User user);
 

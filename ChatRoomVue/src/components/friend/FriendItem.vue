@@ -34,6 +34,7 @@
 </template>
 
 <script setup>
+import { NButton, NDropdown, NInput, NModal } from 'naive-ui'
 import { ref, computed, h } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'

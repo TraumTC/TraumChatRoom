@@ -12,7 +12,6 @@ import com.tc.traumchatroom.exception.BusinessException;
 import com.tc.traumchatroom.exception.ErrorCode;
 import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
-import com.tc.traumchatroom.service.CacheService;
 import com.tc.traumchatroom.service.ChatService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -40,9 +39,6 @@ public class ChatServiceImpl implements ChatService {
     private UserMapper userMapper;
 
     @Resource
-    private CacheService cacheService;
-
-    @Resource
     private SimpMessagingTemplate messagingTemplate;
 
     @Resource
@@ -63,27 +59,21 @@ public class ChatServiceImpl implements ChatService {
     /** 已读游标 TTL：90 天（活跃时刷新，长期不活跃自动清理，避免无效数据残留） */
     private static final long READ_TTL_DAYS = 90;
 
-    /** 群聊 @提及未读 Redis Key 前缀：chat:mention:{username} */
-    private static final String MENTION_KEY_PREFIX = "chat:mention:";
-
-    /** 撤回时按 messageId 清理 @提及未读的 Lua 脚本（List 中剔除含该 messageId 的记录） */
-    private static final String MENTION_REMOVE_LUA =
-            "local list = redis.call('LRANGE', KEYS[1], 0, -1) " +
-            "if #list == 0 then return 0 end " +
-            "local rest = {} " +
-            "local found = 0 " +
-            "for _, v in ipairs(list) do " +
-            "  if string.find(v, '\"messageId\":' .. ARGV[1]) then " +
-            "    found = 1 " +
-            "  else " +
-            "    rest[#rest + 1] = v " +
-            "  end " +
-            "end " +
-            "if found == 1 then " +
-            "  redis.call('DEL', KEYS[1]) " +
-            "  if #rest > 0 then redis.call('RPUSH', KEYS[1], unpack(rest)) end " +
-            "end " +
-            "return found";
+    /**
+     * 群聊 @提及未读 Redis Key 前缀：chat:mention:v2:{username}
+     *
+     * 数据结构为 ZSet：member = 提醒 JSON，score = messageId。
+     * 旧版是 List，按 messageId 子串匹配剔除记录 —— 标记 messageId=12 已读会连带删掉
+     * {@code {"messageId":123,...}}，因为后者同样包含子串 {@code "messageId":12}。
+     * payload 由 Map.of 构造，Jackson 字段顺序不保证，靠后继字符兜底并不可靠，
+     * 因此改用 score 承载 messageId：剔除退化为 ZREMRANGEBYSCORE 的精确数值匹配，
+     * 与 JSON 文本彻底解耦。同时 ZSet 天然按 messageId 排序，翻页与截断都不再依赖插入顺序。
+     *
+     * 带 v2 后缀是为了和旧的 List 结构隔离：同名 key 上执行 ZSet 命令会报 WRONGTYPE，
+     * 换前缀可让存量 List key 在 7 天 TTL 内自然过期。
+     * 写入侧见 WebSocketChatController#MENTION_KEY_PREFIX（两处需保持一致）。
+     */
+    private static final String MENTION_KEY_PREFIX = "chat:mention:v2:";
 
     // ---------- 群聊历史 ----------
 
@@ -149,11 +139,9 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能查看好友的私聊记录");
         }
 
-        // 查询私聊消息
+        // 查询私聊消息（按 receiver_id 双向定位，见 MessageMapper.xml 注释）
         List<Message> messages = messageMapper.selectPrivateHistory(
-                currentUser.getId(), currentUsername,
-                targetUser.getId(), targetUsername,
-                cursor, size + 1
+                currentUser.getId(), targetUser.getId(), cursor, size + 1
         );
 
         boolean hasMore = messages.size() > size;
@@ -240,7 +228,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 群聊消息撤回后，按原消息内容解析 @名单，用 Lua 脚本逐用户清除对应 messageId 的 @未读记录。
+     * 群聊消息撤回后，按原消息内容解析 @名单，逐用户清除对应 messageId 的 @未读记录。
      * Redis 异常降级（不影响撤回主流程）。
      */
     private void removeMentionNotices(Message message) {
@@ -255,10 +243,7 @@ public class ChatServiceImpl implements ChatService {
             for (User target : targets) {
                 // 发送者本人已在 sendMentionNotices 中从 @名单排除，此处无需重复判断
                 try {
-                    redisTemplate.execute(
-                            new org.springframework.data.redis.core.script.DefaultRedisScript<>(MENTION_REMOVE_LUA, Long.class),
-                            List.of(MENTION_KEY_PREFIX + target.getUsername()),
-                            String.valueOf(message.getId()));
+                    removeMentionNotice(target.getUsername(), message.getId());
                 } catch (Exception e) {
                     log.warn("清理 @提及未读失败: target={}, messageId={}", target.getUsername(), message.getId(), e);
                 }
@@ -268,13 +253,24 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    // ---------- 群聊 @提及未读（Redis List） ----------
+    /**
+     * 从某用户的 @未读 ZSet 中精确剔除一条记录。
+     * score 即 messageId，闭区间 [id, id] 只会命中该消息本身。
+     */
+    private void removeMentionNotice(String username, Long messageId) {
+        redisTemplate.opsForZSet().removeRangeByScore(
+                MENTION_KEY_PREFIX + username, messageId, messageId);
+    }
+
+    // ---------- 群聊 @提及未读（Redis ZSet，score = messageId） ----------
 
     @Override
     public List<MentionNoticeVO> getMentionUnread(String username) {
         List<MentionNoticeVO> result = new ArrayList<>();
         try {
-            List<String> raw = redisTemplate.opsForList().range(MENTION_KEY_PREFIX + username, 0, -1);
+            // 按 score 倒序 → messageId 大的在前，即最新的 @提醒在前
+            Set<String> raw = redisTemplate.opsForZSet()
+                    .reverseRange(MENTION_KEY_PREFIX + username, 0, -1);
             if (raw == null) return result;
             for (String json : raw) {
                 try {
@@ -302,10 +298,7 @@ public class ChatServiceImpl implements ChatService {
     public void markMentionRead(String username, Long messageId) {
         if (messageId == null) return;
         try {
-            redisTemplate.execute(
-                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(MENTION_REMOVE_LUA, Long.class),
-                    List.of(MENTION_KEY_PREFIX + username),
-                    String.valueOf(messageId));
+            removeMentionNotice(username, messageId);
         } catch (Exception e) {
             log.warn("标记 @提及已读失败: username={}, messageId={}", username, messageId, e);
         }
@@ -408,18 +401,13 @@ public class ChatServiceImpl implements ChatService {
         response.setReplyToId(msg.getReplyToId());
         response.setCreatedAt(msg.getCreatedAt());
 
-        // 构造发送者信息（username/name 来自 JOIN user 表，改昵称后实时生效）
+        // 构造发送者信息（username/name/avatar 均来自 JOIN user 表，改昵称或头像后实时生效）
         MessageResponse.SenderInfo senderInfo = new MessageResponse.SenderInfo();
         senderInfo.setId(msg.getSenderId());
         senderInfo.setUsername(msg.getSenderUsername());
         senderInfo.setName(msg.getSenderName());
-        // 查询发送者头像（走缓存，未命中回源数据库并回填）
-        if (msg.getSenderId() != null) {
-            User sender = cacheService.getUserById(msg.getSenderId());
-            if (sender != null) {
-                senderInfo.setAvatar(sender.getAvatar());
-            }
-        }
+        // 头像随列表查询的 JOIN 一起取回，不再每条消息一次缓存/数据库往返（一页 20 条曾是 20 次）
+        senderInfo.setAvatar(msg.getSenderAvatar());
         response.setSender(senderInfo);
 
         // 构造接收者信息（私聊时，receiver_name 语义为 username）

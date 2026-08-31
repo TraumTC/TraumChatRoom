@@ -54,9 +54,15 @@ public class IdempotentAspect {
         String key = "chat:idempotent:" + username + ":" + idempotent.key() + ":" + requestId;
 
         // 3. SETNX 抢占
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
-                key, "1", Duration.ofSeconds(idempotent.timeout())
-        );
+        Boolean acquired;
+        try {
+            acquired = redisTemplate.opsForValue().setIfAbsent(
+                    key, "1", Duration.ofSeconds(idempotent.timeout())
+            );
+        } catch (Exception e) {
+            log.error("Redis 幂等保护不可用，拒绝请求: key={}", key, e);
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE, "幂等服务暂时不可用", e);
+        }
 
         if (!Boolean.TRUE.equals(acquired)) {
             throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "请勿重复提交，请稍后再试");
@@ -66,7 +72,12 @@ public class IdempotentAspect {
             return joinPoint.proceed();
         } catch (Throwable t) {
             // 4. 业务失败释放防重窗口，允许重试
-            redisTemplate.delete(key);
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception cleanupError) {
+                t.addSuppressed(cleanupError);
+                log.warn("释放幂等 Key 失败: key={}", key, cleanupError);
+            }
             throw t;
         }
     }

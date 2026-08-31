@@ -35,9 +35,22 @@ CREATE TABLE `message` (
     `deleted_at` TIMESTAMP DEFAULT NULL COMMENT '软删除时间',
     FOREIGN KEY (`sender_id`) REFERENCES `user`(`id`) ON DELETE SET NULL,
     -- 索引设计（针对高频查询场景）
-    INDEX `idx_group_chat` (`receiver_id`, `created_at`) COMMENT '群聊历史查询',
-    INDEX `idx_private_chat` (`sender_id`, `receiver_id`, `created_at`) COMMENT '私聊历史查询',
-    INDEX `idx_created_at` (`created_at`) COMMENT '按时间排序'
+    --
+    -- 三条复合索引都把 deleted_at 纳入（所有查询都带 deleted_at IS NULL），
+    -- 且末列用 id 而非 created_at —— 所有历史查询都是 ORDER BY m.id，
+    -- 用 created_at 收尾无法支撑排序。
+    --
+    -- 注意 message 是本项目最热的写表（每条聊天消息一次 INSERT），
+    -- 因此只保留有查询实际使用的索引：
+    -- 不建 reply_to_id 索引 —— 引用回复由前端从已加载消息中解析
+    -- （MessageItem.vue 的 quotedMsg），服务端从无按 reply_to_id 过滤的查询。
+    INDEX `idx_group_history` (`receiver_id`, `deleted_at`, `id`)
+        COMMENT '群聊历史：receiver_id IS NULL + 游标翻页/排序',
+    INDEX `idx_private_history` (`sender_id`, `receiver_id`, `deleted_at`, `id`)
+        COMMENT '私聊历史双向定位 + 会话最新消息ID（并为 sender_id 外键提供索引）',
+    INDEX `idx_unread` (`receiver_id`, `sender_id`, `deleted_at`, `id`)
+        COMMENT '离线未读统计 + 私聊会话对端列表（列序与 idx_private_history 相反，服务反向查询；实测覆盖索引，耗时减半）',
+    INDEX `idx_created_at` (`created_at`) COMMENT '按时间排序（管理端统计）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- friend表  好友关系
@@ -76,7 +89,10 @@ CREATE TABLE `ai_conversation_context` (
     `role` VARCHAR(20) NOT NULL COMMENT '消息角色: user / assistant',
     `content` TEXT NOT NULL COMMENT '消息内容',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX `idx_session_key` (`session_key`) COMMENT '按会话查询上下文'
+    -- (session_key, id) 而非单列 session_key：deleteOld 的子查询是
+    -- WHERE session_key=? ORDER BY id DESC LIMIT n，需要 id 在索引里才能免排序
+    INDEX `idx_session_id` (`session_key`, `id`) COMMENT '按会话查上下文 + 裁剪旧记录',
+    INDEX `idx_ctx_created_at` (`created_at`) COMMENT '定时清理陈旧会话'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- sensitive_word表 敏感词表

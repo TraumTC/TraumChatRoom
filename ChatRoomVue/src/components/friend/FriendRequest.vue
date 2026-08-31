@@ -66,6 +66,7 @@
 </template>
 
 <script setup>
+import { NButton, NModal, NRadioButton, NRadioGroup, NTab, NTabs } from 'naive-ui'
 import { ref, onMounted, nextTick } from 'vue'
 import UserAvatar from '@/components/user/UserAvatar.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'

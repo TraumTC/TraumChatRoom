@@ -160,4 +160,14 @@
         </foreach>
     </select>
 
+    <!-- 按 username 批量查询（在线列表广播用，替代逐个 findByUsername） -->
+    <select id="findByUsernames" resultMap="UserResultMap">
+        SELECT * FROM user
+        WHERE deleted_at IS NULL
+        AND username IN
+        <foreach collection="usernames" item="uname" open="(" separator="," close=")">
+            #{uname}
+        </foreach>
+    </select>
+
 </mapper>

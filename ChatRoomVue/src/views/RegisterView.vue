@@ -67,6 +67,7 @@
 </template>
 
 <script setup>
+import { NAlert, NButton, NForm, NInput } from 'naive-ui'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'

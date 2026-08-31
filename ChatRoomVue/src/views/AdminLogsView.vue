@@ -119,6 +119,7 @@
 </template>
 
 <script setup>
+import { NButton, NDataTable, NDatePicker, NDrawer, NDrawerContent, NInput, NPagination, NSelect, NTag } from 'naive-ui'
 import { ref, reactive, computed, h, onMounted, onBeforeUnmount, watch } from 'vue'
 import { adminApi } from '@/api/admin'
 import { formatTime } from '@/utils/format'

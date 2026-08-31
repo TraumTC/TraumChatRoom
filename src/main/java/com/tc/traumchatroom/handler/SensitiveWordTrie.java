@@ -12,13 +12,18 @@ import java.util.Map;
  * 为什么用 Trie 树？
  * - 普通遍历：O(n*m)，n=文本长度，m=敏感词数量
  * - Trie 树：O(n)，与敏感词数量无关
- * - 支持动态添加/删除敏感词
+ *
+ * 线程模型：**构建期可写，发布后只读**。
+ * 用法固定为「new → 逐词 addWord → 发布引用给读线程」，发布之后不得再调用 addWord。
+ * 词库更新走整棵树重建 + 引用替换，见 SensitiveWordFilter#refresh。
+ *
+ * 因此这里不提供 clear() / setRoot() 之类的整体重置入口：
+ * 它们会原地清掉正在被并发遍历的树，正是 P1-7「刷新期间过滤器完全失效」的成因。
  */
-@Data
 public class SensitiveWordTrie {
 
-    /** 根节点 */
-    private TrieNode root = new TrieNode();
+    /** 根节点（构建完成后不再替换） */
+    private final TrieNode root = new TrieNode();
 
     /**
      * 添加敏感词
@@ -72,13 +77,6 @@ public class SensitiveWordTrie {
             if (current == null) return null;
         }
         return current;
-    }
-
-    /**
-     * 清空所有敏感词
-     */
-    public void clear() {
-        root = new TrieNode();
     }
 
     /**

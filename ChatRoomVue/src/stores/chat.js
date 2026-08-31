@@ -2,6 +2,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { messageApi } from '@/api/message'
+import { useAuthStore } from '@/stores/auth'
+import { SESSION_KEYS, LEGACY_SESSION_KEYS } from '@/utils/session-keys'
+import { registerSessionCleanup } from '@/utils/session-cleanup'
 
 // 私聊数据一律以 username 为 key（name 可重复，username 唯一），防止重名串消息
 export const useChatStore = defineStore('chat', () => {
@@ -12,7 +15,9 @@ export const useChatStore = defineStore('chat', () => {
   const privateTabs = ref([])           // 私聊标签列表 [{ username, name, id }]
   const currentChat = ref({ type: 'group' })  // 当前会话：{type:'group'} 或 {type:'private', username, name, id}
   const unreadCounts = ref({})          // 未读消息计数 { username: count }
-  const loading = ref(false)
+  // 群聊/私聊各自独立的加载标志：共用一个标志时，私聊拉历史会把群聊分页的守卫一起挡掉（反之亦然）
+  const groupLoading = ref(false)
+  const privateLoading = ref(false)
   const error = ref(null)
   const notifications = ref([])         // 通知队列（Toast）
   const mentionNotices = ref([])        // 群聊 @提及未读 [{ senderName, messageId, content, createdAt }]
@@ -25,6 +30,10 @@ export const useChatStore = defineStore('chat', () => {
   const originalTitle = document.title
 
   // 计算属性
+  // loading 语义 = “当前会话是否在加载”，切会话时不会串用另一侧的加载态（骨架屏/顶部 spinner 用它）
+  const loading = computed(() => {
+    return currentChat.value.type === 'private' ? privateLoading.value : groupLoading.value
+  })
   const currentPrivateChat = computed(() => {
     return currentChat.value.type === 'private' ? currentChat.value : null
   })
@@ -36,8 +45,10 @@ export const useChatStore = defineStore('chat', () => {
   })
 
   // ---------- 会话持久化（刷新后自动恢复私聊会话与页签） ----------
-  const TABS_KEY = 'chat:private_tabs'
-  const CHAT_KEY = 'chat:current_chat'
+  // v2：旧版本存在「同一个人被昵称拆成两个页签」的脏数据，升版一次性丢弃旧列表
+  // key 名由 utils/session-keys.js 统一定义，登出清理复用同一份，避免两处漏掉
+  const TABS_KEY = SESSION_KEYS.privateTabs
+  const CHAT_KEY = SESSION_KEYS.currentChat
 
   function clearPersistedSession() {
     try {
@@ -48,10 +59,18 @@ export const useChatStore = defineStore('chat', () => {
 
   // store 初始化时从 localStorage 恢复（仅恢复私聊会话；校验结构避免损坏数据）
   try {
+    LEGACY_SESSION_KEYS.forEach(k => localStorage.removeItem(k))  // 清理旧版脏数据
     const tabsRaw = localStorage.getItem(TABS_KEY)
     if (tabsRaw) {
       const tabs = JSON.parse(tabsRaw)
-      if (Array.isArray(tabs)) privateTabs.value = tabs.filter(t => t && t.username)
+      if (Array.isArray(tabs)) {
+        // 按 username 去重（同一个人只保留第一个页签）
+        const byUsername = new Map()
+        tabs.filter(t => t && t.username).forEach(t => {
+          if (!byUsername.has(t.username)) byUsername.set(t.username, t)
+        })
+        privateTabs.value = [...byUsername.values()]
+      }
     }
     const chatRaw = localStorage.getItem(CHAT_KEY)
     if (chatRaw) {
@@ -95,25 +114,60 @@ export const useChatStore = defineStore('chat', () => {
     if (isPageHidden.value) startTitleFlash()
   }
 
-  // 判断消息是否为自己发出
-  function isMyMessage(msg) {
-    const myId = localStorage.getItem('myId')
-    if (myId) {
-      return msg.sender?.id != null && String(msg.sender.id) === myId
+  // 私聊页签唯一入口：一个 username 只允许一个页签，已存在则原地更新展示信息
+  function upsertPrivateTab({ username, name, id }) {
+    if (!username || username === 'unknown') return  // 无法确定身份时不建页签，避免产生幽灵会话
+    const existing = privateTabs.value.find(t => t.username === username)
+    if (existing) {
+      if (name) existing.name = name
+      if (id != null) existing.id = id
+      return
     }
-    return msg.sender?.name === localStorage.getItem('myName')
+    privateTabs.value.push({ username, name: name || username, id })
+  }
+
+  // 解析对方 username：优先用 username 字段；缺失时按 id 反查已知会话/在线列表，
+  // 避免退化成昵称做 key（昵称可重复，会把同一个人拆成多个会话与页签）
+  function resolveUsername(userLike) {
+    if (!userLike) return null
+    if (userLike.username) return userLike.username
+    if (userLike.id != null) {
+      const fromTab = privateTabs.value.find(t => String(t.id) === String(userLike.id))
+      if (fromTab) return fromTab.username
+      const fromOnline = onlineUsers.value.find(u => String(u.id) === String(userLike.id))
+      if (fromOnline?.username) return fromOnline.username
+    }
+    return userLike.name || null
+  }
+
+  /**
+   * 判断消息是否为自己发出 —— 全项目唯一的归属判断入口。
+   *
+   * 身份只认 authStore.user。早期版本另在 localStorage 存了一份 myId/myName，
+   * 与这里构成两个数据源：一旦不一致，同一条消息会在渲染层算「别人的」、
+   * 在归档层算「我的」。而下面 addPrivateMessage 用这个结果决定消息归到哪个会话
+   * （other = isMyMsg ? receiver : sender），判断反了会把自己发出的消息
+   * 归档成「和自己的私聊」，并连带影响临时消息替换与未读计数。
+   *
+   * 优先比 id。游客没有 id（不入库，见 AuthServiceImpl.loginAsGuest）时退回比
+   * username —— 不能比 name：昵称可重复，重名用户会互相误判（同见下方 resolveUsername）。
+   */
+  function isMyMessage(msg) {
+    const me = useAuthStore().user
+    if (!me || !msg?.sender) return false
+    if (me.id != null && msg.sender.id != null) {
+      return String(msg.sender.id) === String(me.id)
+    }
+    return !!me.username && msg.sender.username === me.username
   }
 
   // 添加私聊消息（以 username 为 key 去重）
   function addPrivateMessage(msg) {
     const isMyMsg = isMyMessage(msg)
-    // 对方 username：优先取后端返回的 username 字段（name 是昵称，可能与 username 不同）
-    const otherUsername = isMyMsg
-      ? (msg.receiver?.username || msg.receiver?.name || 'unknown')
-      : (msg.sender?.username || msg.sender?.name || 'unknown')
-    const otherName = isMyMsg
-      ? (msg.receiver?.name || otherUsername)
-      : (msg.sender?.name || otherUsername)
+    // 对方 username：统一走 resolveUsername（name 是昵称，可能与 username 不同且可重复）
+    const other = isMyMsg ? msg.receiver : msg.sender
+    const otherUsername = resolveUsername(other) || 'unknown'
+    const otherName = other?.name || otherUsername
 
     const isCurrent = currentChat.value.type === 'private'
       && currentChat.value.username === otherUsername
@@ -165,9 +219,9 @@ export const useChatStore = defineStore('chat', () => {
       if (isPageHidden.value) startTitleFlash()
     }
 
-    // 自动打开私聊标签
-    if (!isCurrent && !isMyMsg && !privateTabs.value.some(t => t.username === otherUsername)) {
-      privateTabs.value.push({ username: otherUsername, name: otherName, id: msg.sender?.id })
+    // 自动打开私聊标签（upsert 保证同一 username 只有一个页签）
+    if (!isCurrent && !isMyMsg) {
+      upsertPrivateTab({ username: otherUsername, name: otherName, id: msg.sender?.id })
     }
   }
 
@@ -232,20 +286,17 @@ export const useChatStore = defineStore('chat', () => {
   // 打开私聊（入参统一 { username, name, id }）
   // 打开会话即视为已读：清除本地未读；若该会话此前有未读，则异步推进后端已读游标
   function openPrivateChat(user) {
-    const username = user.username || user.name
+    const username = resolveUsername(user)
+    if (!username) return  // 身份不明时不切换会话，避免写入损坏的会话状态
     const name = user.name || username
     // 在清除本地未读之前记录是否有未读，决定是否推进后端游标（小优化：无未读不发请求）
-    const hadUnread = !!username && ((unreadCounts.value[username] || 0) > 0 || !!privateUnreadSenders.value[username])
+    const hadUnread = (unreadCounts.value[username] || 0) > 0 || !!privateUnreadSenders.value[username]
     currentChat.value = { type: 'private', username, name, id: user.id }
-    if (username) {
-      if (!privateTabs.value.some(t => t.username === username)) {
-        privateTabs.value.push({ username, name, id: user.id })
-      }
-      unreadCounts.value[username] = 0  // 清除未读
-      delete privateUnreadSenders.value[username]  // 清除红点
-      if (hadUnread) {
-        messageApi.markRead(username).catch(() => {})
-      }
+    upsertPrivateTab({ username, name, id: user.id })
+    unreadCounts.value[username] = 0  // 清除未读
+    delete privateUnreadSenders.value[username]  // 清除红点
+    if (hadUnread) {
+      messageApi.markRead(username).catch(() => {})
     }
   }
 
@@ -313,6 +364,40 @@ export const useChatStore = defineStore('chat', () => {
     clearPersistedSession()
   }
 
+  /**
+   * 登出时的彻底重置：把 store 恢复到「刚打开应用」的状态。
+   *
+   * 与 clearMessages() 的区别很关键 —— clearMessages 只清消息，
+   * privateTabs / currentChat 等仍留在内存里。而 SPA 登出走 router.replace 不重载页面，
+   * Pinia store 会活过登出，所以下一个登录者能看到上一个人的私聊页签；
+   * 更隐蔽的是 watch(privateTabs) 会在下次变更时把旧页签重新写回 localStorage，
+   * 光删 localStorage 根本删不掉。因此这里必须逐项复位内存状态。
+   */
+  function resetAll() {
+    messages.value = []
+    onlineUsers.value = []
+    privateMessages.value = {}
+    privateTabs.value = []
+    currentChat.value = { type: 'group' }
+    unreadCounts.value = {}
+    privateUnreadSenders.value = {}
+    unreadBaseIds.value = {}
+    groupLoading.value = false
+    privateLoading.value = false
+    error.value = null
+    notifications.value = []
+    mentionNotices.value = []
+    replyTo.value = null
+    friendRequestCount.value = 0
+    friendListVersion.value = 0
+    isPageHidden.value = false
+    stopTitleFlash()          // 恢复原始标题，避免带着上一个会话的闪烁状态
+    clearPersistedSession()
+  }
+
+  // 注册到会话清理表：authStore.logout() 与 401 拦截器触发时自动复位
+  registerSessionCleanup(resetAll)
+
   // 群聊 @提及未读计数
   const mentionUnreadCount = computed(() => mentionNotices.value.length)
 
@@ -374,7 +459,8 @@ export const useChatStore = defineStore('chat', () => {
     document.title = originalTitle
   }
 
-  function setLoading(val) { loading.value = val }
+  function setGroupLoading(val) { groupLoading.value = val }
+  function setPrivateLoading(val) { privateLoading.value = val }
   function setError(msg) { error.value = msg }
   function setPageHidden(val) {
     isPageHidden.value = val
@@ -383,13 +469,14 @@ export const useChatStore = defineStore('chat', () => {
 
   return { messages, onlineUsers, privateMessages, privateTabs,
            currentChat, currentPrivateChat, unreadCounts, privateUnreadSenders,
-           totalUnread, totalPrivateUnread, loading, error, notifications, mentionNotices, mentionUnreadCount, replyTo, friendRequestCount, friendListVersion,
+           totalUnread, totalPrivateUnread, loading, groupLoading, privateLoading, error, notifications, mentionNotices, mentionUnreadCount, replyTo, friendRequestCount, friendListVersion,
            addMessage, addPrivateMessage, updateMessage,
            handleMessageRecalled, setOnlineUsers,
            openGroupChat, openPrivateChat, closePrivateTab,
-           setPrivateMessages, clearMessages, addNotification,
+           setPrivateMessages, clearMessages, resetAll, addNotification,
+           isMyMessage,
            addMentionNotice, mergeMentions, clearMentions, removeMention,
-           setLoading, setError, setPageHidden,
+           setGroupLoading, setPrivateLoading, setError, setPageHidden,
            setReplyTo, clearReplyTo,
            setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,
            mergeUnreadSummary, removePendingMessage,

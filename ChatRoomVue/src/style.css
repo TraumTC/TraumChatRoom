@@ -490,6 +490,17 @@ button:not(.n-button):not([class*="n-"]):focus-visible {
    自定义工具层（Tailwind @layer utilities）
    ============================================================ */
 @layer utilities {
+  /* 间距工具补全：模板中多处使用 Ndot5 命名（等价于 Tailwind 的 .5 档），
+     但此前从未定义，导致这些间距实际为 0（气泡拥挤、头像贴着气泡的根因）。
+     此处按标准取值补齐，恢复应有间距。 */
+  .mb-0dot5  { margin-bottom: 0.125rem; }                              /* = mb-0.5 */
+  .gap-1dot5 { gap: 0.375rem; }                                       /* = gap-1.5 */
+  .gap-2dot5 { gap: 0.625rem; }                                       /* = gap-2.5 */
+  .px-2dot5  { padding-left: 0.625rem; padding-right: 0.625rem; }     /* = px-2.5 */
+  .py-1dot5  { padding-top: 0.375rem; padding-bottom: 0.375rem; }     /* = py-1.5 */
+  /* 消息行垂直间距：单独放大，让相邻气泡之间留出约 20px 呼吸感 */
+  .py-2dot5  { padding-top: 0.625rem; padding-bottom: 0.625rem; }     /* = py-2.5 */
+
   /* 消息入场：轻上浮淡入 */
   @keyframes signalPulse {
     0%   { opacity: 0; transform: translateY(6px); }

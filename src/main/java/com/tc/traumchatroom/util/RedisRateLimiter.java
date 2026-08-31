@@ -4,6 +4,9 @@ import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
+import com.tc.traumchatroom.exception.BusinessException;
+import com.tc.traumchatroom.exception.ErrorCode;
 
 import java.util.List;
 
@@ -16,11 +19,18 @@ import java.util.List;
  * - key 存在 → INCR；若 INCR 后 == 1 则补设 TTL（防止并发下首计数丢失过期）
  * 全部操作由 Lua 原子完成，避免 get+increment+expire 竞态。
  */
+@Slf4j
 @Component
 public class RedisRateLimiter {
 
-    /** 原子计数 + 过期 Lua（窗口单位：秒） */
-    private static final String RATE_LIMIT_LUA =
+    /**
+     * 原子计数 + 过期 Lua（窗口单位：秒）
+     *
+     * 提为静态常量：DefaultRedisScript 会缓存脚本 SHA1，复用同一实例才能走 EVALSHA；
+     * 每次调用 new 一个等于每次重算 SHA1、并让 Redis 侧的脚本缓存失去意义。
+     * 写法与 RefreshTokenStore / OnlineUserServiceImpl 保持一致。
+     */
+    private static final DefaultRedisScript<Long> RATE_LIMIT_SCRIPT = new DefaultRedisScript<>(
             "local cur = redis.call('GET', KEYS[1]) " +
             "if cur == false then " +
             "  redis.call('SET', KEYS[1], 1, 'EX', tonumber(ARGV[1])) " +
@@ -30,7 +40,7 @@ public class RedisRateLimiter {
             "if n == 1 then " +
             "  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) " +
             "end " +
-            "return n";
+            "return n", Long.class);
 
     @Resource
     private RedisTemplate<String, String> redisTemplate;
@@ -44,12 +54,17 @@ public class RedisRateLimiter {
      * @return true 允许放行；false 超限
      */
     public boolean tryAcquire(String key, int maxRequests, long windowSeconds) {
-        Long count = redisTemplate.execute(
-                new DefaultRedisScript<>(RATE_LIMIT_LUA, Long.class),
-                List.of(key),
-                String.valueOf(windowSeconds)
-        );
-        long current = count != null ? count : 1;
-        return current <= maxRequests;
+        try {
+            Long count = redisTemplate.execute(
+                    RATE_LIMIT_SCRIPT,
+                    List.of(key),
+                    String.valueOf(windowSeconds)
+            );
+            long current = count != null ? count : maxRequests + 1L;
+            return current <= maxRequests;
+        } catch (Exception e) {
+            log.error("Redis 限流不可用，拒绝请求: key={}", key, e);
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE, "限流服务暂时不可用", e);
+        }
     }
 }
