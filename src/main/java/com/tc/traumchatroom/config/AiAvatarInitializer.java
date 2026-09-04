@@ -35,7 +35,7 @@ import java.nio.file.Paths;
 @Component
 public class AiAvatarInitializer implements ApplicationRunner {
 
-    private static final String AI_USERNAME = "ai_xiaoai";
+    private static final String AI_USERNAME = "ai_XiaoTang";
     private static final String DOWNLOAD_PREFIX = "/api/file/download/";
 
     @Resource

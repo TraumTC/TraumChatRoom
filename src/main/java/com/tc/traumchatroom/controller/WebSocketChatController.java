@@ -121,13 +121,37 @@ public class WebSocketChatController {
     private static final String AI_NICKNAME = "小汤";
 
     /**
-     * 消息发送限流（Redis 原子计数，每用户每分钟最多 sendMaxPerMinute 条，读配置 chat.rate-limit.send-max-per-minute）
+     * 消息发送限流（Redis 原子计数，每主体每分钟最多 sendMaxPerMinute 条，
+     * 读配置 chat.rate-limit.send-max-per-minute）
+     *
+     * 注册用户按 username 计数；游客按来源 IP 计数。
+     *
+     * 游客不能按 username 算：游客不入库，每次调 /api/auth/guest 都会拿到一个全新的
+     * guest_xxx 名字（GuestNameUtil），按 username 计数等于「刷号即重置配额」——
+     * 一个 IP 刷 N 个游客就是 N × sendMaxPerMinute 条/分钟的刷屏能力，这条限流形同虚设。
+     * 改按 IP 后，攻击者手里攥多少个游客 token 都封在同一个桶里。
+     *
+     * （游客建号本身另有 /api/auth/guest 的 IP 限流兜住 token 与 Redis key 增长。）
+     *
+     * IP 取不到时退化为 "unknown" 共用一个桶：宁可让少数拿不到 IP 的游客互相挤配额，
+     * 也不能退回按 username —— 那等于给刷号者开了免限流的后门。
+     *
      * @return true 允许发送；false 超限
      */
-    private boolean allowSend(String username) {
-        String key = "chat:send:rate:" + username;
+    private boolean allowSend(String username,
+                              org.springframework.messaging.simp.stomp.StompHeaderAccessor accessor) {
+        boolean isGuest = username.startsWith("guest_");
+        String subject;
+        if (isGuest) {
+            String ip = resolveClientIp(accessor);
+            subject = "ip:" + (ip != null && !ip.isBlank() ? ip : "unknown");
+        } else {
+            subject = username;
+        }
+
+        String key = "chat:send:rate:" + subject;
         if (!redisRateLimiter.tryAcquire(key, chatRateLimitConfig.getSendMaxPerMinute(), 60)) {
-            log.warn("用户 {} 发送消息超限，拦截", username);
+            log.warn("发送消息超限，拦截: username={}, subject={}", username, subject);
             return false;
         }
         return true;
@@ -146,8 +170,8 @@ public class WebSocketChatController {
         String username = principal.getName();
         String clientId = payload.get("clientId");
 
-        // 发送频率限流（每用户每分钟 30 条）
-        if (!allowSend(username)) {
+        // 发送频率限流（注册用户按 username，游客按来源 IP）
+        if (!allowSend(username, accessor)) {
             messagingTemplate.convertAndSendToUser(
                     username, "/queue/send-error",
                     Map.of("type", "send_error", "message", "消息发送过于频繁，请稍后再试")
@@ -389,8 +413,8 @@ public class WebSocketChatController {
         log.info("私聊消息请求: sender={}, receiver={}, clientId={}, content长度={}",
                 senderUsername, receiverUsername, clientId, content != null ? content.length() : 0);
 
-        // 发送频率限流（每用户每分钟 30 条）
-        if (!allowSend(senderUsername)) {
+        // 发送频率限流（私聊下方会拒绝游客，此处主体实际恒为 username）
+        if (!allowSend(senderUsername, accessor)) {
             log.warn("私聊被限流: sender={}", senderUsername);
             sendError(senderUsername, clientId, "消息发送过于频繁，请稍后再试", null);
             return;
