@@ -106,9 +106,34 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 在数组里找到与真实消息对应的「上传中占位」。
+   *
+   * 上传占位和普通文本临时消息不能共用一套匹配规则：
+   * 文本走的是「5 秒内 + 同收发方」的时间窗，而一次文件上传可能远超 5 秒，
+   * 窗口一过就匹配不上，于是 WS 推送先到时会出现「占位 + 真实消息」并存的闪现。
+   * 文件消息有 fileName 这个稳定标识，直接按它匹配，不依赖时间。
+   */
+  function findUploadPlaceholder(arr, msg) {
+    if (!msg?.fileName) return -1
+    return arr.findIndex(m =>
+      m.id < 0 && m._uploading &&
+      m.messageType === msg.messageType &&
+      m.fileName === msg.fileName
+    )
+  }
+
   // 添加群聊消息（去重）
   function addMessage(msg) {
     if (messages.value.some(m => m.id === msg.id)) return
+    // 自己刚上传的文件：WS 推送先到时就地顶替占位，避免占位与真实消息并存的闪现
+    if (msg.id > 0 && isMyMessage(msg)) {
+      const upIdx = findUploadPlaceholder(messages.value, msg)
+      if (upIdx >= 0) {
+        messages.value.splice(upIdx, 1, msg)
+        return
+      }
+    }
     messages.value.push(msg)
     // 页面隐藏时标题闪烁
     if (isPageHidden.value) startTitleFlash()
@@ -184,10 +209,19 @@ export const useChatStore = defineStore('chat', () => {
 
     // 后端回传的真实消息（正 ID）替换对应的临时消息（负 ID）
     if (msg.id > 0 && isMyMsg) {
+      // 文件/图片：先按 fileName 顶替上传占位（不受 5 秒时间窗限制，见 findUploadPlaceholder）
+      const upIdx = findUploadPlaceholder(arr, msg)
+      if (upIdx >= 0) {
+        arr.splice(upIdx, 1, msg)
+        return
+      }
       // 查找最近 5 秒内创建的临时消息，按时间倒序替换（支持敏感词替换导致 content 变化）
+      // messageType 必须相同：否则一条文本回传会把正在上传的图片/文件占位顶掉
+      // （文件上传耗时可能远超一条文本的往返，两种临时消息完全可能并存）
       const now = Date.now()
       const tempIdx = arr.findIndex(m =>
         m.id < 0 &&
+        m.messageType === msg.messageType &&
         m.sender?.name === msg.sender?.name &&
         m.receiver?.username === msg.receiver?.username &&
         m._tempCreatedAt && (now - m._tempCreatedAt) < 5000
@@ -339,8 +373,14 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 移除发送失败的本地乐观更新临时消息（负数 id，由 send-error 携带 clientId 精确定位）
+  // 群聊桶也一起扫：文件上传的占位消息在群聊里也会存在
   function removePendingMessage(clientId) {
     if (!clientId) return
+    const groupIdx = messages.value.findIndex(m => m.id < 0 && m._clientId === clientId)
+    if (groupIdx >= 0) {
+      messages.value.splice(groupIdx, 1)
+      return
+    }
     for (const chat of Object.values(privateMessages.value)) {
       const idx = chat.findIndex(m => m.id < 0 && m._clientId === clientId)
       if (idx >= 0) {
@@ -348,6 +388,35 @@ export const useChatStore = defineStore('chat', () => {
         return
       }
     }
+  }
+
+  /**
+   * 更新上传占位消息的进度（0-100）。找不到就静默返回 —— 占位可能已被
+   * settleUpload / removePendingMessage 摘掉（WS 推送先到的情况）。
+   */
+  function updateUploadProgress(clientId, progress) {
+    if (!clientId) return
+    const target = messages.value.find(m => m.id < 0 && m._clientId === clientId)
+      || Object.values(privateMessages.value)
+          .map(chat => chat.find(m => m.id < 0 && m._clientId === clientId))
+          .find(Boolean)
+    if (target) target._progress = progress
+  }
+
+  /**
+   * 上传完成：用后端返回的真实消息取代占位。
+   *
+   * 实现成「先摘占位、再按 id 去重插入」而不是原地 splice 替换，是为了兼容两种到达顺序：
+   * - HTTP 响应先到：摘掉占位 → 插入真实消息；随后 WS 推同一条 → addXxx 按 id 去重丢弃
+   * - WS 推送先到：它已经把真实消息插进数组了（占位因 messageType 相同也可能已被顶替），
+   *   此时摘占位是空操作，插入又被 id 去重挡住 → 不会出现两条
+   * 原地替换在第二种顺序下会让同一条消息出现两次。
+   */
+  function settleUpload(clientId, realMsg) {
+    removePendingMessage(clientId)
+    if (!realMsg) return
+    if (realMsg.receiver) addPrivateMessage(realMsg)
+    else addMessage(realMsg)
   }
 
   // 加载私聊历史到 store（key = username）
@@ -480,6 +549,7 @@ export const useChatStore = defineStore('chat', () => {
            setReplyTo, clearReplyTo,
            setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,
            mergeUnreadSummary, removePendingMessage,
+           updateUploadProgress, settleUpload,
            clearCurrentUnread, resetSessionState,
            startTitleFlash, stopTitleFlash }
 })

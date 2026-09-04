@@ -37,6 +37,26 @@
         {{ message.content }}
       </div>
 
+      <!-- 上传中占位：文件已选定、尚未落库，显示文件信息 + 实时进度。
+           不做本地 blob 预览：objectURL 需要配对 revoke，而占位被替换的时机有多条路径
+           （HTTP 响应 / WS 推送 / 失败回滚），漏一条就是内存泄漏。统一卡片形态更稳。 -->
+      <div v-else-if="message._uploading"
+           class="rounded-lg px-3 py-2dot5 w-[220px] max-w-[75vw]"
+           style="background: var(--color-card); border: 1px solid var(--color-border)">
+        <div class="flex items-center gap-2 text-sm min-w-0" style="color: var(--color-ink)">
+          <AppIcon name="paperclip" :size="15" style="color: var(--color-signal)" class="shrink-0" />
+          <span class="truncate min-w-0 break-all">{{ message.fileName }}</span>
+        </div>
+        <div class="mt-2 h-1 rounded-full overflow-hidden" style="background: var(--color-hover)">
+          <div class="h-full rounded-full upload-bar"
+               :style="{ width: (message._progress || 0) + '%', background: 'var(--color-signal)' }"></div>
+        </div>
+        <div class="mt-1 flex items-center justify-between text-xs" style="color: var(--color-ink-faint)">
+          <span>上传中 {{ message._progress || 0 }}%</span>
+          <span class="tabular">{{ formatFileSize(message.fileSize) }}</span>
+        </div>
+      </div>
+
       <!-- 文本消息 -->
       <div v-else-if="message.messageType === 'text'"
            class="rounded-lg px-3 py-2 break-words text-sm max-w-[75vw] sm:max-w-[480px]"
@@ -175,6 +195,8 @@ const menuStyle = computed(() => {
 })
 
 function openMenu(e) {
+  // 上传中的占位消息还没有真实 id / 下载地址，引用、下载、撤回都无从执行
+  if (props.message._uploading) return
   menuX.value = e.clientX
   menuY.value = e.clientY
   menuVisible.value = true
@@ -187,6 +209,7 @@ let suppressImageClick = false
 
 function onTouchStart(e) {
   if (e.touches.length !== 1) return
+  if (props.message._uploading) return   // 同 openMenu：占位消息没有可执行的菜单项
   const t = e.touches[0]
   touchStartPos = { x: t.clientX, y: t.clientY }
   longPressTimer = setTimeout(() => {
@@ -313,5 +336,9 @@ function isVideo(fileName) {
   color: var(--color-ink);
   border: 1px solid var(--color-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+/* 上传进度条：宽度过渡，避免大文件分块回调时进度一格一格跳 */
+.upload-bar {
+  transition: width 0.2s ease;
 }
 </style>

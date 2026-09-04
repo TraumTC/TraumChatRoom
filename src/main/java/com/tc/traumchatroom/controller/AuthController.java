@@ -6,6 +6,7 @@ import com.tc.traumchatroom.dto.response.LoginResponse;
 import com.tc.traumchatroom.dto.response.Result;
 import com.tc.traumchatroom.dto.response.UserResponse;
 import com.tc.traumchatroom.service.AuthService;
+import com.tc.traumchatroom.util.IpUtil;
 import com.tc.traumchatroom.util.JwtUtil;
 import com.tc.traumchatroom.annotation.LogOperation;
 import jakarta.annotation.Resource;
@@ -60,7 +61,7 @@ public class AuthController {
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request,
                                        HttpServletRequest httpRequest,
                                        HttpServletResponse httpResponse) {
-        String clientIp = getClientIp(httpRequest);
+        String clientIp = IpUtil.fromHttp(httpRequest);
         LoginResponse response = authService.login(request, clientIp);
         writeRefreshCookie(httpResponse, response);
         return Result.success(response);
@@ -118,7 +119,7 @@ public class AuthController {
     @PostMapping("/guest")
     public Result<LoginResponse> guest(HttpServletRequest request, HttpServletResponse httpResponse) {
         String userAgent = request.getHeader("User-Agent");
-        String clientIp = getClientIp(request);
+        String clientIp = IpUtil.fromHttp(request);
         LoginResponse response = authService.loginAsGuest(userAgent, clientIp);
         writeRefreshCookie(httpResponse, response);
         return Result.success(response);
@@ -155,16 +156,5 @@ public class AuthController {
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
-    }
-
-    /**
-     * 获取客户端真实 IP（支持反向代理 X-Forwarded-For）
-     */
-    private String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

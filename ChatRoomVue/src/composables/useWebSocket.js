@@ -25,12 +25,14 @@ export function useWebSocket() {
     // 已有实例但断开 → 重新激活
     if (stompClient && !stompClient.connected) {
       wsStore.connecting = true
+      wsStore.authExpired = false
       stompClient.activate()
       return
     }
 
     // 首次连接
     wsStore.connecting = true
+    wsStore.authExpired = false
 
     const token = authStore.accessToken
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
@@ -43,19 +45,34 @@ export function useWebSocket() {
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
       reconnectDelay: 5000,
-      maxReconnectAttempts: 10,
       // 每次连接（含重连）前刷新 token，避免复用旧凭据导致连接失败
       beforeConnect: async () => {
         // accessToken 仅 30 分钟且仅在内存中；每次首连/重连前用 HttpOnly Cookie 换取新 Token
-        await authStore.refresh()
+        const refreshed = await authStore.refresh()
         const current = authStore.accessToken
-        stompClient.connectHeaders = current ? { Authorization: `Bearer ${current}` } : {}
+
+        if (!current) {
+          // 刷新失败且内存里也没有可用 token → 只能匿名建连，而后端已拒绝匿名连接
+          // （见 WebSocketConfig 的 CONNECT 鉴权）。这里直接放弃：stompjs 默认会按
+          // reconnectDelay 无限重连，每轮都空打一次 /api/auth/refresh，形成刷新风暴。
+          abortForAuth()
+          return
+        }
+
+        // 刷新失败但旧 token 还在内存里：它可能仍然有效（刷新失败也可能只是网络抖动），
+        // 照旧带上去让后端判定。真的失效会收到 UNAUTHORIZED 的 ERROR 帧，由 onStompError 收尾。
+        if (!refreshed) {
+          console.warn('Token 刷新失败，尝试用现有 Token 建立 WebSocket 连接')
+        }
+        stompClient.connectHeaders = { Authorization: `Bearer ${current}` }
       },
 
       onConnect: () => {
         console.log('WebSocket 已连接')
         wsStore.connected = true
         wsStore.connecting = false
+        wsStore.error = null
+        wsStore.authExpired = false
         wsStore.reconnectCount = 0
         subscribeAll()
         syncState()
@@ -67,9 +84,16 @@ export function useWebSocket() {
       },
 
       onStompError: (frame) => {
-        console.error('STOMP 错误:', frame.headers['message'])
-        wsStore.error = frame.headers['message']
+        const detail = frame.headers['message'] || ''
+        console.error('STOMP 错误:', detail)
+        wsStore.error = detail
         wsStore.connecting = false
+        // 后端明确拒绝了凭据（WebSocketConfig.UNAUTHORIZED_MESSAGE）。服务端在发出 ERROR 帧后
+        // 会关闭连接，stompjs 默认 reconnectDelay 后再连 —— 而凭据问题重连必然再次被拒，
+        // 于是变成 5 秒一次的死循环。这里主动终止，交由用户重新登录。
+        if (detail.includes('UNAUTHORIZED')) {
+          abortForAuth()
+        }
       },
 
       onWebSocketError: (e) => {
@@ -175,6 +199,10 @@ export function useWebSocket() {
         title: isBlocked ? '消息被拦截' : '发送失败',
         content: data.message || '发送失败，请稍后重试',
         positiveText: '我知道了',
+        // 纯告知类弹窗只有一个「我知道了」，是收到即关，不是危险确认 ——
+        // naive-ui 默认按 type 给按钮上色（warning → 琥珀色），在全站蓝色主色里很扎眼。
+        // positiveButtonProps 在 Dialog 内部于 type 之后合并，因此这里能覆盖掉它。
+        positiveButtonProps: { type: 'primary' }
       })
     })
   }
@@ -274,6 +302,23 @@ export function useWebSocket() {
   // 断开连接
   function disconnect() {
     teardownConnection()
+  }
+
+  /**
+   * 凭据失效：拆掉连接、停止自动重连，并把状态显式标出来供 UI 提示。
+   *
+   * 复用 teardownConnection —— 与登出/被踢走同一套拆连接逻辑（清心跳定时器 +
+   * deactivate + 复位 connected/connecting），不再另写一份。
+   *
+   * 这里不做路由跳转：useWebSocket 静态引入 router 会把它拉进
+   * api/index ↔ router ↔ stores/auth 的循环依赖（见 fetchMentionUnread 处的说明）。
+   * 用户下一次触发任意 API 请求时，401 拦截器会完成清理与跳转。
+   */
+  function abortForAuth() {
+    teardownConnection()
+    wsStore.authExpired = true
+    wsStore.error = '登录状态已失效，请重新登录'
+    window.$message?.warning('登录状态已失效，请重新登录')
   }
 
   return { connect, disconnect, sendGroupMessage, sendPrivateMessage, sendHeartbeat, syncState }

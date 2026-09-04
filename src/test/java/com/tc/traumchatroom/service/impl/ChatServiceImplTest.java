@@ -22,7 +22,11 @@ import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +35,8 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class ChatServiceImplTest {
+
+    private static final String RECALL_QUEUE = "/queue/message-recalled";
 
     @Mock
     private MessageMapper messageMapper;
@@ -179,5 +185,62 @@ class ChatServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ---------- 私聊撤回的通知推送对象（P1-15 回归） ----------
+
+    /** 私聊消息：sender → receiver（receiver_name 语义为 username） */
+    private Message privateMessage(Long id, Integer senderId, String senderName,
+                                   Integer receiverId, String receiverUsername) {
+        Message m = message(id, senderId, senderName, LocalDateTime.now().minusMinutes(1));
+        m.setReceiverId(receiverId);
+        m.setReceiverName(receiverUsername);
+        return m;
+    }
+
+    @Test
+    void adminRecallOfPrivateMessageAlsoNotifiesOriginalSender() {
+        // 管理员 a 撤回 b 发给 c 的私聊。原实现只推「接收者 c + 操作者 a」，
+        // 原发送者 b 收不到通知，其界面仍显示已被撤回的原文。
+        when(messageMapper.findById(1L)).thenReturn(privateMessage(1L, 2, "b昵称", 3, "c"));
+        when(userMapper.findById(2)).thenReturn(user(2, "b"));
+
+        chatService.recallMessage(1L, "a", "ROLE_ADMIN");
+
+        verify(messagingTemplate).convertAndSendToUser(eq("c"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate).convertAndSendToUser(eq("b"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate).convertAndSendToUser(eq("a"), eq(RECALL_QUEUE), any());
+        // 三个互不相同的目标，不多不少
+        verify(messagingTemplate, times(3))
+                .convertAndSendToUser(anyString(), anyString(), any());
+    }
+
+    @Test
+    void selfRecallOfPrivateMessageDoesNotPushTwiceToSelf() {
+        // a（id=1）撤回自己发给 c 的私聊：发送者与操作者是同一人，去重后只推 2 次
+        when(messageMapper.findById(1L)).thenReturn(privateMessage(1L, 1, "a昵称", 3, "c"));
+        when(userMapper.findById(1)).thenReturn(user(1, "a"));
+
+        chatService.recallMessage(1L, "a", "ROLE_USER");
+
+        verify(messagingTemplate).convertAndSendToUser(eq("c"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate).convertAndSendToUser(eq("a"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate, times(2))
+                .convertAndSendToUser(anyString(), anyString(), any());
+    }
+
+    @Test
+    void privateRecallSkipsSenderWhenSenderSoftDeleted() {
+        // 发送者已被软删除：findById 带 deleted_at IS NULL 返回 null，
+        // 不能因此 NPE，只是推不到该发送者
+        when(messageMapper.findById(1L)).thenReturn(privateMessage(1L, 2, "b昵称", 3, "c"));
+        when(userMapper.findById(2)).thenReturn(null);
+
+        chatService.recallMessage(1L, "a", "ROLE_ADMIN");
+
+        verify(messagingTemplate).convertAndSendToUser(eq("c"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate).convertAndSendToUser(eq("a"), eq(RECALL_QUEUE), any());
+        verify(messagingTemplate, times(2))
+                .convertAndSendToUser(anyString(), anyString(), any());
     }
 }

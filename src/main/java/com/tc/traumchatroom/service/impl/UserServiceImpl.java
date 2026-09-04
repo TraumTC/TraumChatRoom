@@ -194,18 +194,18 @@ public class UserServiceImpl implements UserService {
         // 4. 读取图片：先验 header 尺寸，再降采样解码（防解压炸弹，见 readAvatarImage）
         BufferedImage sourceImage = readAvatarImage(file);
 
-        // 5. 删除旧头像文件（如果有）
-        if (StringUtils.hasText(user.getAvatar())) {
-            deleteFile(user.getAvatar());
-        }
-
-        // 6. 生成文件名（带 userId 前缀，方便运维排查）
+        // 5. 生成文件名（带 userId 前缀，方便运维排查）
         String newFileName = "avatar_" + user.getId() + "_" + System.currentTimeMillis() +
                 "_" + UUID.randomUUID().toString().substring(0, 8) + ".jpg";
         String avatarDir = Paths.get(uploadDir, "avatars").toString() + File.separator;
         String filePath = avatarDir + newFileName;
 
-        // 7. 服务端压缩：居中裁剪为 256x256 JPEG
+        // 6. 服务端压缩：居中裁剪为 256x256 JPEG
+        //
+        // 顺序要求：先写新文件，成功后才删旧文件。
+        // 原实现是「先删旧、再写新」—— mkdirs / ImageIO.write 失败时（磁盘满、目录不可写、
+        // 权限问题）旧图已经没了而 DB 仍指向它，用户头像永久 404 且无法自愈。
+        // 反过来则最坏只是留下一个孤儿文件，界面始终有可用头像。
         try {
             File dest = new File(filePath);
             dest.getParentFile().mkdirs();
@@ -215,9 +215,16 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "头像保存失败");
         }
 
-        // 8. 更新数据库
+        // 7. 更新数据库（指向新文件后，旧文件才真正无人引用）
         String avatarUrl = "/api/file/download/avatars/" + newFileName;
         userMapper.updateAvatar(user.getId(), avatarUrl);
+
+        // 8. 删除旧头像文件。
+        // 放在 DB 更新之后：删除失败只会留下孤儿文件，不会让 DB 指向不存在的文件。
+        String previousAvatar = user.getAvatar();
+        if (StringUtils.hasText(previousAvatar)) {
+            deleteFile(previousAvatar);
+        }
 
         // 9. 失效用户缓存，保证头像更新立即生效
         cacheService.evictUser(user.getId());

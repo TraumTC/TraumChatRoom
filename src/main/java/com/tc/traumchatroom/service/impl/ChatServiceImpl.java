@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -214,9 +215,19 @@ public class ChatServiceImpl implements ChatService {
         );
 
         if (message.getReceiverId() != null) {
-            // 私聊：推送给接收者和发送者
-            messagingTemplate.convertAndSendToUser(message.getReceiverName(), "/queue/message-recalled", recallNotice);
-            messagingTemplate.convertAndSendToUser(currentUsername, "/queue/message-recalled", recallNotice);
+            // 私聊：推送给会话双方 + 操作者。
+            // 原实现只推「接收者 + 操作者」—— 管理员代撤他人私聊时，
+            // 原发送者不在推送列表里，界面不会更新，仍显示已被撤回的原文。
+            // 用 LinkedHashSet 去重：自己撤自己的消息时 senderUsername == currentUsername，
+            // 否则会重复推一条，前端要处理重复通知。
+            Set<String> targets = new LinkedHashSet<>();
+            if (message.getReceiverName() != null) targets.add(message.getReceiverName());
+            String senderUsername = resolveSenderUsername(message);
+            if (senderUsername != null) targets.add(senderUsername);
+            targets.add(currentUsername);
+            for (String target : targets) {
+                messagingTemplate.convertAndSendToUser(target, "/queue/message-recalled", recallNotice);
+            }
         } else {
             // 群聊：广播给所有人
             messagingTemplate.convertAndSend("/topic/messages", recallNotice);
@@ -225,6 +236,22 @@ public class ChatServiceImpl implements ChatService {
         }
 
         log.info("用户 {} 撤回消息 {}", currentUsername, messageId);
+    }
+
+    /**
+     * 取消息发送者的 username（撤回通知的推送目标之一）。
+     *
+     * 不能直接读 {@code message.getSenderUsername()}：那是列表查询里 JOIN user 得来的非表列，
+     * 而 recallMessage 走的是 {@code findById}（SELECT *），该字段必然为 null。
+     *
+     * 返回 null 的两种情况，都按「无法推送给发送者」处理，不影响撤回主流程：
+     * - senderId 为空（游客发的消息；游客本就不能发私聊，属防御性分支）
+     * - 发送者已被软删除（findById 带 deleted_at IS NULL）
+     */
+    private String resolveSenderUsername(Message message) {
+        if (message.getSenderId() == null) return null;
+        User sender = userMapper.findById(message.getSenderId());
+        return sender == null ? null : sender.getUsername();
     }
 
     /**

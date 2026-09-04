@@ -71,6 +71,20 @@ export function useChatHistory(chatStore, authStore) {
     isNearBottom.value = true
   }
 
+  // 群聊历史游标 = 当前列表中最早的一条真实消息 id。
+  //
+  // 不用 messages[0].id：那样把「数组是升序的」当成了隐含前提，一旦某次前插的顺序不对，
+  // 游标就会退化成「该批最新一条」，每页只后退 1 条 id、反复拉回几乎同一批消息，
+  // 表现为「一组消息一直循环、翻不到更早历史」。直接取最小 id 与数组顺序解耦。
+  // 同时跳过负数临时 id（乐观更新占位），它们不是数据库游标。
+  function earliestRealId(list) {
+    let min = null
+    for (const m of list) {
+      if (m.id > 0 && (min === null || m.id < min)) min = m.id
+    }
+    return min
+  }
+
   // 加载群聊历史消息（游标分页）
   async function loadHistory() {
     if (chatStore.groupLoading || !hasMore.value || isPrivateMode.value) return
@@ -79,11 +93,17 @@ export function useChatHistory(chatStore, authStore) {
     // 请求发出前先记下滚动基准（loadHistory 由滚动事件触发，此刻容器一定可见）
     const base = readScrollBase(groupScrollerRef.value?.$el)
     try {
-      const cursor = messages.value.length > 0 ? messages.value[0].id : null
+      const cursor = earliestRealId(messages.value)
       const res = await messageApi.getHistory({ cursor, size: pageSize })
       if (res.data.code === 200) {
         const data = res.data.data
-        chatStore.messages = [...data.items, ...chatStore.messages]
+        // 后端按 id DESC 返回（最新在前），本地列表是升序 —— 必须反转后再前插。
+        // 漏掉这次 reverse 会让前插块内部逆序显示，且污染下一页游标。
+        const older = [...data.items].reverse()
+        // 去重兜底：游标分页理论上不会重叠，但 WS 推送与历史拉取可能撞上同一条
+        const known = new Set(chatStore.messages.map(m => m.id))
+        const fresh = older.filter(m => !known.has(m.id))
+        chatStore.messages = [...fresh, ...chatStore.messages]
         await nextTick()
         if (!applyScrollShift(groupScrollerRef.value?.$el, base) && base) {
           // 容器已被隐藏（请求飞行途中用户切去了私聊）：挂起，切回群聊时再补
@@ -169,8 +189,8 @@ export function useChatHistory(chatStore, authStore) {
     if (!username || !privateHasMore.value[username]) return
     const arr = chatStore.privateMessages[username] || []
     if (arr.length === 0) return
-    // 游标 = 当前最早一条真实消息 id（跳过负数临时消息）
-    const cursor = arr.find(m => m.id > 0)?.id
+    // 游标 = 当前最早一条真实消息 id（与群聊同一套取法，不依赖数组顺序）
+    const cursor = earliestRealId(arr)
     if (!cursor) return
     suppressScrollWatch = true  // 前插导致 length 增加，不误报"新消息"
     chatStore.setPrivateLoading(true)
@@ -179,9 +199,12 @@ export function useChatHistory(chatStore, authStore) {
       const res = await messageApi.getPrivateHistory(username, { cursor, size: pageSize })
       if (res.data.code === 200) {
         const data = res.data.data
-        const more = [...data.items].reverse()
+        // 后端按 id DESC 返回，本地升序 → 反转后前插
+        const older = [...data.items].reverse()
+        const known = new Set(arr.map(m => m.id))
+        const more = older.filter(m => !known.has(m.id))
         if (more.length === 0) {
-          privateHasMore.value[username] = false
+          privateHasMore.value[username] = data.hasMore === true && data.items.length > 0
           return
         }
         chatStore.setPrivateMessages(username, [...more, ...arr])

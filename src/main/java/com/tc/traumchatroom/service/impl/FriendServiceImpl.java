@@ -243,6 +243,15 @@ public class FriendServiceImpl implements FriendService {
         }
 
         if ("accept".equals(request.getAction())) {
+            // 先确认申请人还在：findById 带 deleted_at IS NULL，申请人被管理员软删除后返回 null。
+            // 原实现直到最后发通知时才 findById(...).getUsername() → NPE 500，
+            // 而此时好友关系已经写进去了（事务回滚，但用户看到的是「失败」而状态语义不明）。
+            // 提前校验既修掉 NPE，也避免给一个已注销账号建立好友关系。
+            User senderUser = userMapper.findById(fr.getSenderId());
+            if (senderUser == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "申请人账号已注销，无法同意该申请");
+            }
+
             // 同意：更新状态 + 创建双向好友关系
             friendRequestMapper.updateStatus(requestId, 1);
 
@@ -260,7 +269,7 @@ public class FriendServiceImpl implements FriendService {
             // WebSocket 通知申请方：申请已通过
             User receiverUser = userMapper.findById(fr.getReceiverId());
             messagingTemplate.convertAndSendToUser(
-                    userMapper.findById(fr.getSenderId()).getUsername(),
+                    senderUser.getUsername(),
                     "/queue/friend-accepted",
                     Map.of(
                             "type", "friend_accepted",

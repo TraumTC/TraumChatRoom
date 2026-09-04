@@ -123,15 +123,16 @@ CREATE TABLE `operation_log` (
     INDEX `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 数据库触发器
-DELIMITER $$
-CREATE TRIGGER trg_user_name_update
-    AFTER UPDATE ON user
-    FOR EACH ROW
-BEGIN
-    IF OLD.name != NEW.name THEN
-        UPDATE message SET sender_name = NEW.name WHERE sender_name = OLD.name;
-        UPDATE message SET receiver_name = NEW.name WHERE receiver_name = OLD.name;
-    END IF;
-END$$
-DELIMITER ;
+-- 说明：原先这里有一个 trg_user_name_update 触发器，在 user.name 变更后同步改写
+-- message.sender_name 与 message.receiver_name。已删除，原因（报告 P1-9）：
+--
+-- 1. receiver_name 列存的语义是 **username**（见 MessageMapper.xml / FileServiceImpl 注释），
+--    触发器却拿 **昵称** 去匹配它：只要有用户把昵称改成恰好等于别人的 username，
+--    所有发给那个人的私聊行 receiver_name 会被整片改写，导致会话记录错乱、消息串到别人会话。
+-- 2. sender_name 那半句与 MessageMapper.updateSenderName 职责重复，而后者按 sender_id
+--    精确定位，比按昵称字符串匹配安全。
+--
+-- 现在两条改名路径都在应用层同步 sender_name：
+--   用户自己改名 → UserServiceImpl#updateProfile
+--   管理员改名   → AdminController#updateUser
+-- 存量库请执行 migration/V3__drop_user_name_trigger.sql 删除该触发器并修复被污染的数据。

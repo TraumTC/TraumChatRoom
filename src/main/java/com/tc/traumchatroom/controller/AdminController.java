@@ -8,6 +8,7 @@ import com.tc.traumchatroom.entity.SensitiveWord;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.exception.BusinessException;
 import com.tc.traumchatroom.exception.ErrorCode;
+import com.tc.traumchatroom.mapper.MessageMapper;
 import com.tc.traumchatroom.mapper.OperationLogMapper;
 import com.tc.traumchatroom.mapper.SensitiveWordMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +57,31 @@ public class AdminController {
 
     @Resource
     private RefreshTokenStore refreshTokenStore;
+
+    @Resource
+    private MessageMapper messageMapper;
+
+    /**
+     * 允许的角色白名单。
+     *
+     * 原来 role 只校验非空就直接落库，任意字符串都收：
+     * - 拼错成 ROLE_USRE → 该用户所有 hasRole 判断静默失效，权限行为异常且极难排查；
+     * - 填 ROLE_AI → 命中 assertNotProtected 的 isAiUser 判定，
+     *   把一个普通账号变成不可删、不可改的「受保护用户」，管理端再也处理不了它。
+     * ROLE_GUEST 不在白名单内：游客只存在于 Redis，从不落 user 表，
+     * 把库里的账号改成游客角色没有任何合法用途。
+     */
+    private static final Set<String> ASSIGNABLE_ROLES = Set.of("ROLE_USER", "ROLE_ADMIN");
+
+    /**
+     * 校验角色取值合法，非法直接拒绝。
+     */
+    private void assertAssignableRole(String role) {
+        if (!ASSIGNABLE_ROLES.contains(role)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "角色只能是 ROLE_USER 或 ROLE_ADMIN，收到: " + role);
+        }
+    }
 
     /**
      * 获取敏感词列表（分页）
@@ -259,6 +286,7 @@ public class AdminController {
         if (role == null || role.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "角色不能为空");
         }
+        assertAssignableRole(role);
 
         User user = userMapper.findById(id);
         if (user == null) {
@@ -294,6 +322,7 @@ public class AdminController {
 
         // 保护校验（前置）：小汤与管理员禁止改角色/禁用/重置密码；小汤昵称固定，管理员昵称可改
         if (role != null && !role.isBlank()) {
+            assertAssignableRole(role);
             assertNotProtected(user, "修改角色");
         }
         if (status != null) {
@@ -309,11 +338,13 @@ public class AdminController {
         }
 
         // 修改昵称（含已软删除用户查重，避免撞唯一键抛 500）
+        String renamedFrom = null;
         if (name != null && !name.isBlank() && !name.equals(user.getName())) {
             User existing = userMapper.findByNameIncludingDeleted(name);
             if (existing != null) {
                 throw new BusinessException(ErrorCode.NAME_EXISTS);
             }
+            renamedFrom = user.getName();
             user.setName(name);
         }
 
@@ -339,6 +370,16 @@ public class AdminController {
         }
 
         userMapper.updateProfile(user);
+        // 同步历史消息里的冗余 sender_name。
+        // 这一步原先是数据库触发器 trg_user_name_update 做的，而该触发器同时会把
+        // message.receiver_name（存的是 username）按昵称匹配改写，污染私聊会话定位（报告 P1-9），
+        // 已随 V3__drop_user_name_trigger.sql 删除。管理员改名这条路径此前完全依赖触发器，
+        // 因此必须在这里补上 —— 与用户自己改名走同一个按 sender_id 精确定位的 updateSenderName。
+        if (renamedFrom != null) {
+            int updated = messageMapper.updateSenderName(id, renamedFrom, user.getName());
+            log.info("管理员改用户 {} 昵称: {} -> {}，同步更新 {} 条消息的 sender_name",
+                    id, renamedFrom, user.getName(), updated);
+        }
         cacheService.evictUserAfterCommit(id);
         if ((status != null && status == 0) || (password != null && !password.isBlank())) {
             refreshTokenStore.revokeAll(user.getUsername());

@@ -57,7 +57,8 @@
         <!-- 连接状态提示 -->
         <div v-if="!wsStore.connected" class="px-4 py-1 text-xs text-center"
              style="background: rgba(59,130,246,0.08); color: var(--color-signal)">
-          {{ wsStore.connecting ? '正在连接...' : '连接已断开，正在重连...' }}
+          {{ wsStore.authExpired ? '登录状态已失效，请重新登录'
+             : (wsStore.connecting ? '正在连接...' : '连接已断开，正在重连...') }}
         </div>
 
         <!-- 会话标题 -->

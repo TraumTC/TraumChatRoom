@@ -8,6 +8,7 @@ import com.tc.traumchatroom.entity.OperationLog;
 import com.tc.traumchatroom.entity.User;
 import com.tc.traumchatroom.mapper.OperationLogMapper;
 import com.tc.traumchatroom.mapper.UserMapper;
+import com.tc.traumchatroom.util.IpUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -121,8 +122,8 @@ public class OperationLogAspect {
             String detail = buildDetail(args, success, errorMsg);
             operationLog.setDetail(detail);
 
-            // 获取客户端 IP
-            operationLog.setIp(getClientIp());
+            // 获取客户端 IP（统一走 IpUtil，P0-4：可信代理校验）
+            operationLog.setIp(IpUtil.fromHttp(request));
 
             // 获取 User-Agent
             String userAgent = request.getHeader("User-Agent");
@@ -247,20 +248,5 @@ public class OperationLogAspect {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
-    }
-
-    /**
-     * 获取客户端真实 IP
-     */
-    private String getClientIp() {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        String xReal = request.getHeader("X-Real-IP");
-        if (xReal != null && !xReal.isEmpty()) {
-            return xReal;
-        }
-        return request.getRemoteAddr();
     }
 }

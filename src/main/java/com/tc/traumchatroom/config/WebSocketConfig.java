@@ -6,11 +6,13 @@ import com.tc.traumchatroom.util.JwtUtil;
 import com.tc.traumchatroom.service.RefreshTokenStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -28,6 +30,7 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.context.event.EventListener;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -58,6 +61,28 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Resource
     private RefreshTokenStore refreshTokenStore;
 
+    /**
+     * WS 允许的来源，与 HTTP CORS 复用同一份白名单。
+     *
+     * 默认值与 {@code SecurityConfig} 保持一致 —— 两处各读一次同一属性属于既有的
+     * 双份 CORS 配置问题（见审查报告 P3-28），这里不新引入第三套默认值。
+     */
+    @Value("${cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
+
+    /**
+     * 凭据不合法时回给客户端的 ERROR 帧文案。
+     *
+     * 这条消息会发给任意匿名连接者，所以只放通用提示、不带任何内部细节；
+     * {@code UNAUTHORIZED} 前缀供前端识别「是凭据问题、重连也没用」，
+     * 据此主动终止 stompjs 默认的 5 秒一次无限重连（见 useWebSocket.js 的 onStompError）。
+     *
+     * 用 {@link MessageDeliveryException} 而非普通异常：它的 {@code getMessage()} 只返回
+     * 这里的描述，被拒绝的原始帧仅出现在 {@code toString()} 中，
+     * 因此不会把 CONNECT 帧的 Authorization 头回显给客户端。
+     */
+    static final String UNAUTHORIZED_MESSAGE = "UNAUTHORIZED: 需要有效登录凭据";
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/topic", "/queue");
@@ -68,9 +93,36 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(resolveAllowedOrigins())
                 .addInterceptors(handshakeInterceptor)
                 .withSockJS();
+    }
+
+    /**
+     * 解析 WS 来源白名单。
+     *
+     * 原先是 {@code setAllowedOriginPatterns("*")}，任意第三方网页都能在访客浏览器里
+     * 建立这条连接。改为读 {@code cors.allowed-origins}，与 HTTP 侧同一份配置。
+     *
+     * 仍用 {@code AllowedOriginPatterns} 而不是 {@code AllowedOrigins}：精确来源在两者下
+     * 行为一致，但前者额外支持 {@code https://*.example.com} 这类写法，便于后续按需配置。
+     *
+     * 注意 origin 白名单只约束浏览器 —— 非浏览器客户端可以不发或伪造 Origin 头，
+     * 真正封住匿名读取的是下面 {@link #wsChannelInterceptor()} 的 CONNECT 鉴权。
+     *
+     * 白名单解析为空时直接启动失败：此时端点会拒绝所有来源，与其在运行期表现为
+     * 「谁都连不上」的费解故障，不如在启动阶段就把配置错误暴露出来。
+     */
+    private String[] resolveAllowedOrigins() {
+        String[] origins = Arrays.stream((allowedOrigins == null ? "" : allowedOrigins).split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+        if (origins.length == 0) {
+            throw new IllegalStateException(
+                    "cors.allowed-origins 解析为空，WebSocket 端点将拒绝所有来源，请检查 CORS_ALLOWED_ORIGINS 配置");
+        }
+        return origins;
     }
 
     @Override
@@ -94,7 +146,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * 入站 Channel 拦截器：处理 CONNECT 事件（从 STOMP header 提取 JWT）
+     * 入站 Channel 拦截器：CONNECT 鉴权（解析 JWT → 设置 Principal），SUBSCRIBE 纵深防御。
+     *
+     * 原实现只在 CONNECT 时「解析得到用户名就设 Principal」，解析不到则什么都不做、
+     * 照常放行。结果是不带 token 也能连上，虽然发不出消息（{@code @MessageMapping} 的
+     * {@code Principal} 为 null 时静默 return），但可以订阅 {@code /topic/messages}
+     * 拿到全部群聊实时流、{@code /topic/onlineUsers} 拿到在线名单。
+     *
+     * 现在改为解析不到身份就拒绝 CONNECT 帧：Spring 的 StompSubProtocolHandler 会把异常
+     * 转成 ERROR 帧回给客户端并关闭连接（且对未发送成功的 CONNECT/SUBSCRIBE 主动跳过
+     * ERROR 级日志，不会被匿名连接刷日志），匿名连接连建立都建立不起来。
+     *
+     * 游客不受影响：游客走 /api/auth/guest 拿到的是带 sid 的真 JWT 且在
+     * RefreshTokenStore 里有会话记录，{@link #resolveUsername} 正常返回用户名。
      */
     @Bean
     public ChannelInterceptor wsChannelInterceptor() {
@@ -103,16 +167,44 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor =
                         MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-                if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-                    String username = resolveUsername(accessor);
-                    if (username != null) {
-                        // 设置 Principal，后续 @MessageMapping 的 Principal 参数即可用
-                        accessor.setUser(() -> username);
-                        // 带上 STOMP 会话 ID：同一账号多设备并行在线时用它做引用计数
-                        webSocketChatController.onUserConnect(username, accessor.getSessionId());
-                        log.info("用户连接 WebSocket: {} (session={})", username, accessor.getSessionId());
-                    }
+                if (accessor == null) {
+                    return message;
                 }
+
+                StompCommand command = accessor.getCommand();
+                if (command == null) {
+                    // 心跳帧（STOMP EOL）没有 command，直接放行
+                    return message;
+                }
+
+                // CONNECT / STOMP：解析不出身份就拒绝建连（STOMP 1.2 客户端可能用 STOMP 帧代替 CONNECT，
+                // Spring 对两者一视同仁，这里保持一致，避免留下「换个帧名就绕过」的口子）
+                if (StompCommand.CONNECT.equals(command) || StompCommand.STOMP.equals(command)) {
+                    String username = resolveUsername(accessor);
+                    if (username == null) {
+                        log.debug("拒绝无有效凭据的 WebSocket 连接 (session={})", accessor.getSessionId());
+                        throw new MessageDeliveryException(message, UNAUTHORIZED_MESSAGE);
+                    }
+                    // 设置 Principal，后续 @MessageMapping 的 Principal 参数即可用；
+                    // Spring 通过 CONNECT 帧上注册的 userChangeCallback 把它记在会话上，
+                    // 之后同一会话的每个帧（含 SUBSCRIBE/SEND）都会带上它
+                    accessor.setUser(() -> username);
+                    // 带上 STOMP 会话 ID：同一账号多设备并行在线时用它做引用计数
+                    webSocketChatController.onUserConnect(username, accessor.getSessionId());
+                    log.info("用户连接 WebSocket: {} (session={})", username, accessor.getSessionId());
+                    return message;
+                }
+
+                // SUBSCRIBE：纵深防御。CONNECT 已经拦住匿名会话，正常情况下这里不会触发；
+                // 留着是为了「就算将来有别的路径建出了无身份会话，也订阅不到任何东西」。
+                // SEND 不在此处拦：它落到 @MessageMapping 时本来就因 Principal 为 null 而被丢弃，
+                // 而 Spring 只对 CONNECT/SUBSCRIBE 跳过 ERROR 级日志，拦 SEND 会多出一条可被刷的日志。
+                if (StompCommand.SUBSCRIBE.equals(command) && accessor.getUser() == null) {
+                    log.debug("拒绝无身份会话的订阅: destination={} (session={})",
+                            accessor.getDestination(), accessor.getSessionId());
+                    throw new MessageDeliveryException(message, UNAUTHORIZED_MESSAGE);
+                }
+
                 return message;
             }
 

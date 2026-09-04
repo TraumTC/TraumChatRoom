@@ -92,6 +92,26 @@ export const themeOverrides = {
     borderRadius: '14px',
     boxShadow: '0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)'
   },
+  // 弹窗（window.$dialog）：Dialog 有自己的一套 self 变量，不吃 Modal 的覆盖，
+  // 此前一直用库默认值（圆角 10px、标题/正文取 common 的通用文字色），
+  // 与全站 14px 圆角的卡片、墨色文字体系对不上。这里统一到设计 Token。
+  // 图标色沿用语义色（warn/alarm/live 都是本项目自己的 Token），
+  // 真正与全站蓝色主色冲突的是「确认按钮」—— 它的颜色由 $dialog 调用时的 type 决定，
+  // 不属于 Dialog 主题变量，纯告知类弹窗需在调用处传 positiveButtonProps 指定 primary。
+  Dialog: {
+    borderRadius: '14px',
+    titleFontSize: '16px',
+    titleTextColor: tokens.ink,
+    textColor: tokens.inkSoft,
+    closeIconColor: tokens.inkFaint,
+    iconColor: tokens.signal,
+    iconColorInfo: tokens.signal,
+    iconColorSuccess: tokens.live,
+    iconColorWarning: tokens.warn,
+    iconColorError: tokens.alarm,
+    iconSize: '22px',
+    padding: '20px 24px 18px 24px'
+  },
   // 数据表格优化
   DataTable: {
     borderRadius: '10px',
