@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import {
   ArrowLeft, AtSign, BadgeCheck, Bell, Bot, ChevronDown, ChevronLeft, Circle,
-  CornerUpLeft, Download, Ellipsis, Eye, FileText, ImageOff, Lock, LogIn, LogOut,
+  Copy, CornerUpLeft, Download, Ellipsis, Eye, FileText, ImageOff, Lock, LogIn, LogOut,
   Menu, MessageSquare, MessagesSquare, Paperclip, Plus, Radio, RefreshCw,
   RotateCcw, Search, Send, Smile, User, UserRoundPlus, Users, Video, X
 } from '@lucide/vue'
@@ -21,6 +21,7 @@ const icons = {
   'chevron-down': ChevronDown,
   'chevron-left': ChevronLeft,
   circle: Circle,
+  copy: Copy,
   'corner-up-left': CornerUpLeft,
   download: Download,
   ellipsis: Ellipsis,

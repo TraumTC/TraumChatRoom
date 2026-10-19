@@ -9,10 +9,17 @@
 
   <!-- 正常消息（纯 flex 行，避免组件包裹破坏布局） -->
   <div v-else class="flex gap-2dot5 px-4 py-2dot5 group msg-enter msg-touchable" :class="isSelf ? 'flex-row-reverse' : ''"
-       @contextmenu.prevent="openMenu"
+       @contextmenu.prevent="openMenu" @selectstart.prevent @dragstart.prevent
        @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchCancel">
-    <!-- 头像 -->
-    <UserAvatar :user="message.sender" size="md" class="mt-1" />
+    <!-- 头像：移动端长按 → 在输入框插入 @TA（先 stop，避免同时触发整行长按菜单） -->
+    <div class="mt-1 shrink-0 avatar-press"
+         @contextmenu="onAvatarContextMenu"
+         @touchstart="onAvatarTouchStart"
+         @touchmove="onAvatarTouchMove"
+         @touchend="onAvatarTouchEnd"
+         @touchcancel="onAvatarTouchEnd">
+      <UserAvatar :user="message.sender" size="md" />
+    </div>
 
     <div class="min-w-0 flex flex-col" :class="isSelf ? 'items-end' : 'items-start'">
       <!-- 发送者 + 时间 -->
@@ -170,11 +177,18 @@ const safeContent = computed(() => {
   return highlightMentions(props.message.content, isSelf.value)
 })
 
-// 右键菜单项（动态生成）
+// 文本消息可复制：消息区已禁用系统选中菜单，复制能力由自定义菜单提供
+const canCopy = computed(() =>
+  props.message.messageType === 'text' && !!props.message.content && !props.message.recalled
+)
+
+// 右键/长按菜单项（动态生成）
 const menuItems = computed(() => {
-  const items = [
-    { key: 'quote', label: '引用', icon: 'corner-up-left' }
-  ]
+  const items = []
+  if (canCopy.value) {
+    items.push({ key: 'copy', label: '复制', icon: 'copy' })
+  }
+  items.push({ key: 'quote', label: '引用', icon: 'corner-up-left' })
   if (hasFile.value) {
     items.push({ key: 'download', label: '下载', icon: 'download' })
   }
@@ -249,12 +263,96 @@ function clearLongPress() {
   touchStartPos = null
 }
 
+// ---------- 移动端长按头像 → @TA ----------
+let avatarPressTimer = null
+let avatarPressStart = null
+
+function onAvatarContextMenu(e) {
+  // 群聊里长按头像走 @TA，屏蔽浏览器菜单；私聊交还给整行菜单
+  if (chatStore.currentChat.type === 'private') return
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function onAvatarTouchStart(e) {
+  // 私聊里 @ 没有意义；让事件继续冒泡，整行长按菜单照常工作
+  if (chatStore.currentChat.type === 'private') {
+    clearAvatarPress()
+    return
+  }
+  if (!props.message?.sender?.name) return
+  if (e.touches.length !== 1) return
+
+  // 头像长按与整行长按互斥：头像上不启动整行菜单的计时器
+  e.stopPropagation()
+  clearAvatarPress()
+  const t = e.touches[0]
+  avatarPressStart = { x: t.clientX, y: t.clientY }
+  avatarPressTimer = setTimeout(() => {
+    avatarPressTimer = null
+    const sender = props.message?.sender
+    if (!sender?.name) return
+    navigator.vibrate?.(10)
+    chatStore.requestMention({ username: sender.username, name: sender.name })
+    avatarPressStart = null
+  }, 500)
+}
+
+function onAvatarTouchMove(e) {
+  if (!avatarPressStart) return
+  const t = e.touches[0]
+  if (!t) return
+  if (Math.abs(t.clientX - avatarPressStart.x) > 10 ||
+      Math.abs(t.clientY - avatarPressStart.y) > 10) {
+    clearAvatarPress()
+  }
+}
+
+function onAvatarTouchEnd() {
+  clearAvatarPress()
+}
+
+function clearAvatarPress() {
+  if (avatarPressTimer) {
+    clearTimeout(avatarPressTimer)
+    avatarPressTimer = null
+  }
+  avatarPressStart = null
+}
+
 function onImageClick() {
   if (suppressImageClick) return
   showPreview.value = true
 }
 
-onUnmounted(clearLongPress)
+onUnmounted(() => {
+  clearLongPress()
+  clearAvatarPress()
+})
+
+// ---------- 复制消息文本 ----------
+async function handleCopy() {
+  const text = props.message.content || ''
+  if (!text) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      // 非安全上下文（http 局域网访问）下 Clipboard API 不可用
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    window.$message?.success('已复制')
+  } catch (e) {
+    window.$message?.error('复制失败')
+  }
+}
 
 function closeMenu() {
   menuVisible.value = false
@@ -262,7 +360,8 @@ function closeMenu() {
 
 function handleMenu(key) {
   closeMenu()
-  if (key === 'quote') chatStore.setReplyTo(props.message)
+  if (key === 'copy') handleCopy()
+  else if (key === 'quote') chatStore.setReplyTo(props.message)
   else if (key === 'download') {
     const a = document.createElement('a')
     a.href = resolveFileUrl(props.message.filePath) + '?name=' + encodeURIComponent(props.message.fileName || '')
@@ -322,9 +421,22 @@ function isVideo(fileName) {
 </script>
 
 <style scoped>
-/* 移动端长按消息行时禁用 iOS 系统 callout（复制/保存等），保证自定义菜单正常呼出 */
-.msg-touchable {
+/* 移动端长按消息行时禁用系统 callout / 文本选中（复制/保存等），
+   只允许自定义菜单（复制 / 引用 / 下载 / 撤回）出现 */
+.msg-touchable,
+.avatar-press {
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.avatar-press {
+  -webkit-touch-callout: none;
+}
+/* v-html 渲染：保留输入时的换行与连续空格，否则浏览器会把 \n 折叠成空格 */
+.bubble-self,
+.bubble-other,
+.ai-bubble {
+  white-space: pre-wrap;
 }
 .bubble-self {
   background: #95EC69;

@@ -22,6 +22,7 @@ export const useChatStore = defineStore('chat', () => {
   const notifications = ref([])         // 通知队列（Toast）
   const mentionNotices = ref([])        // 群聊 @提及未读 [{ senderName, messageId, content, createdAt }]
   const replyTo = ref(null)             // 引用消息 { id, senderName, content }
+  const mentionRequest = ref(null)      // 移动端长按头像 → 请求输入框插入 @（{ username, name }）
   const friendRequestCount = ref(0)     // 未处理的好友申请数量
   const friendListVersion = ref(0)      // 好友列表刷新版本号（监听变化自动刷新）
   const privateUnreadSenders = ref({})  // 有未读私聊消息的发送者 { username: { name, username } }
@@ -277,6 +278,26 @@ export const useChatStore = defineStore('chat', () => {
     replyTo.value = null
   }
 
+  /**
+   * 移动端长按消息头像 → 请求输入框插入 @昵称。
+   *
+   * 用 store 中转而不是 EventBus：MessageItem 与 MessageInput 是同级的兄弟组件，
+   * 中间隔着 ChatView 的虚拟列表，逐层 emit 既啰嗦又容易在私聊/群聊两个列表里漏改。
+   * 每次请求都新建对象，保证监听方即使连续长按同一个人也能收到变更。
+   */
+  function requestMention(user) {
+    if (!user?.name) return
+    mentionRequest.value = {
+      username: user.username || null,
+      name: user.name,
+      seq: Date.now()
+    }
+  }
+
+  function clearMentionRequest() {
+    mentionRequest.value = null
+  }
+
   // 好友申请计数
   function setFriendRequestCount(count) {
     friendRequestCount.value = count
@@ -457,6 +478,7 @@ export const useChatStore = defineStore('chat', () => {
     notifications.value = []
     mentionNotices.value = []
     replyTo.value = null
+    mentionRequest.value = null
     friendRequestCount.value = 0
     friendListVersion.value = 0
     isPageHidden.value = false
@@ -538,7 +560,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return { messages, onlineUsers, privateMessages, privateTabs,
            currentChat, currentPrivateChat, unreadCounts, privateUnreadSenders,
-           totalUnread, totalPrivateUnread, loading, groupLoading, privateLoading, error, notifications, mentionNotices, mentionUnreadCount, replyTo, friendRequestCount, friendListVersion,
+           totalUnread, totalPrivateUnread, loading, groupLoading, privateLoading, error, notifications, mentionNotices, mentionUnreadCount, replyTo, mentionRequest, friendRequestCount, friendListVersion,
            addMessage, addPrivateMessage, updateMessage,
            handleMessageRecalled, setOnlineUsers,
            openGroupChat, openPrivateChat, closePrivateTab,
@@ -546,7 +568,7 @@ export const useChatStore = defineStore('chat', () => {
            isMyMessage,
            addMentionNotice, mergeMentions, clearMentions, removeMention,
            setGroupLoading, setPrivateLoading, setError, setPageHidden,
-           setReplyTo, clearReplyTo,
+           setReplyTo, clearReplyTo, requestMention, clearMentionRequest,
            setFriendRequestCount, incrementFriendRequestCount, incrementFriendListVersion,
            mergeUnreadSummary, removePendingMessage,
            updateUploadProgress, settleUpload,

@@ -46,6 +46,7 @@
         v-model="inputText"
         @keydown="handleKeydown"
         @input="handleInput"
+        @paste="handlePaste"
         @compositionstart="isComposing = true"
         @compositionend="handleCompositionEnd"
         @focus="onInputFocus"
@@ -54,8 +55,8 @@
         maxlength="2000"
         rows="1"
         ref="inputRef"
-        class="flex-1 resize-none rounded-lg px-3 py-2 text-base sm:text-sm max-h-40 min-h-[40px] sm:min-h-0 focus:outline-none transition-all"
-        style="background: var(--color-hover); color: var(--color-ink); border: 1px solid var(--color-border)"
+        class="flex-1 resize-none rounded-lg px-3 py-2 text-base sm:text-sm min-h-[40px] sm:min-h-0 focus:outline-none transition-colors message-textarea"
+        style="background: var(--color-hover); color: var(--color-ink); border: 1px solid var(--color-border); overflow-y: hidden"
       />
 
       <!-- 字数提示 -->
@@ -73,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import MentionPopup from './MentionPopup.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -97,12 +98,35 @@ const isComposing = ref(false)
 const mentionPopupRef = ref(null)
 const isMobile = ref(window.innerWidth < 640)
 
+// 输入框自适应高度上限：五行。行高按实际计算样式动态取，
+// 这样桌面端 text-sm 与移动端 text-base 各自按自己的行高封顶。
+const MAX_INPUT_LINES = 5
+
 const placeholderText = computed(() =>
   isMobile.value ? '输入消息...' : '输入消息...（Enter 发送，Shift+Enter 换行）'
 )
 
+/**
+ * 根据内容撑高输入框，最多五行，超出后内部滚动。
+ * scrollHeight 含 padding 不含 border，而 textarea 是 border-box，
+ * 因此设置高度时要补上 border，否则最后一行会被裁掉 1~2px。
+ */
+function autoResize() {
+  const el = inputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  const style = window.getComputedStyle(el)
+  const lineHeight = parseFloat(style.lineHeight) || 20
+  const paddingY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
+  const borderY = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0)
+  const maxContentHeight = lineHeight * MAX_INPUT_LINES + paddingY
+  el.style.height = `${Math.min(el.scrollHeight, maxContentHeight) + borderY}px`
+  el.style.overflowY = el.scrollHeight > maxContentHeight ? 'auto' : 'hidden'
+}
+
 function handleResize() {
   isMobile.value = window.innerWidth < 640
+  nextTick(autoResize)
 }
 
 // 点击弹窗外任意区域 → 关闭表情选择弹窗（图标按钮与弹窗本身在 emojiWrapRef 内，不触发关闭）
@@ -128,6 +152,7 @@ function onInputBlur() {
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   document.addEventListener('mousedown', onOutsideClick)
+  nextTick(autoResize)
 })
 
 onUnmounted(() => {
@@ -138,6 +163,18 @@ onUnmounted(() => {
 const props = defineProps({
   chatType: { type: String, default: 'group' },
   receiver: { type: String, default: null }
+})
+
+// 输入内容变化（打字、表情、@、程序清空）都重新计算高度
+watch(inputText, () => nextTick(autoResize))
+
+// 移动端长按消息头像 → 在光标处插入 @昵称
+watch(() => chatStore.mentionRequest, (req) => {
+  if (!req) return
+  chatStore.clearMentionRequest()
+  // @ 只对群聊有意义，私聊下直接丢弃请求
+  if (props.chatType !== 'group') return
+  insertMention(req.name)
 })
 
 const acceptTypes = computed(() => {
@@ -213,6 +250,7 @@ function handleInput() {
 function handleCompositionEnd() {
   isComposing.value = false
   detectMention()
+  nextTick(autoResize)
 }
 
 function detectMention() {
@@ -234,6 +272,88 @@ async function handleMentionSelect(user) {
   showMention.value = false
   await nextTick()
   inputRef.value?.focus()
+}
+
+/**
+ * 在光标处插入 @昵称（移动端长按头像触发）。
+ * 若光标前正在输入 @关键词，先把它替换掉，避免出现 "@张三 @李" 这种残留。
+ */
+function insertMention(name) {
+  const mention = `@${name} `
+  const textarea = inputRef.value
+  if (!textarea) {
+    inputText.value += mention
+    return
+  }
+  // 输入框未聚焦时 selectionStart 可能停留在旧位置甚至 0，此时统一追加到末尾
+  const focused = document.activeElement === textarea
+  const start = focused ? (textarea.selectionStart ?? inputText.value.length) : inputText.value.length
+  const end = focused ? (textarea.selectionEnd ?? start) : inputText.value.length
+  let before = inputText.value.slice(0, start)
+  const after = inputText.value.slice(end)
+
+  before = before.replace(/@[^\s@]*$/, '')
+  // 与前面的正文之间补一个空格，避免 "你好@张三"
+  const prefix = before && !/\s$/.test(before) ? ' ' : ''
+  const inserted = prefix + mention
+  inputText.value = before + inserted + after
+  showMention.value = false
+
+  const caret = before.length + inserted.length
+  nextTick(() => {
+    textarea.focus()
+    textarea.setSelectionRange(caret, caret)
+    autoResize()
+  })
+}
+
+// 剪贴板图片扩展名白名单（与后端 allowed-types 保持一致）
+const PASTE_IMAGE_EXT = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
+  'image/webp': 'webp'
+}
+
+/**
+ * Ctrl+V 粘贴图片：直接走与「选择文件」相同的上传链路（占位 + 进度 + 发送）。
+ * 只有剪贴板里确实有图片时才拦截默认行为，纯文本粘贴保持浏览器原生行为。
+ */
+function handlePaste(e) {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  const imageFiles = []
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      // 个别浏览器 getAsFile() 返回的 File.type 为空，用 item.type 兜底
+      if (file) imageFiles.push({ file, type: file.type || item.type })
+    }
+  }
+  if (imageFiles.length === 0) return
+
+  e.preventDefault()
+  imageFiles.forEach(({ file, type }, index) => {
+    const ext = PASTE_IMAGE_EXT[type]
+    if (!ext) {
+      window.$message?.warning('不支持的图片格式')
+      return
+    }
+    emit('fileUpload', new File([file], pastedImageName(ext, index, imageFiles.length), { type }))
+  })
+}
+
+function pastedImageName(ext, index, total) {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  // 带毫秒：fileRequestId 由「文件名 + 大小 + lastModified」派生，
+  // 名字过于接近会让同一秒内两次粘贴被后端幂等注解误判为重复提交。
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${String(d.getMilliseconds()).padStart(3, '0')}`
+  const suffix = total > 1 ? `-${index + 1}` : ''
+  return `粘贴图片-${stamp}${suffix}.${ext}`
 }
 
 function handleFileUpload(e) {
